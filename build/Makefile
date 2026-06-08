@@ -238,6 +238,30 @@ src/Penumbra/Render/Renderer.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Render/Renderer.cpp.s
 .PHONY : src/Penumbra/Render/Renderer.cpp.s
 
+src/Penumbra/Render/SdlTtfFontBackend.o: src/Penumbra/Render/SdlTtfFontBackend.cpp.o
+.PHONY : src/Penumbra/Render/SdlTtfFontBackend.o
+
+# target to build an object file
+src/Penumbra/Render/SdlTtfFontBackend.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Render/SdlTtfFontBackend.cpp.o
+.PHONY : src/Penumbra/Render/SdlTtfFontBackend.cpp.o
+
+src/Penumbra/Render/SdlTtfFontBackend.i: src/Penumbra/Render/SdlTtfFontBackend.cpp.i
+.PHONY : src/Penumbra/Render/SdlTtfFontBackend.i
+
+# target to preprocess a source file
+src/Penumbra/Render/SdlTtfFontBackend.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Render/SdlTtfFontBackend.cpp.i
+.PHONY : src/Penumbra/Render/SdlTtfFontBackend.cpp.i
+
+src/Penumbra/Render/SdlTtfFontBackend.s: src/Penumbra/Render/SdlTtfFontBackend.cpp.s
+.PHONY : src/Penumbra/Render/SdlTtfFontBackend.s
+
+# target to generate assembly for a file
+src/Penumbra/Render/SdlTtfFontBackend.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Render/SdlTtfFontBackend.cpp.s
+.PHONY : src/Penumbra/Render/SdlTtfFontBackend.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -260,6 +284,9 @@ help:
 	@echo "... src/Penumbra/Render/Renderer.o"
 	@echo "... src/Penumbra/Render/Renderer.i"
 	@echo "... src/Penumbra/Render/Renderer.s"
+	@echo "... src/Penumbra/Render/SdlTtfFontBackend.o"
+	@echo "... src/Penumbra/Render/SdlTtfFontBackend.i"
+	@echo "... src/Penumbra/Render/SdlTtfFontBackend.s"
 .PHONY : help
 
 

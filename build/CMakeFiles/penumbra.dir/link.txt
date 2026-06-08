@@ -1,2 +1,2 @@
-/usr/bin/ar qc libpenumbra.a CMakeFiles/penumbra.dir/src/Penumbra/Platform/PlatformWindow.cpp.o CMakeFiles/penumbra.dir/src/Penumbra/Render/Renderer.cpp.o
+/usr/bin/ar qc libpenumbra.a CMakeFiles/penumbra.dir/src/Penumbra/Platform/PlatformWindow.cpp.o CMakeFiles/penumbra.dir/src/Penumbra/Render/Renderer.cpp.o CMakeFiles/penumbra.dir/src/Penumbra/Render/SdlTtfFontBackend.cpp.o
 /usr/bin/ranlib libpenumbra.a

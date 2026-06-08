@@ -19,6 +19,8 @@ struct Theme {
 
     float BorderRadiusSmall  = 3.0f;
     float BorderWidthDefault = 1.0f;
+
+    float FontSizeBody = 16.0f;
 };
 
 } // namespace Demo

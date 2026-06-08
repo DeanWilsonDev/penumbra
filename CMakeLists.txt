@@ -22,7 +22,8 @@ find_package(SDL3_ttf CONFIG REQUIRED)
 # ---------------------------------------------------------------------------
 add_library(penumbra STATIC
     src/Penumbra/Platform/PlatformWindow.cpp
-    src/Penumbra/Render/Renderer.cpp)
+    src/Penumbra/Render/Renderer.cpp
+    src/Penumbra/Render/SdlTtfFontBackend.cpp)
 
 target_include_directories(penumbra PUBLIC include)
 
@@ -40,3 +41,8 @@ add_executable(penumbra_demo
 target_link_libraries(penumbra_demo PRIVATE penumbra)
 set_target_properties(penumbra_demo PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/demo")
+
+# Absolute path to the demo's vendored assets, so the binary finds its font
+# regardless of the working directory it is launched from. A demo concern only.
+target_compile_definitions(penumbra_demo PRIVATE
+    DEMO_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/demo/assets")
