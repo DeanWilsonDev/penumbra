@@ -11,6 +11,9 @@ namespace {
 
 constexpr float Pi = 3.14159265358979323846f;
 
+// Width in physical pixels of the anti-aliasing fringe; it straddles the edge.
+constexpr float AaFeatherPhysical = 1.0f;
+
 SDL_FColor ToFColor(SDL_Color Color) {
     return {Color.r / 255.0f, Color.g / 255.0f, Color.b / 255.0f, Color.a / 255.0f};
 }
@@ -18,13 +21,18 @@ SDL_FColor ToFColor(SDL_Color Color) {
 // More segments per corner as the radius grows, so small radii stay cheap and large
 // ones stay smooth.
 int SegmentsForRadius(float RadiusPhysical) {
-    return std::clamp(static_cast<int>(std::ceil(RadiusPhysical / 2.0f)), 2, 24);
+    return std::clamp(static_cast<int>(std::ceil(RadiusPhysical / 2.0f)), 2, 48);
 }
 
-// Clockwise perimeter of a rounded rect in screen space (y down). The four corner
-// arc centres are the rect's inset corners; straight edges fall out as the chords
-// between adjacent corner arcs. Radius must already be clamped to <= min(w,h)/2.
-std::vector<SDL_FPoint> BuildRoundedPerimeter(SDL_FRect R, float Radius, int Segments) {
+// A rounded-rect perimeter (clockwise, screen space y-down) plus the outward unit
+// normal at each point — the normal is just the corner's radial direction, which at
+// the arc endpoints is axis-aligned and so matches the adjacent straight edge too.
+struct RoundedRing {
+    std::vector<SDL_FPoint> Points;
+    std::vector<SDL_FPoint> Normals;
+};
+
+RoundedRing BuildRoundedRing(SDL_FRect R, float Radius, int Segments) {
     struct Corner {
         float CentreX, CentreY, AngleStart, AngleEnd;
     };
@@ -35,17 +43,20 @@ std::vector<SDL_FPoint> BuildRoundedPerimeter(SDL_FRect R, float Radius, int Seg
         {R.x + Radius,          R.y + R.h - Radius,    Pi * 0.5f,   Pi},        // bottom-left
     };
 
-    std::vector<SDL_FPoint> Points;
-    Points.reserve(static_cast<std::size_t>(Segments + 1) * 4);
+    RoundedRing Ring;
+    Ring.Points.reserve(static_cast<std::size_t>(Segments + 1) * 4);
+    Ring.Normals.reserve(static_cast<std::size_t>(Segments + 1) * 4);
     for (const Corner& C : Corners) {
         for (int Step = 0; Step <= Segments; ++Step) {
             const float T = static_cast<float>(Step) / static_cast<float>(Segments);
             const float Angle = C.AngleStart + (C.AngleEnd - C.AngleStart) * T;
-            Points.push_back({C.CentreX + Radius * std::cos(Angle),
-                              C.CentreY + Radius * std::sin(Angle)});
+            const float CosA = std::cos(Angle);
+            const float SinA = std::sin(Angle);
+            Ring.Points.push_back({C.CentreX + Radius * CosA, C.CentreY + Radius * SinA});
+            Ring.Normals.push_back({CosA, SinA});
         }
     }
-    return Points;
+    return Ring;
 }
 
 } // namespace
@@ -58,6 +69,9 @@ bool Renderer::Initialise(SDL_Renderer* InSdlRenderer, float InDpiScaleFactor,
     SdlRenderer = InSdlRenderer;
     DpiScaleFactor = (InDpiScaleFactor > 0.0f) ? InDpiScaleFactor : 1.0f;
     FontBackend = InFontBackend;
+    // Alpha blending is required for the anti-aliasing fringe (zero-alpha vertices)
+    // to fade against what is behind it.
+    SDL_SetRenderDrawBlendMode(SdlRenderer, SDL_BLENDMODE_BLEND);
     return true;
 }
 
@@ -88,24 +102,40 @@ void Renderer::DrawFilledRect(SDL_FRect RectLogical, SDL_Color Color, float Corn
 
     Radius = std::min(Radius, std::min(R.w, R.h) * 0.5f);
     const int Segments = SegmentsForRadius(Radius);
-    const std::vector<SDL_FPoint> Perimeter = BuildRoundedPerimeter(R, Radius, Segments);
-    const SDL_FColor FillColor = ToFColor(Color);
-    const int Count = static_cast<int>(Perimeter.size());
+    const RoundedRing Ring = BuildRoundedRing(R, Radius, Segments);
+    const int Count = static_cast<int>(Ring.Points.size());
+    const float Half = AaFeatherPhysical * 0.5f;
 
-    // Fan from the rect centre: the rounded rect is convex, so this fills cleanly.
+    const SDL_FColor Solid = ToFColor(Color);
+    SDL_FColor Clear = Solid;
+    Clear.a = 0.0f;
+
+    // A solid interior fan, ringed by a fringe that fades to zero alpha. The fringe
+    // straddles the true edge (±half a feather along the normal), smoothing the arcs.
     std::vector<SDL_Vertex> Vertices;
-    Vertices.reserve(Perimeter.size() + 1);
-    Vertices.push_back({{R.x + R.w * 0.5f, R.y + R.h * 0.5f}, FillColor, {0.0f, 0.0f}});
-    for (const SDL_FPoint& Point : Perimeter) {
-        Vertices.push_back({Point, FillColor, {0.0f, 0.0f}});
+    Vertices.reserve(static_cast<std::size_t>(1 + 2 * Count));
+    Vertices.push_back({{R.x + R.w * 0.5f, R.y + R.h * 0.5f}, Solid, {0.0f, 0.0f}}); // centre
+    for (int Index = 0; Index < Count; ++Index) {                                   // inner: solid
+        const SDL_FPoint P = Ring.Points[Index];
+        const SDL_FPoint Nrm = Ring.Normals[Index];
+        Vertices.push_back({{P.x - Nrm.x * Half, P.y - Nrm.y * Half}, Solid, {0.0f, 0.0f}});
+    }
+    for (int Index = 0; Index < Count; ++Index) {                                   // outer: clear
+        const SDL_FPoint P = Ring.Points[Index];
+        const SDL_FPoint Nrm = Ring.Normals[Index];
+        Vertices.push_back({{P.x + Nrm.x * Half, P.y + Nrm.y * Half}, Clear, {0.0f, 0.0f}});
     }
 
+    const int InnerBase = 1;
+    const int OuterBase = 1 + Count;
     std::vector<int> Indices;
-    Indices.reserve(static_cast<std::size_t>(Count) * 3);
+    Indices.reserve(static_cast<std::size_t>(Count) * 9);
     for (int Index = 0; Index < Count; ++Index) {
-        Indices.push_back(0);
-        Indices.push_back(1 + Index);
-        Indices.push_back(1 + (Index + 1) % Count);
+        const int A = Index;
+        const int B = (Index + 1) % Count;
+        Indices.push_back(0);            Indices.push_back(InnerBase + A); Indices.push_back(InnerBase + B);
+        Indices.push_back(InnerBase + A); Indices.push_back(InnerBase + B); Indices.push_back(OuterBase + B);
+        Indices.push_back(InnerBase + A); Indices.push_back(OuterBase + B); Indices.push_back(OuterBase + A);
     }
 
     SDL_RenderGeometry(SdlRenderer, nullptr, Vertices.data(), static_cast<int>(Vertices.size()),
@@ -143,36 +173,47 @@ void Renderer::DrawRectOutline(SDL_FRect RectLogical, SDL_Color Color, float Thi
 
     const int Segments = SegmentsForRadius(Radius);
     const float InnerRadius = std::max(0.0f, Radius - T);
-    // Inner arc centres equal the outer ones (inset by T, radius shrinks by T), so the
-    // outer and inner perimeters share angles and pair up one-to-one into a ring.
-    const std::vector<SDL_FPoint> Outer = BuildRoundedPerimeter(R, Radius, Segments);
-    const std::vector<SDL_FPoint> InnerRing = BuildRoundedPerimeter(Inner, InnerRadius, Segments);
-    const SDL_FColor LineColor = ToFColor(Color);
-    const int Count = static_cast<int>(Outer.size());
+    // Outer and inner perimeters share corner centres and angles (inset by T, radius
+    // shrinks by T), so they pair up one-to-one; normals are common to both.
+    const RoundedRing Outer = BuildRoundedRing(R, Radius, Segments);
+    const RoundedRing InnerR = BuildRoundedRing(Inner, InnerRadius, Segments);
+    const int Count = static_cast<int>(Outer.Points.size());
+    const float Half = AaFeatherPhysical * 0.5f;
 
+    const SDL_FColor Solid = ToFColor(Color);
+    SDL_FColor Clear = Solid;
+    Clear.a = 0.0f;
+
+    // Four concentric rings: the solid border core (outer-core → inner-core) with a
+    // fading fringe on each side. Pushing +normal grows the radius, -normal shrinks it.
     std::vector<SDL_Vertex> Vertices;
-    Vertices.reserve(Outer.size() + InnerRing.size());
-    for (const SDL_FPoint& Point : Outer) {
-        Vertices.push_back({Point, LineColor, {0.0f, 0.0f}});
-    }
-    for (const SDL_FPoint& Point : InnerRing) {
-        Vertices.push_back({Point, LineColor, {0.0f, 0.0f}});
-    }
+    Vertices.reserve(static_cast<std::size_t>(4 * Count));
+    auto PushRing = [&](const RoundedRing& Ring, float Sign, const SDL_FColor& VertexColor) {
+        for (int Index = 0; Index < Count; ++Index) {
+            const SDL_FPoint P = Ring.Points[Index];
+            const SDL_FPoint Nrm = Ring.Normals[Index];
+            Vertices.push_back({{P.x + Nrm.x * Half * Sign, P.y + Nrm.y * Half * Sign},
+                                VertexColor, {0.0f, 0.0f}});
+        }
+    };
+    PushRing(Outer,  1.0f, Clear);  // outer fade
+    PushRing(Outer, -1.0f, Solid);  // outer core
+    PushRing(InnerR, 1.0f, Solid);  // inner core
+    PushRing(InnerR, -1.0f, Clear); // inner fade
 
     std::vector<int> Indices;
-    Indices.reserve(static_cast<std::size_t>(Count) * 6);
-    for (int Index = 0; Index < Count; ++Index) {
-        const int OuterA = Index;
-        const int OuterB = (Index + 1) % Count;
-        const int InnerA = Count + Index;
-        const int InnerB = Count + (Index + 1) % Count;
-        Indices.push_back(OuterA);
-        Indices.push_back(OuterB);
-        Indices.push_back(InnerB);
-        Indices.push_back(OuterA);
-        Indices.push_back(InnerB);
-        Indices.push_back(InnerA);
-    }
+    Indices.reserve(static_cast<std::size_t>(Count) * 18);
+    auto AddBand = [&](int BaseA, int BaseB) {
+        for (int Index = 0; Index < Count; ++Index) {
+            const int A = Index;
+            const int B = (Index + 1) % Count;
+            Indices.push_back(BaseA + A); Indices.push_back(BaseA + B); Indices.push_back(BaseB + B);
+            Indices.push_back(BaseA + A); Indices.push_back(BaseB + B); Indices.push_back(BaseB + A);
+        }
+    };
+    AddBand(0 * Count, 1 * Count); // outer fringe (fade → core)
+    AddBand(1 * Count, 2 * Count); // solid core
+    AddBand(2 * Count, 3 * Count); // inner fringe (core → fade)
 
     SDL_RenderGeometry(SdlRenderer, nullptr, Vertices.data(), static_cast<int>(Vertices.size()),
                        Indices.data(), static_cast<int>(Indices.size()));
