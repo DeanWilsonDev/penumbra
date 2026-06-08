@@ -56,7 +56,7 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o: \
  /usr/include/SDL3/SDL_oldnames.h \
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Styles.h \
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Platform/PlatformWindow.h \
- /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Platform/InputState.h \
+ /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Platform/IClipboard.h \
  /usr/include/c++/16.1.1/string \
  /usr/include/c++/16.1.1/bits/requires_hosted.h \
  /usr/include/c++/16.1.1/x86_64-pc-linux-gnu/bits/c++config.h \
@@ -151,6 +151,7 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o: \
  /usr/include/c++/16.1.1/bits/uses_allocator_args.h \
  /usr/include/c++/16.1.1/tuple /usr/include/c++/16.1.1/bits/invoke.h \
  /usr/include/c++/16.1.1/bits/ranges_util.h \
+ /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Platform/InputState.h \
  /usr/include/c++/16.1.1/vector \
  /usr/include/c++/16.1.1/bits/stl_uninitialized.h \
  /usr/include/c++/16.1.1/bits/stl_vector.h \

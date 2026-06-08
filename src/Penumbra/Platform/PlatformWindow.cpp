@@ -129,4 +129,18 @@ SDL_Renderer* PlatformWindow::GetSdlRenderer() const {
     return SdlRenderer;
 }
 
+void PlatformWindow::SetClipboardText(const std::string& Text) {
+    SDL_SetClipboardText(Text.c_str());
+}
+
+std::string PlatformWindow::GetClipboardText() const {
+    if (!SDL_HasClipboardText()) {
+        return {};
+    }
+    char* Raw = SDL_GetClipboardText(); // SDL allocates; we own it
+    std::string Result = (Raw != nullptr) ? Raw : "";
+    SDL_free(Raw);
+    return Result;
+}
+
 } // namespace Penumbra::Platform

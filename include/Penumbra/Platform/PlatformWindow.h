@@ -1,14 +1,18 @@
 #pragma once
 
+#include "Penumbra/Platform/IClipboard.h"
 #include "Penumbra/Platform/InputState.h"
 
 #include <SDL3/SDL.h>
 
+#include <string>
+
 namespace Penumbra::Platform {
 
 // The single primary window and the only code in the project that talks to SDL
-// for window / event / DPI concerns. Multi-window is a non-goal.
-class PlatformWindow {
+// for window / event / DPI concerns. Multi-window is a non-goal. Also serves as
+// the OS clipboard provider.
+class PlatformWindow : public IClipboard {
 public:
     bool Initialise(const char* Title, int LogicalWidth, int LogicalHeight);
     void Shutdown();
@@ -22,6 +26,9 @@ public:
 
     void          SetTextInputActive(bool Active);
     SDL_Renderer* GetSdlRenderer() const; // handed to the Render layer only
+
+    void        SetClipboardText(const std::string& Text) override;
+    std::string GetClipboardText() const override;
 
 private:
     SDL_Window*   Window{nullptr};

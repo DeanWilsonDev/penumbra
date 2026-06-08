@@ -20,6 +20,7 @@ struct Theme {
     SDL_Color ColorTextDisabled      = {120, 120, 128, 255};
     SDL_Color ColorBorderDefault     = {70, 70, 75, 255};
     SDL_Color ColorControlDisabled   = {45, 45, 50, 255};
+    SDL_Color ColorSelection         = {77, 127, 235, 120}; // translucent accent
 
     float BorderRadiusSmall  = 20.0f;
     float BorderWidthDefault = 1.0f;

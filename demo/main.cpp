@@ -170,9 +170,11 @@ int main() {
             FieldWidget->Font                  = BodyFont;
             FieldWidget->ColorText             = Theme.ColorTextPrimary;
             FieldWidget->ColorCaret            = Theme.ColorTextPrimary;
+            FieldWidget->ColorSelection        = Theme.ColorSelection;
             FieldWidget->CaretWidthLogical     = Theme.BorderWidthDefault;
             FieldWidget->PreferredWidthLogical = Theme.FieldWidthSmall;
             FieldWidget->Focus                 = &Focus;
+            FieldWidget->Clipboard             = &Window;
             Field = FieldWidget.get();
             Row->AddChild(std::move(FieldWidget));
             Root->AddChild(std::move(Row));
