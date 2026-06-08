@@ -214,9 +214,12 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o: /home/deanwilson/development/proje
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Render/Renderer.h \
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Render/SdlTtfFontBackend.h \
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Box.h \
-  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Button.h \
-  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/ScrollablePanel.h \
+  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Checkbox.h \
+  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/FocusState.h \
+  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Label.h \
+  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/NumericDrag.h \
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Styles.h \
+  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/TextInput.h \
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/WidgetBase.h \
   /usr/include/SDL3/SDL.h \
   /usr/include/SDL3/SDL_assert.h \
@@ -666,10 +669,6 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /usr/include/c++/16.1.1/initializer_list:
 
-/usr/lib/gcc/x86_64-pc-linux-gnu/16.1.1/crtbeginS.o:
-
-/usr/include/c++/16.1.1/functional:
-
 /usr/include/c++/16.1.1/ext/type_traits.h:
 
 /usr/include/c++/16.1.1/ext/numeric_traits.h:
@@ -708,15 +707,9 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /usr/include/c++/16.1.1/clocale:
 
-/usr/include/bits/atomic_wide_counter.h:
+/usr/include/c++/16.1.1/bits/version.h:
 
-/usr/lib/libmvec.so.1:
-
-/usr/include/c++/16.1.1/bits/allocated_ptr.h:
-
-/usr/include/asm/types.h:
-
-/home/deanwilson/development/projects/penumbra-proto/demo/DemoTheme.h:
+/usr/include/c++/16.1.1/bits/vector.tcc:
 
 /usr/include/asm-generic/posix_types.h:
 
@@ -734,17 +727,19 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /usr/include/SDL3/SDL_version.h:
 
-/usr/include/SDL3/SDL_close_code.h:
-
-/usr/include/SDL3_ttf/SDL_ttf.h:
-
 /usr/include/SDL3/SDL_sensor.h:
 
 /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/WidgetBase.h:
 
-/home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/ScrollablePanel.h:
+/usr/include/gnu/stubs-64.h:
 
-/usr/include/c++/16.1.1/bits/ranges_algobase.h:
+/usr/lib/gcc/x86_64-pc-linux-gnu/16.1.1/crtbeginS.o:
+
+/usr/include/c++/16.1.1/functional:
+
+/home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Label.h:
+
+/home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Checkbox.h:
 
 /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Render/Renderer.h:
 
@@ -757,6 +752,10 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 /usr/include/asm-generic/int-ll64.h:
 
 /usr/lib/gcc/x86_64-pc-linux-gnu/16.1.1/include/stddef.h:
+
+/usr/include/c++/16.1.1/cctype:
+
+/usr/lib/gcc/x86_64-pc-linux-gnu/16.1.1/include/stdarg.h:
 
 /usr/include/SDL3/SDL_keyboard.h:
 
@@ -787,8 +786,6 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 /usr/include/string.h:
 
 /usr/include/SDL3/SDL_mutex.h:
-
-/home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Button.h:
 
 /usr/include/bits/time64.h:
 
@@ -836,6 +833,10 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /usr/include/SDL3/SDL_audio.h:
 
+/home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/TextInput.h:
+
+/usr/include/c++/16.1.1/bits/max_size_type.h:
+
 /usr/include/SDL3/SDL_camera.h:
 
 /usr/include/bits/waitflags.h:
@@ -844,7 +845,15 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /usr/include/SDL3/SDL_dlopennote.h:
 
-/usr/include/asm/posix_types_64.h:
+/usr/include/SDL3_ttf/SDL_ttf.h:
+
+/usr/include/SDL3/SDL_close_code.h:
+
+/usr/include/bits/atomic_wide_counter.h:
+
+/usr/lib/libmvec.so.1:
+
+/usr/include/c++/16.1.1/bits/allocated_ptr.h:
 
 /usr/include/bits/time.h:
 
@@ -864,19 +873,17 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /usr/include/SDL3/SDL_properties.h:
 
-/usr/include/gnu/stubs-64.h:
+/usr/include/c++/16.1.1/bits/atomic_base.h:
 
 /usr/include/bits/types/cookie_io_functions_t.h:
-
-/usr/include/c++/16.1.1/bits/atomic_base.h:
 
 /usr/include/SDL3/SDL_video.h:
 
 /home/deanwilson/development/projects/penumbra-proto/demo/DemoResolvers.cpp:
 
-/usr/include/features.h:
-
 /usr/include/bits/types/__FILE.h:
+
+/usr/include/features.h:
 
 /usr/include/bits/sched.h:
 
@@ -920,11 +927,17 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /usr/include/SDL3/SDL_cpuinfo.h:
 
+/home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/NumericDrag.h:
+
 /usr/include/SDL3/SDL_haptic.h:
 
 /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Box.h:
 
 /usr/include/c++/16.1.1/bits/exception_ptr.h:
+
+/home/deanwilson/development/projects/penumbra-proto/demo/DemoTheme.h:
+
+/usr/include/asm/types.h:
 
 /usr/include/SDL3/SDL_asyncio.h:
 
@@ -944,6 +957,14 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /usr/include/c++/16.1.1/bits/ranges_uninitialized.h:
 
+/home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/FocusState.h:
+
+/usr/include/c++/16.1.1/x86_64-pc-linux-gnu/bits/ctype_inline.h:
+
+/usr/include/SDL3/SDL_dialog.h:
+
+/usr/include/c++/16.1.1/bits/stl_tempbuf.h:
+
 /usr/include/SDL3/SDL_assert.h:
 
 /usr/include/c++/16.1.1/limits:
@@ -957,12 +978,6 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 /usr/include/ctype.h:
 
 /usr/include/c++/16.1.1/bits/new_allocator.h:
-
-/usr/include/c++/16.1.1/x86_64-pc-linux-gnu/bits/ctype_inline.h:
-
-/usr/include/SDL3/SDL_dialog.h:
-
-/usr/include/c++/16.1.1/bits/stl_tempbuf.h:
 
 /usr/include/stdlib.h:
 
@@ -1026,8 +1041,6 @@ CMakeFiles/penumbra_demo.dir/demo/DemoTheme.cpp.o:
 
 /usr/include/SDL3/SDL_oldnames.h:
 
-/usr/include/c++/16.1.1/bits/max_size_type.h:
-
 /usr/include/SDL3/SDL_init.h:
 
 /usr/include/SDL3/SDL_pixels.h:
@@ -1053,6 +1066,8 @@ CMakeFiles/penumbra_demo.dir/demo/DemoTheme.cpp.o:
 /usr/include/SDL3/SDL_thread.h:
 
 /usr/include/c++/16.1.1/bits/enable_special_members.h:
+
+/usr/include/asm/posix_types_64.h:
 
 /usr/include/SDL3/SDL_bits.h:
 
@@ -1254,6 +1269,8 @@ libpenumbra.a:
 
 /usr/include/c++/16.1.1/bits/predefined_ops.h:
 
+/usr/include/c++/16.1.1/bits/ranges_algobase.h:
+
 /usr/include/bits/errno.h:
 
 /usr/include/c++/16.1.1/bits/ranges_base.h:
@@ -1273,8 +1290,6 @@ libpenumbra.a:
 /usr/include/c++/16.1.1/bits/stl_algobase.h:
 
 /usr/include/c++/16.1.1/bits/stl_construct.h:
-
-/usr/include/c++/16.1.1/bits/version.h:
 
 /usr/include/SDL3/SDL_clipboard.h:
 
@@ -1303,9 +1318,3 @@ libpenumbra.a:
 /usr/include/c++/16.1.1/bits/stringfwd.h:
 
 /usr/include/c++/16.1.1/bits/unique_ptr.h:
-
-/usr/include/c++/16.1.1/bits/vector.tcc:
-
-/usr/lib/gcc/x86_64-pc-linux-gnu/16.1.1/include/stdarg.h:
-
-/usr/include/c++/16.1.1/cctype:

@@ -26,9 +26,10 @@ struct Theme {
 
     float FontSizeBody = 16.0f;
 
-    float CheckboxGlyphSize = 18.0f;  // edge length of the checkbox square
-    float DragSensitivity   = 0.05f;  // value change per logical px dragged
-    float FieldWidthSmall   = 160.0f; // min width for numeric/text fields
+    float CheckboxGlyphSize  = 18.0f;  // edge length of the checkbox square
+    float DragSensitivity    = 0.05f;  // value change per logical px dragged
+    float FieldWidthSmall    = 160.0f; // min width for numeric/text fields
+    float SeparatorThickness = 2.0f;   // height of a separator Box
 };
 
 } // namespace Demo

@@ -217,9 +217,12 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Render/Renderer.h
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Render/SdlTtfFontBackend.h
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Box.h
- /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Button.h
- /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/ScrollablePanel.h
+ /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Checkbox.h
+ /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/FocusState.h
+ /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Label.h
+ /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/NumericDrag.h
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Styles.h
+ /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/TextInput.h
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/WidgetBase.h
  /usr/include/SDL3/SDL.h
  /usr/include/SDL3/SDL_assert.h

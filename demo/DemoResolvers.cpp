@@ -23,9 +23,8 @@ Penumbra::Widgets::ButtonStyle ResolvePrimaryButtonStyle(const Theme& Theme) {
     Style.ColorBorder             = Theme.ColorBorderDefault;
     Style.BorderWidth             = Theme.BorderWidthDefault;
     Style.BorderRadius            = Theme.BorderRadiusSmall;
-    // Until labels (Milestone 5) give buttons their natural content size, padding
-    // alone gives them a clickable footprint.
-    Style.Padding                 = {40.0f, 16.0f, 40.0f, 16.0f};
+    Style.Padding                 = {Theme.SpacingLarge, Theme.SpacingMedium,
+                                     Theme.SpacingLarge, Theme.SpacingMedium};
     return Style;
 }
 
