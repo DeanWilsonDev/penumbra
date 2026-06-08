@@ -19,6 +19,11 @@ bool PlatformWindow::Initialise(const char* Title, int LogicalWidth, int Logical
         return false;
     }
 
+    // Sync presentation to the display refresh. Without this the loop renders
+    // thousands of uncapped frames per second, pegging the GPU — which shows up as
+    // coil whine and needless power draw. One frame per refresh is plenty for a UI.
+    SDL_SetRenderVSync(SdlRenderer, 1);
+
     DpiScaleFactor = SDL_GetWindowDisplayScale(Window);
     if (DpiScaleFactor <= 0.0f) {
         DpiScaleFactor = 1.0f;

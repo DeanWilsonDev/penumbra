@@ -218,6 +218,7 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Render/SdlTtfFontBackend.h
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Box.h
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Button.h
+ /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/ScrollablePanel.h
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Styles.h
  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/WidgetBase.h
  /usr/include/SDL3/SDL.h

@@ -215,6 +215,7 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o: /home/deanwilson/development/proje
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Render/SdlTtfFontBackend.h \
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Box.h \
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Button.h \
+  /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/ScrollablePanel.h \
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Styles.h \
   /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/WidgetBase.h \
   /usr/include/SDL3/SDL.h \
@@ -741,6 +742,8 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/WidgetBase.h:
 
+/home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/ScrollablePanel.h:
+
 /usr/include/c++/16.1.1/bits/ranges_algobase.h:
 
 /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Render/Renderer.h:
@@ -921,10 +924,6 @@ CMakeFiles/penumbra_demo.dir/demo/main.cpp.o:
 
 /home/deanwilson/development/projects/penumbra-proto/include/Penumbra/Widgets/Box.h:
 
-/usr/include/bits/cpu-set.h:
-
-/usr/include/SDL3/SDL_bits.h:
-
 /usr/include/c++/16.1.1/bits/exception_ptr.h:
 
 /usr/include/SDL3/SDL_asyncio.h:
@@ -1055,6 +1054,10 @@ CMakeFiles/penumbra_demo.dir/demo/DemoTheme.cpp.o:
 
 /usr/include/c++/16.1.1/bits/enable_special_members.h:
 
+/usr/include/SDL3/SDL_bits.h:
+
+/usr/include/bits/cpu-set.h:
+
 /usr/include/c++/16.1.1/iosfwd:
 
 /usr/include/c++/16.1.1/bits/functexcept.h:
@@ -1176,6 +1179,10 @@ CMakeFiles/penumbra_demo.dir/demo/DemoTheme.cpp.o:
 /usr/lib/gcc/x86_64-pc-linux-gnu/16.1.1/crtendS.o:
 
 /usr/include/c++/16.1.1/bits/memory_resource.h:
+
+/usr/include/c++/16.1.1/cerrno:
+
+/usr/include/c++/16.1.1/bits/ptr_traits.h:
 
 /usr/include/c++/16.1.1/bits/binders.h:
 
@@ -1302,7 +1309,3 @@ libpenumbra.a:
 /usr/lib/gcc/x86_64-pc-linux-gnu/16.1.1/include/stdarg.h:
 
 /usr/include/c++/16.1.1/cctype:
-
-/usr/include/c++/16.1.1/bits/ptr_traits.h:
-
-/usr/include/c++/16.1.1/cerrno:
