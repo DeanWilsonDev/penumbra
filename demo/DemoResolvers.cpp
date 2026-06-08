@@ -29,4 +29,26 @@ Penumbra::Widgets::ButtonStyle ResolvePrimaryButtonStyle(const Theme& Theme) {
     return Style;
 }
 
+Penumbra::Widgets::CheckboxStyle ResolveCheckboxStyle(const Theme& Theme) {
+    Penumbra::Widgets::CheckboxStyle Style;
+    Style.ColorBackground  = Theme.ColorBackgroundPrimary; // empty box fill
+    Style.ColorBorder      = Theme.ColorBorderDefault;
+    Style.BorderWidth      = Theme.BorderWidthDefault;
+    Style.BorderRadius     = Theme.BorderRadiusSmall;
+    Style.ColorBoxChecked  = Theme.ColorAccent;
+    Style.ColorCheckMark   = Theme.ColorTextPrimary;
+    return Style;
+}
+
+Penumbra::Widgets::BoxStyle ResolveInputFieldStyle(const Theme& Theme) {
+    Penumbra::Widgets::BoxStyle Style;
+    Style.ColorBackground = Theme.ColorBackgroundPrimary;
+    Style.ColorBorder     = Theme.ColorBorderDefault;
+    Style.BorderWidth     = Theme.BorderWidthDefault;
+    Style.BorderRadius    = Theme.BorderRadiusSmall;
+    Style.Padding         = {Theme.SpacingSmall, Theme.SpacingSmall,
+                             Theme.SpacingSmall, Theme.SpacingSmall};
+    return Style;
+}
+
 } // namespace Demo

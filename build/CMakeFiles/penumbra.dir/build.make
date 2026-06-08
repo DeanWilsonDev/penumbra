@@ -156,6 +156,62 @@ CMakeFiles/penumbra.dir/src/Penumbra/Widgets/ScrollablePanel.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/penumbra.dir/src/Penumbra/Widgets/ScrollablePanel.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/ScrollablePanel.cpp -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/ScrollablePanel.cpp.s
 
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o: CMakeFiles/penumbra.dir/flags.make
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o: /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/Label.cpp
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o: CMakeFiles/penumbra.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o -MF CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o.d -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o -c /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/Label.cpp
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/Label.cpp > CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.i
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/Label.cpp -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.s
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o: CMakeFiles/penumbra.dir/flags.make
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o: /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/Checkbox.cpp
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o: CMakeFiles/penumbra.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o -MF CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o.d -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o -c /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/Checkbox.cpp
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/Checkbox.cpp > CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.i
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/Checkbox.cpp -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.s
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o: CMakeFiles/penumbra.dir/flags.make
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o: /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/NumericDrag.cpp
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o: CMakeFiles/penumbra.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o -MF CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o.d -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o -c /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/NumericDrag.cpp
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/NumericDrag.cpp > CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.i
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/NumericDrag.cpp -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.s
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o: CMakeFiles/penumbra.dir/flags.make
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o: /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/TextInput.cpp
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o: CMakeFiles/penumbra.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o -MF CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o.d -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o -c /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/TextInput.cpp
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/TextInput.cpp > CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.i
+
+CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/deanwilson/development/projects/penumbra-proto/src/Penumbra/Widgets/TextInput.cpp -o CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.s
+
 # Object files for target penumbra
 penumbra_OBJECTS = \
 "CMakeFiles/penumbra.dir/src/Penumbra/Platform/PlatformWindow.cpp.o" \
@@ -163,7 +219,11 @@ penumbra_OBJECTS = \
 "CMakeFiles/penumbra.dir/src/Penumbra/Render/SdlTtfFontBackend.cpp.o" \
 "CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Box.cpp.o" \
 "CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Button.cpp.o" \
-"CMakeFiles/penumbra.dir/src/Penumbra/Widgets/ScrollablePanel.cpp.o"
+"CMakeFiles/penumbra.dir/src/Penumbra/Widgets/ScrollablePanel.cpp.o" \
+"CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o" \
+"CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o" \
+"CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o" \
+"CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o"
 
 # External object files for target penumbra
 penumbra_EXTERNAL_OBJECTS =
@@ -174,9 +234,13 @@ libpenumbra.a: CMakeFiles/penumbra.dir/src/Penumbra/Render/SdlTtfFontBackend.cpp
 libpenumbra.a: CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Box.cpp.o
 libpenumbra.a: CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Button.cpp.o
 libpenumbra.a: CMakeFiles/penumbra.dir/src/Penumbra/Widgets/ScrollablePanel.cpp.o
+libpenumbra.a: CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o
+libpenumbra.a: CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o
+libpenumbra.a: CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o
+libpenumbra.a: CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o
 libpenumbra.a: CMakeFiles/penumbra.dir/build.make
 libpenumbra.a: CMakeFiles/penumbra.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Linking CXX static library libpenumbra.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Linking CXX static library libpenumbra.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/penumbra.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/penumbra.dir/link.txt --verbose=$(VERBOSE)
 

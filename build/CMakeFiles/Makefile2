@@ -88,12 +88,12 @@ clean: CMakeFiles/penumbra_demo.dir/clean
 CMakeFiles/penumbra.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=1,2,3,4,5,6,7 "Built target penumbra"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11 "Built target penumbra"
 .PHONY : CMakeFiles/penumbra.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/penumbra.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles 7
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles 11
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/penumbra.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles 0
 .PHONY : CMakeFiles/penumbra.dir/rule
@@ -105,7 +105,7 @@ penumbra: CMakeFiles/penumbra.dir/rule
 # codegen rule for target.
 CMakeFiles/penumbra.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=1,2,3,4,5,6,7 "Finished codegen for target penumbra"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11 "Finished codegen for target penumbra"
 .PHONY : CMakeFiles/penumbra.dir/codegen
 
 # clean rule for target.
@@ -120,12 +120,12 @@ CMakeFiles/penumbra.dir/clean:
 CMakeFiles/penumbra_demo.dir/all: CMakeFiles/penumbra.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra_demo.dir/build.make CMakeFiles/penumbra_demo.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra_demo.dir/build.make CMakeFiles/penumbra_demo.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=8,9,10,11 "Built target penumbra_demo"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=12,13,14,15 "Built target penumbra_demo"
 .PHONY : CMakeFiles/penumbra_demo.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/penumbra_demo.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles 11
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles 15
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/penumbra_demo.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles 0
 .PHONY : CMakeFiles/penumbra_demo.dir/rule
@@ -137,7 +137,7 @@ penumbra_demo: CMakeFiles/penumbra_demo.dir/rule
 # codegen rule for target.
 CMakeFiles/penumbra_demo.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra_demo.dir/build.make CMakeFiles/penumbra_demo.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=8,9,10,11 "Finished codegen for target penumbra_demo"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles --progress-num=12,13,14,15 "Finished codegen for target penumbra_demo"
 .PHONY : CMakeFiles/penumbra_demo.dir/codegen
 
 # clean rule for target.

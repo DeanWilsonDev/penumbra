@@ -5,8 +5,11 @@
 #include "Penumbra/Render/Renderer.h"
 #include "Penumbra/Render/SdlTtfFontBackend.h"
 #include "Penumbra/Widgets/Box.h"
-#include "Penumbra/Widgets/Button.h"
-#include "Penumbra/Widgets/ScrollablePanel.h"
+#include "Penumbra/Widgets/Checkbox.h"
+#include "Penumbra/Widgets/FocusState.h"
+#include "Penumbra/Widgets/Label.h"
+#include "Penumbra/Widgets/NumericDrag.h"
+#include "Penumbra/Widgets/TextInput.h"
 
 #include <cstdio>
 #include <memory>
@@ -19,8 +22,6 @@ constexpr int WindowLogicalWidth  = 960;
 constexpr int WindowLogicalHeight = 640;
 
 constexpr const char* FontFileName = "JetBrainsMonoNerdFontMono-Regular.ttf";
-
-constexpr int RowCount = 20; // taller than the viewport, so the panel must scroll
 
 using namespace Penumbra::Widgets;
 
@@ -36,13 +37,13 @@ int main() {
     }
 
     std::printf("DPI scale factor: %.3f\n", Window.GetDpiScaleFactor());
-    std::printf("Scroll the wheel over the panel; resize the window to re-run layout.\n");
+    std::printf("Toggle the checkbox, drag the number, click the field and type.\n");
     std::fflush(stdout);
 
     {
         Penumbra::Render::SdlTtfFontBackend FontBackend;
         const std::string FontPath = std::string(DEMO_ASSET_DIR) + "/" + FontFileName;
-        [[maybe_unused]] const Penumbra::Render::FontHandle BodyFont =
+        const Penumbra::Render::FontHandle BodyFont =
             FontBackend.LoadFont(FontPath.c_str(), Theme.FontSizeBody, Window.GetDpiScaleFactor());
 
         Penumbra::Render::Renderer Renderer;
@@ -52,44 +53,111 @@ int main() {
             return 1;
         }
 
-        // A scrollable panel holding a tall column of full-width buttons. Alternating
-        // backgrounds make the scroll motion and the clipped edges obvious.
-        auto Root = std::make_unique<ScrollablePanel>();
-        Root->Style           = Demo::ResolvePanelStyle(Theme);
-        Root->ChildGap        = Theme.SpacingMedium;
-        Root->CrossAlignment  = CrossAlign::Stretch;
-        Root->WheelStepLogical = Theme.SpacingLarge * 3.0f;
+        FocusState Focus;
 
-        for (int Index = 0; Index < RowCount; ++Index) {
-            auto RowStyle = Demo::ResolvePrimaryButtonStyle(Theme);
-            if (Index % 2 == 1) {
-                RowStyle.ColorBackground = Theme.ColorSurfaceRaised; // stripe
-            }
+        auto MakeLabel = [&](const std::string& Text) {
+            auto Widget = std::make_unique<Label>();
+            Widget->FontBackend = &FontBackend;
+            Widget->Font        = BodyFont;
+            Widget->Text        = Text;
+            Widget->ColorText   = Theme.ColorTextPrimary;
+            return Widget;
+        };
+        auto MakeRow = [&]() {
+            auto Row = std::make_unique<Box>();
+            Row->Layout         = LayoutMode::HorizontalStack;
+            Row->ChildGap       = Theme.SpacingMedium;
+            Row->CrossAlignment = CrossAlign::Center;
+            return Row;
+        };
 
-            auto Row = std::make_unique<Button>();
-            Row->ApplyStyle(RowStyle);
-            Row->OnClicked = [Index]() {
-                std::printf("Row %d clicked\n", Index);
+        auto Root = std::make_unique<Box>();
+        Root->Style    = Demo::ResolvePanelStyle(Theme);
+        Root->Layout   = LayoutMode::VerticalStack;
+        Root->ChildGap = Theme.SpacingMedium;
+
+        Root->AddChild(MakeLabel("Milestone 5 widgets"));
+
+        // Checkbox + label.
+        {
+            auto Row = MakeRow();
+            auto Check = std::make_unique<Checkbox>();
+            Check->ApplyStyle(Demo::ResolveCheckboxStyle(Theme));
+            Check->GlyphSizeLogical = Theme.CheckboxGlyphSize;
+            Check->OnChanged = [](bool On) {
+                std::printf("Checkbox: %s\n", On ? "checked" : "unchecked");
                 std::fflush(stdout);
             };
+            Row->AddChild(std::move(Check));
+            Row->AddChild(MakeLabel("Enable feature"));
             Root->AddChild(std::move(Row));
         }
+
+        // Label + numeric drag.
+        {
+            auto Row = MakeRow();
+            Row->AddChild(MakeLabel("Value:"));
+            auto Drag = std::make_unique<NumericDrag>();
+            Drag->Style                 = Demo::ResolveInputFieldStyle(Theme);
+            Drag->FontBackend           = &FontBackend;
+            Drag->Font                  = BodyFont;
+            Drag->ColorText             = Theme.ColorTextPrimary;
+            Drag->Value                 = 1.0f;
+            Drag->Sensitivity           = Theme.DragSensitivity;
+            Drag->PreferredWidthLogical = Theme.FieldWidthSmall;
+            Drag->OnValueChanged = [](float Value) {
+                std::printf("Value = %.2f\n", Value);
+                std::fflush(stdout);
+            };
+            Row->AddChild(std::move(Drag));
+            Root->AddChild(std::move(Row));
+        }
+
+        // Label + text input.
+        {
+            auto Row = MakeRow();
+            Row->AddChild(MakeLabel("Name:"));
+            auto Field = std::make_unique<TextInput>();
+            Field->Style                 = Demo::ResolveInputFieldStyle(Theme);
+            Field->FontBackend           = &FontBackend;
+            Field->Font                  = BodyFont;
+            Field->ColorText             = Theme.ColorTextPrimary;
+            Field->ColorCaret            = Theme.ColorTextPrimary;
+            Field->CaretWidthLogical     = Theme.BorderWidthDefault;
+            Field->PreferredWidthLogical = Theme.FieldWidthSmall;
+            Field->Focus                 = &Focus;
+            Field->OnTextChanged = [](const std::string& Text) {
+                std::printf("Text = \"%s\"\n", Text.c_str());
+                std::fflush(stdout);
+            };
+            Row->AddChild(std::move(Field));
+            Root->AddChild(std::move(Row));
+        }
+
+        bool TextInputActive = false;
 
         Penumbra::Platform::InputState Input;
         bool KeepRunning = true;
         while (KeepRunning) {
             KeepRunning = Window.PumpEventsAndBuildInput(Input);
 
-            // The viewport is recomputed from the live window size every frame, so a
-            // window resize naturally re-runs measure + arrange.
-            const SDL_FPoint Window2 = Window.GetLogicalWindowSize();
-            const float Margin = Theme.SpacingLarge;
-            const SDL_FRect Viewport{Margin, Margin, Window2.x - 2.0f * Margin,
-                                     Window2.y - 2.0f * Margin};
+            const SDL_FPoint Available = Window.GetLogicalWindowSize();
+            const SDL_FPoint Desired = Root->Measure(Available);
+            Root->Arrange({Theme.SpacingLarge, Theme.SpacingLarge, Desired.x, Desired.y});
 
-            Root->Measure({Viewport.w, Viewport.h});
-            Root->Arrange(Viewport);
+            // A press clears focus first; if it lands on a TextInput that field
+            // re-claims it during the update, otherwise focus drops (click-away).
+            if (Input.MouseButtonPressedThisFrame[0]) {
+                Focus.Focused = nullptr;
+            }
             Root->UpdateInteractionState(Input);
+
+            // Toggle the platform's text-input mode when focus appears/disappears.
+            const bool WantTextInput = (Focus.Focused != nullptr);
+            if (WantTextInput != TextInputActive) {
+                Window.SetTextInputActive(WantTextInput);
+                TextInputActive = WantTextInput;
+            }
 
             Renderer.BeginFrame(Theme.ColorBackgroundPrimary);
             Root->Draw(Renderer);

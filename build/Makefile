@@ -334,6 +334,78 @@ src/Penumbra/Widgets/Button.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Button.cpp.s
 .PHONY : src/Penumbra/Widgets/Button.cpp.s
 
+src/Penumbra/Widgets/Checkbox.o: src/Penumbra/Widgets/Checkbox.cpp.o
+.PHONY : src/Penumbra/Widgets/Checkbox.o
+
+# target to build an object file
+src/Penumbra/Widgets/Checkbox.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.o
+.PHONY : src/Penumbra/Widgets/Checkbox.cpp.o
+
+src/Penumbra/Widgets/Checkbox.i: src/Penumbra/Widgets/Checkbox.cpp.i
+.PHONY : src/Penumbra/Widgets/Checkbox.i
+
+# target to preprocess a source file
+src/Penumbra/Widgets/Checkbox.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.i
+.PHONY : src/Penumbra/Widgets/Checkbox.cpp.i
+
+src/Penumbra/Widgets/Checkbox.s: src/Penumbra/Widgets/Checkbox.cpp.s
+.PHONY : src/Penumbra/Widgets/Checkbox.s
+
+# target to generate assembly for a file
+src/Penumbra/Widgets/Checkbox.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Checkbox.cpp.s
+.PHONY : src/Penumbra/Widgets/Checkbox.cpp.s
+
+src/Penumbra/Widgets/Label.o: src/Penumbra/Widgets/Label.cpp.o
+.PHONY : src/Penumbra/Widgets/Label.o
+
+# target to build an object file
+src/Penumbra/Widgets/Label.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.o
+.PHONY : src/Penumbra/Widgets/Label.cpp.o
+
+src/Penumbra/Widgets/Label.i: src/Penumbra/Widgets/Label.cpp.i
+.PHONY : src/Penumbra/Widgets/Label.i
+
+# target to preprocess a source file
+src/Penumbra/Widgets/Label.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.i
+.PHONY : src/Penumbra/Widgets/Label.cpp.i
+
+src/Penumbra/Widgets/Label.s: src/Penumbra/Widgets/Label.cpp.s
+.PHONY : src/Penumbra/Widgets/Label.s
+
+# target to generate assembly for a file
+src/Penumbra/Widgets/Label.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/Label.cpp.s
+.PHONY : src/Penumbra/Widgets/Label.cpp.s
+
+src/Penumbra/Widgets/NumericDrag.o: src/Penumbra/Widgets/NumericDrag.cpp.o
+.PHONY : src/Penumbra/Widgets/NumericDrag.o
+
+# target to build an object file
+src/Penumbra/Widgets/NumericDrag.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.o
+.PHONY : src/Penumbra/Widgets/NumericDrag.cpp.o
+
+src/Penumbra/Widgets/NumericDrag.i: src/Penumbra/Widgets/NumericDrag.cpp.i
+.PHONY : src/Penumbra/Widgets/NumericDrag.i
+
+# target to preprocess a source file
+src/Penumbra/Widgets/NumericDrag.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.i
+.PHONY : src/Penumbra/Widgets/NumericDrag.cpp.i
+
+src/Penumbra/Widgets/NumericDrag.s: src/Penumbra/Widgets/NumericDrag.cpp.s
+.PHONY : src/Penumbra/Widgets/NumericDrag.s
+
+# target to generate assembly for a file
+src/Penumbra/Widgets/NumericDrag.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/NumericDrag.cpp.s
+.PHONY : src/Penumbra/Widgets/NumericDrag.cpp.s
+
 src/Penumbra/Widgets/ScrollablePanel.o: src/Penumbra/Widgets/ScrollablePanel.cpp.o
 .PHONY : src/Penumbra/Widgets/ScrollablePanel.o
 
@@ -357,6 +429,30 @@ src/Penumbra/Widgets/ScrollablePanel.s: src/Penumbra/Widgets/ScrollablePanel.cpp
 src/Penumbra/Widgets/ScrollablePanel.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/ScrollablePanel.cpp.s
 .PHONY : src/Penumbra/Widgets/ScrollablePanel.cpp.s
+
+src/Penumbra/Widgets/TextInput.o: src/Penumbra/Widgets/TextInput.cpp.o
+.PHONY : src/Penumbra/Widgets/TextInput.o
+
+# target to build an object file
+src/Penumbra/Widgets/TextInput.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.o
+.PHONY : src/Penumbra/Widgets/TextInput.cpp.o
+
+src/Penumbra/Widgets/TextInput.i: src/Penumbra/Widgets/TextInput.cpp.i
+.PHONY : src/Penumbra/Widgets/TextInput.i
+
+# target to preprocess a source file
+src/Penumbra/Widgets/TextInput.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.i
+.PHONY : src/Penumbra/Widgets/TextInput.cpp.i
+
+src/Penumbra/Widgets/TextInput.s: src/Penumbra/Widgets/TextInput.cpp.s
+.PHONY : src/Penumbra/Widgets/TextInput.s
+
+# target to generate assembly for a file
+src/Penumbra/Widgets/TextInput.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/penumbra.dir/build.make CMakeFiles/penumbra.dir/src/Penumbra/Widgets/TextInput.cpp.s
+.PHONY : src/Penumbra/Widgets/TextInput.cpp.s
 
 # Help Target
 help:
@@ -392,9 +488,21 @@ help:
 	@echo "... src/Penumbra/Widgets/Button.o"
 	@echo "... src/Penumbra/Widgets/Button.i"
 	@echo "... src/Penumbra/Widgets/Button.s"
+	@echo "... src/Penumbra/Widgets/Checkbox.o"
+	@echo "... src/Penumbra/Widgets/Checkbox.i"
+	@echo "... src/Penumbra/Widgets/Checkbox.s"
+	@echo "... src/Penumbra/Widgets/Label.o"
+	@echo "... src/Penumbra/Widgets/Label.i"
+	@echo "... src/Penumbra/Widgets/Label.s"
+	@echo "... src/Penumbra/Widgets/NumericDrag.o"
+	@echo "... src/Penumbra/Widgets/NumericDrag.i"
+	@echo "... src/Penumbra/Widgets/NumericDrag.s"
 	@echo "... src/Penumbra/Widgets/ScrollablePanel.o"
 	@echo "... src/Penumbra/Widgets/ScrollablePanel.i"
 	@echo "... src/Penumbra/Widgets/ScrollablePanel.s"
+	@echo "... src/Penumbra/Widgets/TextInput.o"
+	@echo "... src/Penumbra/Widgets/TextInput.i"
+	@echo "... src/Penumbra/Widgets/TextInput.s"
 .PHONY : help
 
 

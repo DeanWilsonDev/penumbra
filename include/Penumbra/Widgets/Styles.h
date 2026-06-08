@@ -35,4 +35,9 @@ struct ButtonStyle : BoxStyle {
     SDL_Color ColorLabel{0, 0, 0, 0}; // applied to a Label child by the resolver, not by Button
 };
 
+struct CheckboxStyle : BoxStyle {
+    SDL_Color ColorCheckMark{0, 0, 0, 0};
+    SDL_Color ColorBoxChecked{0, 0, 0, 0};
+};
+
 } // namespace Penumbra::Widgets
