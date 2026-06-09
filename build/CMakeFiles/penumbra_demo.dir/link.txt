@@ -1,1 +1,0 @@
-/usr/bin/c++ -g -Wl,--dependency-file=CMakeFiles/penumbra_demo.dir/link.d CMakeFiles/penumbra_demo.dir/demo/main.cpp.o CMakeFiles/penumbra_demo.dir/demo/DemoTheme.cpp.o CMakeFiles/penumbra_demo.dir/demo/DemoResolvers.cpp.o -o demo/penumbra_demo  libpenumbra.a /usr/lib/libSDL3_ttf.so.0.2.2 /usr/lib/libSDL3.so.0.4.8

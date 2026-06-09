@@ -22,6 +22,15 @@ Requires CMake ≥ 3.24, a C++20 compiler, and SDL3 + SDL3_ttf installed with
 their CMake config packages.
 
 ```bash
+# macOS (Homebrew)
+brew install sdl3 sdl3_ttf
+
+# Debian/Ubuntu — needs SDL3 packages (e.g. libsdl3-dev libsdl3-ttf-dev),
+# available on recent releases or from a backport/source build.
+sudo apt install libsdl3-dev libsdl3-ttf-dev
+```
+
+```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ./build/demo/penumbra_demo

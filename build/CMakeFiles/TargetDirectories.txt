@@ -1,4 +1,0 @@
-/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles/penumbra.dir
-/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles/penumbra_demo.dir
-/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles/edit_cache.dir
-/home/deanwilson/development/projects/penumbra-proto/build/CMakeFiles/rebuild_cache.dir
