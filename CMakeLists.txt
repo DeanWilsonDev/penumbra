@@ -30,7 +30,8 @@ add_library(penumbra STATIC
     src/Penumbra/Widgets/Label.cpp
     src/Penumbra/Widgets/Checkbox.cpp
     src/Penumbra/Widgets/NumericDrag.cpp
-    src/Penumbra/Widgets/TextInput.cpp)
+    src/Penumbra/Widgets/TextInput.cpp
+    src/Penumbra/Widgets/ViewportWidget.cpp)
 
 target_include_directories(penumbra PUBLIC include)
 

@@ -240,6 +240,20 @@ void Renderer::DrawText(FontHandle Font, std::string_view Text, SDL_FPoint Posit
     SDL_RenderTexture(SdlRenderer, Texture, nullptr, &Destination);
 }
 
+SDL_Renderer* Renderer::GetSdlRenderer() const {
+    return SdlRenderer;
+}
+
+void Renderer::DrawTexture(SDL_Texture* Texture, SDL_FRect DestLogical) {
+    if (!Texture) {
+        return;
+    }
+    // The scene texture is sized in physical pixels (content × dpi); the logical
+    // destination scales to the same physical extent, so the blit is 1:1 — no resample.
+    const SDL_FRect Destination = ToPhysical(DestLogical);
+    SDL_RenderTexture(SdlRenderer, Texture, nullptr, &Destination);
+}
+
 void Renderer::PushClipRect(SDL_FRect RectLogical) {
     const SDL_FRect P = ToPhysical(RectLogical);
     SDL_Rect Requested{static_cast<int>(std::lround(P.x)), static_cast<int>(std::lround(P.y)),

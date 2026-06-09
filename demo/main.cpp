@@ -12,6 +12,7 @@
 #include "Penumbra/Widgets/NumericDrag.h"
 #include "Penumbra/Widgets/ScrollablePanel.h"
 #include "Penumbra/Widgets/TextInput.h"
+#include "Penumbra/Widgets/ViewportWidget.h"
 
 #include <cstdio>
 #include <functional>
@@ -195,6 +196,28 @@ int main() {
                                      Theme.ColorTextPrimary));
         }
 
+        // ---- the scene viewport, alongside the settings panel ----
+        // A ViewportWidget proves the render-target seam: its OnRenderScene draws a
+        // checkerboard through the ordinary Renderer interface while Penumbra (not the
+        // callback) handles the off-screen texture and the blit back into the UI pass.
+        auto ScenePane = std::make_unique<ViewportWidget>();
+        ScenePane->Style          = Demo::ResolvePanelStyle(Theme);
+        ScenePane->SceneClearColor = Theme.ColorBackgroundPrimary; // odd cells show this
+        ScenePane->OnRenderScene =
+            [&Theme](Penumbra::Render::Renderer& SceneRenderer, SDL_FPoint SceneSize) {
+                constexpr int Cells = 8;
+                const float CellW = SceneSize.x / static_cast<float>(Cells);
+                const float CellH = SceneSize.y / static_cast<float>(Cells);
+                for (int Row = 0; Row < Cells; ++Row) {
+                    for (int Col = 0; Col < Cells; ++Col) {
+                        if ((Row + Col) % 2 == 0) {
+                            SceneRenderer.DrawFilledRect(
+                                {Col * CellW, Row * CellH, CellW, CellH}, Theme.ColorAccent);
+                        }
+                    }
+                }
+            };
+
         bool TextInputActive = false;
 
         Penumbra::Platform::InputState Input;
@@ -207,18 +230,27 @@ int main() {
             StatusLabel->Text =
                 "live: value=" + FormatFloat(Drag->Value) + "  name=\"" + Field->Text + "\"";
 
+            // Two panes: settings on the left, the scene viewport on the right.
             const SDL_FPoint WindowSize = Window.GetLogicalWindowSize();
             const float Margin = Theme.SpacingLarge;
-            const SDL_FRect Viewport{Margin, Margin, WindowSize.x - 2.0f * Margin,
-                                     WindowSize.y - 2.0f * Margin};
+            const float Gap    = Theme.SpacingLarge;
+            const float FullW  = WindowSize.x - 2.0f * Margin;
+            const float FullH  = WindowSize.y - 2.0f * Margin;
+            const float LeftW  = (FullW - Gap) * 0.48f;
+            const SDL_FRect LeftRect{Margin, Margin, LeftW, FullH};
+            const SDL_FRect RightRect{Margin + LeftW + Gap, Margin, FullW - LeftW - Gap, FullH};
 
-            Root->Measure({Viewport.w, Viewport.h});
-            Root->Arrange(Viewport);
+            Root->Measure({LeftRect.w, LeftRect.h});
+            Root->Arrange(LeftRect);
+            ScenePane->Measure({RightRect.w, RightRect.h});
+            ScenePane->Arrange(RightRect);
 
             if (Input.MouseButtonPressedThisFrame[0]) {
                 Focus.Focused = nullptr;
             }
-            Root->UpdateInteractionState(Input);
+            if (!Root->UpdateInteractionState(Input)) {
+                ScenePane->UpdateInteractionState(Input);
+            }
 
             const bool WantTextInput = (Focus.Focused != nullptr);
             if (WantTextInput != TextInputActive) {
@@ -228,6 +260,7 @@ int main() {
 
             Renderer.BeginFrame(Theme.ColorBackgroundPrimary);
             Root->Draw(Renderer);
+            ScenePane->Draw(Renderer);
             Renderer.EndFrameAndPresent();
         }
     }

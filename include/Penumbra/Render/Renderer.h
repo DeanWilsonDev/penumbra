@@ -27,6 +27,15 @@ public:
                          float CornerRadiusLogical = 0.0f);
     void DrawText       (FontHandle Font, std::string_view Text, SDL_FPoint PositionLogical, SDL_Color Color);
 
+    // Returns the underlying SDL_Renderer so ViewportWidget can manage its off-screen
+    // scene texture (create, switch target). Penumbra internals only — Dawn never calls
+    // this; it keeps SDL render-target juggling locked inside the Render layer.
+    SDL_Renderer* GetSdlRenderer() const;
+
+    // Draws a previously acquired SDL_Texture into a logical-pixel destination rect.
+    // Used by ViewportWidget to composite the scene texture back into the UI pass.
+    void DrawTexture(SDL_Texture* Texture, SDL_FRect DestLogical);
+
     // Clip stack — every push must be matched by a pop. Nested pushes intersect.
     // Asserted balanced at EndFrameAndPresent.
     void PushClipRect(SDL_FRect RectLogical);
