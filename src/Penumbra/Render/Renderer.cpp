@@ -239,8 +239,8 @@ void Renderer::DrawText(FontHandle Font, std::string_view Text, Point PositionLo
     float TextureHeight = 0.0f;
     SDL_GetTextureSize(Texture, &TextureWidth, &TextureHeight);
 
-    const SDL_FRect Destination{PositionLogical.X * DpiScaleFactor,
-                                PositionLogical.Y * DpiScaleFactor, TextureWidth, TextureHeight};
+    const SDL_FRect Destination{std::round(PositionLogical.X * DpiScaleFactor),
+                                std::round(PositionLogical.Y * DpiScaleFactor), TextureWidth, TextureHeight};
     SDL_RenderTexture(SdlRenderer, Texture, nullptr, &Destination);
 }
 
@@ -252,9 +252,11 @@ void Renderer::DrawTexture(SDL_Texture* Texture, Rect DestLogical) {
     if (!Texture) {
         return;
     }
-    // The scene texture is sized in physical pixels (content × dpi); the logical
-    // destination scales to the same physical extent, so the blit is 1:1 — no resample.
-    const SDL_FRect Destination = ToPhysical(DestLogical);
+    // The scene texture is sized in physical pixels (content × dpi); rounding the
+    // destination size to match makes the blit genuinely 1:1 — no resample.
+    SDL_FRect Destination = ToPhysical(DestLogical);
+    Destination.w = std::round(Destination.w);
+    Destination.h = std::round(Destination.h);
     SDL_RenderTexture(SdlRenderer, Texture, nullptr, &Destination);
 }
 
