@@ -63,6 +63,23 @@ RoundedRing BuildRoundedRing(SDL_FRect R, float Radius, int Segments) {
     return Ring;
 }
 
+// A full-circle ring (Segments points around the whole circumference) plus the
+// outward unit normal at each point -- the filled-disc analogue of
+// BuildRoundedRing's per-corner quarter arcs, used by DrawRadialGradient.
+RoundedRing BuildCircleRing(SDL_FPoint Centre, float Radius, int Segments) {
+    RoundedRing Ring;
+    Ring.Points.reserve(static_cast<std::size_t>(Segments));
+    Ring.Normals.reserve(static_cast<std::size_t>(Segments));
+    for (int Step = 0; Step < Segments; ++Step) {
+        const float Angle = (2.0f * Pi) * static_cast<float>(Step) / static_cast<float>(Segments);
+        const float CosA = std::cos(Angle);
+        const float SinA = std::sin(Angle);
+        Ring.Points.push_back({Centre.x + Radius * CosA, Centre.y + Radius * SinA});
+        Ring.Normals.push_back({CosA, SinA});
+    }
+    return Ring;
+}
+
 } // namespace
 
 bool Renderer::Initialise(SDL_Renderer* InSdlRenderer, float InDpiScaleFactor,
@@ -91,6 +108,7 @@ void Renderer::BeginFrame(Color ClearColor) {
 
 void Renderer::EndFrameAndPresent() {
     assert(ClipStack.empty() && "clip stack not balanced: a PushClipRect is missing its PopClipRect");
+    assert(BlendStack.empty() && "blend stack not balanced: a PushBlendMode is missing its PopBlendMode");
     SDL_RenderPresent(SdlRenderer);
 }
 
@@ -211,6 +229,87 @@ void Renderer::DrawGradientRect(Rect RectLogical, Color TopColor, Color BottomCo
         Indices.push_back(0);            Indices.push_back(InnerBase + A); Indices.push_back(InnerBase + B);
         Indices.push_back(InnerBase + A); Indices.push_back(InnerBase + B); Indices.push_back(OuterBase + B);
         Indices.push_back(InnerBase + A); Indices.push_back(OuterBase + B); Indices.push_back(OuterBase + A);
+    }
+
+    SDL_RenderGeometry(SdlRenderer, nullptr, Vertices.data(), static_cast<int>(Vertices.size()),
+                       Indices.data(), static_cast<int>(Indices.size()));
+}
+
+void Renderer::DrawRadialGradient(Point Centre, float RadiusLogical, Color CentreColor, Color EdgeColor) {
+    DrawRadialGradient(Centre, RadiusLogical,
+                       std::vector<GradientStop>{{0.0f, CentreColor}, {1.0f, EdgeColor}});
+}
+
+void Renderer::DrawRadialGradient(Point Centre, float RadiusLogical, const std::vector<GradientStop>& Stops) {
+    if (RadiusLogical <= 0.0f || Stops.size() < 2) {
+        return;
+    }
+
+    const SDL_FPoint C{Centre.X * DpiScaleFactor, Centre.Y * DpiScaleFactor};
+    const float Radius = RadiusLogical * DpiScaleFactor;
+    const float Half = AaFeatherPhysical * 0.5f;
+
+    // Segment count scales the same way SegmentsForRadius already does for one 90-degree
+    // corner arc, just carried across the full 360-degree circumference (4x), so a disc
+    // gets the same angular resolution a rounded-rect corner of the same radius would.
+    const int Segments = 4 * SegmentsForRadius(Radius);
+
+    // A centre vertex plus one concentric ring per stop after the first, banded together
+    // with the same solid-centre-fan-plus-fading-ring structure the 2-color overload
+    // (and DrawFilledRect/DrawGradientRect before it) already uses -- triangle
+    // rasterisation supplies the interpolation between each adjacent pair of stop colors
+    // for free, the same way it does between the centre and a single edge color. Only the
+    // last stop's ring is inset by Half (straddled by the AA feather ring appended after
+    // the loop); interior stop-to-stop rings need no feather, since they're not an edge
+    // against the destination background.
+    std::vector<SDL_Vertex> Vertices;
+    std::vector<int> Indices;
+    Vertices.reserve(static_cast<std::size_t>(1 + Stops.size() * Segments));
+
+    Vertices.push_back({C, ToFColor(Stops.front().StopColor), {0.0f, 0.0f}});
+
+    auto AddBand = [&](int PrevBase, int PrevCount, int RingBase) {
+        for (int Index = 0; Index < Segments; ++Index) {
+            const int A = Index;
+            const int B = (Index + 1) % Segments;
+            if (PrevCount == 1) { // fan out from the single centre vertex
+                Indices.push_back(PrevBase);
+                Indices.push_back(RingBase + A);
+                Indices.push_back(RingBase + B);
+            } else {
+                Indices.push_back(PrevBase + A); Indices.push_back(PrevBase + B); Indices.push_back(RingBase + B);
+                Indices.push_back(PrevBase + A); Indices.push_back(RingBase + B); Indices.push_back(RingBase + A);
+            }
+        }
+    };
+
+    int PrevBase = 0;
+    int PrevCount = 1; // the centre vertex
+    for (std::size_t Index = 1; Index < Stops.size(); ++Index) {
+        const bool IsLast = (Index + 1 == Stops.size());
+        const float T = std::clamp(Stops[Index].T, 0.0f, 1.0f);
+        const float StopRadius = IsLast ? std::max(0.0f, Radius * T - Half) : Radius * T;
+        const RoundedRing Ring = BuildCircleRing(C, StopRadius, Segments);
+        const SDL_FColor StopColor = ToFColor(Stops[Index].StopColor);
+        const int RingBase = static_cast<int>(Vertices.size());
+        for (int Seg = 0; Seg < Segments; ++Seg) {
+            Vertices.push_back({Ring.Points[Seg], StopColor, {0.0f, 0.0f}});
+        }
+        AddBand(PrevBase, PrevCount, RingBase);
+        PrevBase = RingBase;
+        PrevCount = Segments;
+    }
+
+    { // AA feather: fade the last stop's color to zero alpha, Half beyond its true radius.
+        SDL_FColor EdgeClear = ToFColor(Stops.back().StopColor);
+        EdgeClear.a = 0.0f;
+        const float T = std::clamp(Stops.back().T, 0.0f, 1.0f);
+        const RoundedRing Ring = BuildCircleRing(C, Radius * T + Half, Segments);
+        const int RingBase = static_cast<int>(Vertices.size());
+        for (int Seg = 0; Seg < Segments; ++Seg) {
+            Vertices.push_back({Ring.Points[Seg], EdgeClear, {0.0f, 0.0f}});
+        }
+        AddBand(PrevBase, PrevCount, RingBase);
     }
 
     SDL_RenderGeometry(SdlRenderer, nullptr, Vertices.data(), static_cast<int>(Vertices.size()),
@@ -473,6 +572,28 @@ void Renderer::PopClipRect() {
     } else {
         SDL_SetRenderClipRect(SdlRenderer, &ClipStack.back());
     }
+}
+
+void Renderer::PushBlendMode(BlendMode Mode) {
+    const SDL_BlendMode Sdl = (Mode == BlendMode::Additive) ? SDL_BLENDMODE_ADD : SDL_BLENDMODE_BLEND;
+    BlendStack.push_back(Sdl);
+    SDL_SetRenderDrawBlendMode(SdlRenderer, Sdl);
+}
+
+void Renderer::PushCustomBlendMode(SDL_BlendFactor SrcColorFactor, SDL_BlendFactor DstColorFactor,
+                                   SDL_BlendOperation ColorOperation, SDL_BlendFactor SrcAlphaFactor,
+                                   SDL_BlendFactor DstAlphaFactor, SDL_BlendOperation AlphaOperation) {
+    const SDL_BlendMode Custom = SDL_ComposeCustomBlendMode(SrcColorFactor, DstColorFactor, ColorOperation,
+                                                             SrcAlphaFactor, DstAlphaFactor, AlphaOperation);
+    BlendStack.push_back(Custom);
+    SDL_SetRenderDrawBlendMode(SdlRenderer, Custom);
+}
+
+void Renderer::PopBlendMode() {
+    assert(!BlendStack.empty() && "PopBlendMode called with an empty blend stack");
+    BlendStack.pop_back();
+    const SDL_BlendMode Restored = BlendStack.empty() ? SDL_BLENDMODE_BLEND : BlendStack.back();
+    SDL_SetRenderDrawBlendMode(SdlRenderer, Restored);
 }
 
 TextMetrics Renderer::MeasureText(FontHandle Font, std::string_view Text) const {

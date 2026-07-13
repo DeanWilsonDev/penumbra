@@ -10,6 +10,20 @@
 
 namespace Penumbra::Render {
 
+// SDL_BLENDMODE_BLEND (the default, "over" compositing) or SDL_BLENDMODE_ADD
+// (additive -- overlapping translucent draws brighten instead of just
+// compositing more opaque). See Renderer::PushBlendMode.
+enum class BlendMode { Normal, Additive };
+
+// One color stop in a multi-stop DrawRadialGradient: T is the stop's position as a
+// fraction of RadiusLogical (0 = centre, 1 = the disc's outer edge); StopColor is the
+// solid color at that stop. Stops must be supplied in ascending T order; the first
+// stop's own T is ignored -- it is always the disc's exact centre point.
+struct GradientStop {
+    float T{0.0f};
+    Color StopColor;
+};
+
 // Wraps SDL_Renderer and exposes a logical-pixel drawing API. The renderer
 // applies the DPI scale to geometry at submission; glyph textures are drawn at
 // their native physical size (no double scaling). This is the only layer an
@@ -39,6 +53,22 @@ public:
     // normalised Y position.
     void DrawGradientRect(Rect RectLogical, Color TopColor, Color BottomColor,
                           float CornerRadiusLogical = 0.0f);
+
+    // A radial gradient centred at Centre, solid CentreColor at the middle,
+    // interpolating outward to EdgeColor at RadiusLogical. Same solid-centre-fan
+    // vertex-color technique DrawFilledRect and DrawGradientRect's rounded-corner
+    // path already use -- a centre vertex plus a fading outer ring, here keyed by
+    // radial distance instead of Y position -- and independent of any caster rect,
+    // so it draws a filled disc directly instead of borrowing DrawDropShadow's
+    // ring-around-a-shape contract.
+    void DrawRadialGradient(Point Centre, float RadiusLogical, Color CentreColor, Color EdgeColor);
+
+    // Multi-stop form of the above: an arbitrary number of color stops instead of a
+    // fixed centre/edge pair (e.g. a bright white core -> a tinted accent midtone ->
+    // a transparent edge, in one draw call). The 2-color overload is a thin wrapper
+    // around this one ({T=0, CentreColor}, {T=1, EdgeColor}); the AA feather is always
+    // applied past the last stop, the same way the 2-color overload fades past EdgeColor.
+    void DrawRadialGradient(Point Centre, float RadiusLogical, const std::vector<GradientStop>& Stops);
 
     // A soft rectangular shadow, meant to be drawn just before the widget that
     // casts it so it reads as sitting "behind" it. RectLogical is the caster's
@@ -74,6 +104,24 @@ public:
     void PushClipRect(Rect RectLogical);
     void PopClipRect();
 
+    // Blend-mode stack, scoped like the clip-rect stack above -- every push must be
+    // matched by a pop. Nesting is not expected (SDL's blend mode is a single current
+    // state, not a stack of composited layers), but a stack keeps the call symmetric
+    // with PushClipRect/PopClipRect and makes "did I forget to restore this"
+    // debug-assertable the same way unbalanced clip pushes already are. Asserted
+    // balanced at EndFrameAndPresent.
+    void PushBlendMode(BlendMode Mode);
+    void PopBlendMode();
+
+    // The fully general escape hatch PushBlendMode(BlendMode::Additive) is a convenience
+    // wrapper around: composes an arbitrary blend mode from SDL's six blend-factor/
+    // operation parameters (SDL_ComposeCustomBlendMode) for callers that need something
+    // neither Normal nor Additive covers (e.g. a multiply or screen blend). Pushes onto
+    // the same stack as PushBlendMode -- pop either kind of push with PopBlendMode.
+    void PushCustomBlendMode(SDL_BlendFactor SrcColorFactor, SDL_BlendFactor DstColorFactor,
+                             SDL_BlendOperation ColorOperation, SDL_BlendFactor SrcAlphaFactor,
+                             SDL_BlendFactor DstAlphaFactor, SDL_BlendOperation AlphaOperation);
+
     // Measurement is in logical pixels even though glyphs rasterise at physical size.
     TextMetrics MeasureText     (FontHandle Font, std::string_view Text) const;
     float       MeasureTextWidth(FontHandle Font, std::string_view Text) const; // caret positioning
@@ -92,7 +140,9 @@ private:
     SDL_Renderer*         SdlRenderer{nullptr};
     IFontBackend*         FontBackend{nullptr};
     float                 DpiScaleFactor{1.0f};
-    std::vector<SDL_Rect> ClipStack; // physical-pixel rects, already intersected
+    std::vector<SDL_Rect>      ClipStack;  // physical-pixel rects, already intersected
+    std::vector<SDL_BlendMode> BlendStack; // resolved SDL blend modes -- PushBlendMode and
+                                            // PushCustomBlendMode both push onto this one stack
 };
 
 } // namespace Penumbra::Render
