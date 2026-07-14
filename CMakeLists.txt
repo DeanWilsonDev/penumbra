@@ -26,6 +26,7 @@ add_library(penumbra STATIC
     src/Penumbra/Render/SdlTtfFontBackend.cpp
     src/Penumbra/Widgets/Box.cpp
     src/Penumbra/Widgets/InlineContainer.cpp
+    src/Penumbra/Widgets/Image.cpp
     src/Penumbra/Widgets/Button.cpp
     src/Penumbra/Widgets/ScrollablePanel.cpp
     src/Penumbra/Widgets/Label.cpp
