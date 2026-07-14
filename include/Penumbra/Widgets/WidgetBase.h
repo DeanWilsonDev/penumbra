@@ -5,6 +5,8 @@
 #include "Penumbra/Render/Renderer.h"
 #include "Penumbra/Widgets/Styles.h"
 
+#include <cstddef>
+
 namespace Penumbra::Widgets {
 
 // Four states only — this is complete. If you think you need a fifth, you need a
@@ -29,6 +31,12 @@ public:
     // BoxStyle, but the parent reaches it polymorphically because every widget is a
     // Box; non-Box widgets (there are none in this PoC) report zero.
     virtual EdgeInsets GetMarginLogical() const { return {0.0f, 0.0f, 0.0f, 0.0f}; }
+
+    // A read-only, uniform way to walk a widget's children regardless of how it
+    // stores them internally (a generic vector, named slots, ...). Widgets with no
+    // children report zero — the default — rather than every leaf overriding it.
+    virtual std::size_t GetChildCount() const { return 0; }
+    virtual WidgetBase* GetChildAt(std::size_t Index) const { return nullptr; }
 
     void SetIsEnabled(bool Enabled) { IsEnabled = Enabled; }
     bool GetIsEnabled() const { return IsEnabled; }

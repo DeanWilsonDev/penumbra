@@ -134,6 +134,21 @@ bool SplitPanel::UpdateInteractionState(const Platform::InputState& Input) {
     return Dragging || Hovered;
 }
 
+std::size_t SplitPanel::GetChildCount() const { return (First ? 1u : 0u) + (Second ? 1u : 0u); }
+
+WidgetBase* SplitPanel::GetChildAt(std::size_t Index) const {
+    if (First) {
+        if (Index == 0) {
+            return First.get();
+        }
+        --Index;
+    }
+    if (Second && Index == 0) {
+        return Second.get();
+    }
+    return nullptr;
+}
+
 void SplitPanel::Draw(Render::Renderer& Renderer) {
     if (First) {
         First->Draw(Renderer);

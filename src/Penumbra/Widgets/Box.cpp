@@ -15,6 +15,49 @@ WidgetBase* Box::AddChild(std::unique_ptr<WidgetBase> Child) {
     return Raw;
 }
 
+WidgetBase* Box::InsertChildAt(std::size_t Index, std::unique_ptr<WidgetBase> Child) {
+    WidgetBase* Raw = Child.get();
+    const std::size_t Clamped = std::min(Index, Children.size());
+    Children.insert(Children.begin() + static_cast<std::ptrdiff_t>(Clamped), std::move(Child));
+    return Raw;
+}
+
+void Box::RemoveChild(WidgetBase* Child) {
+    auto Iterator = std::find_if(Children.begin(), Children.end(),
+                                  [Child](const std::unique_ptr<WidgetBase>& Owned) { return Owned.get() == Child; });
+    if (Iterator != Children.end()) {
+        Children.erase(Iterator);
+    }
+}
+
+std::unique_ptr<WidgetBase> Box::ReplaceChild(WidgetBase* Existing, std::unique_ptr<WidgetBase> Replacement) {
+    auto Iterator = std::find_if(
+        Children.begin(), Children.end(),
+        [Existing](const std::unique_ptr<WidgetBase>& Owned) { return Owned.get() == Existing; });
+    if (Iterator == Children.end()) {
+        return nullptr;
+    }
+    std::unique_ptr<WidgetBase> Removed = std::move(*Iterator);
+    *Iterator                           = std::move(Replacement);
+    return Removed;
+}
+
+void Box::ClearChildren() { Children.clear(); }
+
+void Box::MoveChild(std::size_t FromIndex, std::size_t ToIndex) {
+    if (FromIndex == ToIndex || FromIndex >= Children.size() || ToIndex >= Children.size()) {
+        return;
+    }
+    auto Begin = Children.begin();
+    if (FromIndex < ToIndex) {
+        std::rotate(Begin + static_cast<std::ptrdiff_t>(FromIndex), Begin + static_cast<std::ptrdiff_t>(FromIndex) + 1,
+                    Begin + static_cast<std::ptrdiff_t>(ToIndex) + 1);
+    } else {
+        std::rotate(Begin + static_cast<std::ptrdiff_t>(ToIndex), Begin + static_cast<std::ptrdiff_t>(FromIndex),
+                    Begin + static_cast<std::ptrdiff_t>(FromIndex) + 1);
+    }
+}
+
 Point Box::FrameSize() const {
     const float Horizontal = Style.Padding.Left + Style.Padding.Right + 2.0f * Style.BorderWidth;
     const float Vertical   = Style.Padding.Top + Style.Padding.Bottom + 2.0f * Style.BorderWidth;

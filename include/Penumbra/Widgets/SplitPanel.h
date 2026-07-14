@@ -37,6 +37,11 @@ public:
     bool  UpdateInteractionState(const Platform::InputState&) override;
     void  Draw(Render::Renderer&) override;
 
+    // Reports First/Second through the generic child-enumeration contract instead
+    // of Box's Children vector, which this widget doesn't use.
+    std::size_t GetChildCount() const override;
+    WidgetBase* GetChildAt(std::size_t Index) const override;
+
 private:
     // Handle state colours, poured in by ApplyStyle — same pattern as Button's own
     // state-colour fields fed from ButtonStyle.
