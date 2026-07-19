@@ -46,7 +46,23 @@ not just drawing) and deserves its own design pass when it's actually prioritize
 speculative signature bolted on as a side effect of Lustre's own design. Recording the need,
 not the shape.
 
-## 3. Not a gap, confirmed working as-is
+## 3. No fixed-size (width/height) override anywhere
+
+`WidgetBase`/`Box`/`Label` size themselves entirely intrinsically — `Measure`/`Arrange` derive
+size from content plus `BoxStyle::Padding`, with no field anywhere to say "be exactly 200
+logical pixels wide regardless of content." Lustre's spec includes `width`/`height` as real
+properties (two of the most basic in CSS, and Lustre's explicit design goal is CSS
+familiarity) even though nothing backs them today.
+
+### What would unblock this
+
+An explicit-size-override concept distinct from intrinsic `Measure` — e.g. optional
+`WidthLogical`/`HeightLogical` fields (or a `SizeMode` enum: `Intrinsic` vs `Fixed`) that
+`Measure` consults before falling through to content-driven sizing. Not proposing exact field
+names here; this needs its own design pass alongside whatever `<Grid>`'s real layout mode ends
+up needing (`iris_core_spec.md` §9's own open gap), since both touch `Measure`/`Arrange`.
+
+## 4. Not a gap, confirmed working as-is
 
 Penumbra's `Button::UpdateInteractionState` already does its own hover/press/disabled
 detection per frame from `Platform::InputState` — Lustre/Iris will never need to detect
