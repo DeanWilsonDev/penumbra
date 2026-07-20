@@ -34,6 +34,35 @@ Modifiers MapModifiers(SDL_Keymod Mod) {
     return {(Mod & SDL_KMOD_SHIFT) != 0, (Mod & SDL_KMOD_CTRL) != 0,
             (Mod & SDL_KMOD_ALT) != 0, (Mod & SDL_KMOD_GUI) != 0};
 }
+
+// The scale actually baked into Window's real drawable, derived from its
+// pixel size vs its logical size, rather than trusted from
+// SDL_GetWindowDisplayScale alone (docs/penumbra_x11_driver_dpi_requirements.md,
+// in the `pharos-proto` repo). SDL_WINDOW_HIGH_PIXEL_DENSITY only actually
+// grows the drawable under drivers that support per-window content scale
+// (Wayland); under X11 the drawable stays at exactly the requested logical
+// size regardless of the flag, while SDL_GetWindowDisplayScale can still
+// report the desktop's real (XWayland-inherited) compositor scale -- a
+// mismatch that previously left DpiScaleFactor overstated, causing
+// Renderer to draw as if the canvas were bigger than the real drawable
+// backing it. Comparing SDL_GetWindowSizeInPixels against the window's own
+// current logical size sidesteps the query and reflects what actually got
+// built, whichever driver built it. Returns 0.0f (not a valid scale) if
+// Window is null or its logical width is degenerate, so callers can fall
+// back to the display-scale query the same way a failed query already did.
+float ObservedDrawableScale(SDL_Window* Window) {
+    if (!Window) {
+        return 0.0f;
+    }
+    int LogicalWidth = 0, LogicalHeight = 0;
+    SDL_GetWindowSize(Window, &LogicalWidth, &LogicalHeight);
+    if (LogicalWidth <= 0) {
+        return 0.0f;
+    }
+    int PixelWidth = 0, PixelHeight = 0;
+    SDL_GetWindowSizeInPixels(Window, &PixelWidth, &PixelHeight);
+    return static_cast<float>(PixelWidth) / static_cast<float>(LogicalWidth);
+}
 } // namespace
 
 bool PlatformWindow::Initialise(const char* Title, int LogicalWidth, int LogicalHeight) {
@@ -53,7 +82,8 @@ bool PlatformWindow::Initialise(const char* Title, int LogicalWidth, int Logical
     // coil whine and needless power draw. One frame per refresh is plenty for a UI.
     SDL_SetRenderVSync(SdlRenderer, 1);
 
-    DpiScaleFactor = SDL_GetWindowDisplayScale(Window);
+    const float Observed = ObservedDrawableScale(Window);
+    DpiScaleFactor = (Observed > 0.0f) ? Observed : SDL_GetWindowDisplayScale(Window);
     if (DpiScaleFactor <= 0.0f) {
         DpiScaleFactor = 1.0f;
     }
@@ -140,8 +170,12 @@ Point PlatformWindow::GetLogicalWindowSize() const {
 }
 
 float PlatformWindow::GetDpiScaleFactor() const {
+    const float Observed = ObservedDrawableScale(Window);
+    if (Observed > 0.0f) {
+        return Observed;
+    }
     const float Live = SDL_GetWindowDisplayScale(Window);
-    return (Live > 0.0f) ? Live : DpiScaleFactor; // fall back to the cached value if the query fails
+    return (Live > 0.0f) ? Live : DpiScaleFactor; // fall back to the cached value if both queries fail
 }
 
 void PlatformWindow::SetTextInputActive(bool Active) {
