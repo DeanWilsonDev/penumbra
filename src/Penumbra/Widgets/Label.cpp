@@ -9,11 +9,47 @@ Point Label::MeasureContent(Point /*AvailableContentSize*/) {
         return {0.0f, 0.0f};
     }
     const Render::TextMetrics Metrics = FontBackend->MeasureText(Font, Text);
-    return {Metrics.WidthLogical, Metrics.HeightLogical};
+    float Width = Metrics.WidthLogical;
+    // Clamped here (not just at Draw time) so a truncating Label doesn't blow
+    // out sibling layout by reporting its full unbounded intrinsic width --
+    // the same reasoning IconWidget's own fixed SizeLogical exists for, just
+    // conditional on MaxWidthLogical being set at all.
+    if (MaxWidthLogical && Width > *MaxWidthLogical) {
+        Width = *MaxWidthLogical;
+    }
+    return {Width, Metrics.HeightLogical};
 }
 
 void Label::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
-    Renderer.DrawText(Font, Text, {ContentRect.X, ContentRect.Y}, ColorText);
+    if (!MaxWidthLogical || Renderer.MeasureTextWidth(Font, Text) <= *MaxWidthLogical) {
+        Renderer.DrawText(Font, Text, {ContentRect.X, ContentRect.Y}, ColorText);
+        return;
+    }
+
+    if (!TruncateWithEllipsis) {
+        // `text-overflow: clip` -- draw the full string behind a clip rect
+        // rather than shortening it at all.
+        Renderer.PushClipRect({ContentRect.X, ContentRect.Y, *MaxWidthLogical, ContentRect.H});
+        Renderer.DrawText(Font, Text, {ContentRect.X, ContentRect.Y}, ColorText);
+        Renderer.PopClipRect();
+        return;
+    }
+
+    // `text-overflow: ellipsis` -- shrink one character at a time until what's
+    // left fits, then swap the trailing one or two characters for "..". Same
+    // algorithm pharos-proto's own drawTruncatedText (ui/text_utils.cpp) used
+    // before this existed as a real Label capability.
+    std::string ToDraw = Text;
+    while (!ToDraw.empty() && Renderer.MeasureTextWidth(Font, ToDraw) > *MaxWidthLogical) {
+        ToDraw.pop_back();
+    }
+    if (ToDraw.size() >= 2) {
+        ToDraw[ToDraw.size() - 1] = '.';
+        if (ToDraw.size() >= 3) {
+            ToDraw[ToDraw.size() - 2] = '.';
+        }
+    }
+    Renderer.DrawText(Font, ToDraw, {ContentRect.X, ContentRect.Y}, ColorText);
 }
 
 Label::Builder::Builder() : Owned(std::make_unique<Label>()) {}
