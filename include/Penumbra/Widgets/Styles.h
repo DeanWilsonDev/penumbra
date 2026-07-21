@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Penumbra/Geometry.h"
 #include "Penumbra/Render/Color.h"
 
 namespace Penumbra::Widgets {
@@ -45,6 +46,18 @@ struct BoxStyle {
     Render::Color ColorBackgroundHovered{0, 0, 0, 0};
     Render::Color ColorBackgroundPressed{0, 0, 0, 0};
     Render::Color ColorBackgroundDisabled{0, 0, 0, 0};
+
+    // A whole-subtree paint/hit-test transform (docs/lustre_style_gaps_requirements.md
+    // #2) -- Box::Draw composites this Box and every descendant through it as one
+    // scaled/rotated/translated blit, and Box::UpdateInteractionState inverse-transforms
+    // the mouse point so clicking/hovering tracks the visual position, not the
+    // untransformed layout rect. Layout itself (Measure/Arrange, siblings' positions)
+    // is unaffected, matching CSS: transform never reflows. One flat value, not a
+    // per-state Hovered/Pressed/Disabled trio like the colours above -- resolving e.g.
+    // Lustre's `:active { transform: scale(0.97) }` into this field per frame is a
+    // resolver-side concern once the primitive exists, not something Penumbra itself
+    // needs to track multiple copies of.
+    Penumbra::Transform Transform{};
 };
 
 // Per-widget styles extend BoxStyle so the box-model slots stay universal and free.

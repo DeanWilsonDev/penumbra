@@ -1,6 +1,7 @@
 #include "Penumbra/Widgets/Box.h"
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace Penumbra::Widgets {
@@ -13,6 +14,28 @@ bool PointInRect(Point Point, Rect Rect) {
            Point.Y >= Rect.Y && Point.Y < Rect.Y + Rect.H;
 }
 constexpr int LeftButton = 0;
+
+// Inverse of the SRT-around-Pivot composition Renderer::PopTransform applies when
+// painting: undoes Translate, then Rotate, then Scale, so a ScreenPoint that landed
+// on the transformed visual maps back to the same LocalPoint it would have hit had
+// the widget never been transformed -- letting the untouched PointInRect(..,
+// ArrangedRect) check downstream work unchanged.
+Point InverseTransformPoint(Point ScreenPoint, Point Pivot, const Transform& T) {
+    const float OffsetX = ScreenPoint.X - Pivot.X - T.TranslateXLogical;
+    const float OffsetY = ScreenPoint.Y - Pivot.Y - T.TranslateYLogical;
+
+    constexpr float Pi = 3.14159265358979323846f;
+    const float Radians = -T.RotationDegrees * (Pi / 180.0f);
+    const float CosA = std::cos(Radians);
+    const float SinA = std::sin(Radians);
+    const float RotatedX = OffsetX * CosA - OffsetY * SinA;
+    const float RotatedY = OffsetX * SinA + OffsetY * CosA;
+
+    const float ScaleX = (T.ScaleX != 0.0f) ? T.ScaleX : 1.0f;
+    const float ScaleY = (T.ScaleY != 0.0f) ? T.ScaleY : 1.0f;
+
+    return {Pivot.X + RotatedX / ScaleX, Pivot.Y + RotatedY / ScaleY};
+}
 } // namespace
 
 WidgetBase* Box::AddChild(std::unique_ptr<WidgetBase> Child) {
@@ -188,12 +211,24 @@ void Box::Arrange(Rect FinalRectLogical) {
 }
 
 bool Box::UpdateInteractionState(const Platform::InputState& Input) {
+    // Only pay for an InputState copy when this Box is actually transformed -- the
+    // overwhelmingly common case is Style.Transform.IsIdentity(), where Input is
+    // used (and passed to children) completely unchanged.
+    Platform::InputState TransformedInput;
+    const Platform::InputState* Effective = &Input;
+    if (!Style.Transform.IsIdentity()) {
+        TransformedInput = Input;
+        const Point Pivot{ArrangedRect.X + ArrangedRect.W * 0.5f, ArrangedRect.Y + ArrangedRect.H * 0.5f};
+        TransformedInput.MousePosition = InverseTransformPoint(Input.MousePosition, Pivot, Style.Transform);
+        Effective = &TransformedInput;
+    }
+
     // Depth-first, last child (drawn on top) gets first refusal.
     for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
         if (!(*Iterator)->GetIsVisible()) {
             continue; // a hidden subtree can't consume input
         }
-        if ((*Iterator)->UpdateInteractionState(Input)) {
+        if ((*Iterator)->UpdateInteractionState(*Effective)) {
             return true;
         }
     }
@@ -218,10 +253,10 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
         return false;
     }
 
-    const bool Hovered  = PointInRect(Input.MousePosition, ArrangedRect);
-    const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
-    const bool Down     = Input.MouseButtonDown[LeftButton];
-    const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];
+    const bool Hovered  = PointInRect(Effective->MousePosition, ArrangedRect);
+    const bool Pressed  = Effective->MouseButtonPressedThisFrame[LeftButton];
+    const bool Down     = Effective->MouseButtonDown[LeftButton];
+    const bool Released = Effective->MouseButtonReleasedThisFrame[LeftButton];
 
     if (Hovered && OnHovered) {
         OnHovered();
@@ -265,6 +300,15 @@ Render::Color Box::BackgroundForState() const {
 }
 
 void Box::Draw(Render::Renderer& Renderer) {
+    // A non-identity Transform redirects this Box's own paint plus every descendant's
+    // into an offscreen texture, composited back as one scaled/rotated/translated
+    // blit -- see Renderer::PushTransform. Layout (ArrangedRect, children's rects) is
+    // untouched either way, matching CSS: transform never reflows.
+    const bool Transformed = !Style.Transform.IsIdentity();
+    if (Transformed) {
+        Renderer.PushTransform(ArrangedRect, Style.Transform);
+    }
+
     // GradientTop set (alpha != 0) wins over the flat ColorBackground fill --
     // same "one or the other, gradient takes priority" rule the resolver-side
     // Lustre mapping documents (a rule that sets background-gradient-start/-end
@@ -287,6 +331,10 @@ void Box::Draw(Render::Renderer& Renderer) {
             continue;
         }
         Child->Draw(Renderer);
+    }
+
+    if (Transformed) {
+        Renderer.PopTransform();
     }
 }
 

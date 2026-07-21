@@ -96,9 +96,14 @@ bool Renderer::Initialise(SDL_Renderer* InSdlRenderer, float InDpiScaleFactor,
     return true;
 }
 
+Point Renderer::ToPhysicalPoint(Point PointLogical) const {
+    return {(PointLogical.X - OriginOffsetLogical.X) * DpiScaleFactor,
+            (PointLogical.Y - OriginOffsetLogical.Y) * DpiScaleFactor};
+}
+
 SDL_FRect Renderer::ToPhysical(Rect RectLogical) const {
-    return {RectLogical.X * DpiScaleFactor, RectLogical.Y * DpiScaleFactor,
-            RectLogical.W * DpiScaleFactor, RectLogical.H * DpiScaleFactor};
+    const Point Origin = ToPhysicalPoint({RectLogical.X, RectLogical.Y});
+    return {Origin.X, Origin.Y, RectLogical.W * DpiScaleFactor, RectLogical.H * DpiScaleFactor};
 }
 
 void Renderer::BeginFrame(Color ClearColor) {
@@ -109,6 +114,7 @@ void Renderer::BeginFrame(Color ClearColor) {
 void Renderer::EndFrameAndPresent() {
     assert(ClipStack.empty() && "clip stack not balanced: a PushClipRect is missing its PopClipRect");
     assert(BlendStack.empty() && "blend stack not balanced: a PushBlendMode is missing its PopBlendMode");
+    assert(TransformStack.empty() && "transform stack not balanced: a PushTransform is missing its PopTransform");
     SDL_RenderPresent(SdlRenderer);
 }
 
@@ -245,7 +251,8 @@ void Renderer::DrawRadialGradient(Point Centre, float RadiusLogical, const std::
         return;
     }
 
-    const SDL_FPoint C{Centre.X * DpiScaleFactor, Centre.Y * DpiScaleFactor};
+    const Point CentrePhysical = ToPhysicalPoint(Centre);
+    const SDL_FPoint C{CentrePhysical.X, CentrePhysical.Y};
     const float Radius = RadiusLogical * DpiScaleFactor;
     const float Half = AaFeatherPhysical * 0.5f;
 
@@ -442,8 +449,10 @@ void Renderer::DrawDropShadow(Rect RectLogical, Color ShadowColor, float BlurRad
 }
 
 void Renderer::DrawLine(Point From, Point To, Color InColor, float ThicknessLogical) {
-    const SDL_FPoint P0{From.X * DpiScaleFactor, From.Y * DpiScaleFactor};
-    const SDL_FPoint P1{To.X * DpiScaleFactor, To.Y * DpiScaleFactor};
+    const Point FromPhysical = ToPhysicalPoint(From);
+    const Point ToPhysicalP  = ToPhysicalPoint(To);
+    const SDL_FPoint P0{FromPhysical.X, FromPhysical.Y};
+    const SDL_FPoint P1{ToPhysicalP.X, ToPhysicalP.Y};
     const float Thickness = ThicknessLogical * DpiScaleFactor;
 
     float DirX = P1.x - P0.x;
@@ -501,10 +510,13 @@ void Renderer::DrawLine(Point From, Point To, Color InColor, float ThicknessLogi
 
 void Renderer::DrawTriangleFilled(Point A, Point B, Point C, Color InColor) {
     const SDL_FColor Solid = ToFColor(InColor);
+    const Point Ap = ToPhysicalPoint(A);
+    const Point Bp = ToPhysicalPoint(B);
+    const Point Cp = ToPhysicalPoint(C);
     const SDL_Vertex Vertices[3] = {
-        {{A.X * DpiScaleFactor, A.Y * DpiScaleFactor}, Solid, {0.0f, 0.0f}},
-        {{B.X * DpiScaleFactor, B.Y * DpiScaleFactor}, Solid, {0.0f, 0.0f}},
-        {{C.X * DpiScaleFactor, C.Y * DpiScaleFactor}, Solid, {0.0f, 0.0f}},
+        {{Ap.X, Ap.Y}, Solid, {0.0f, 0.0f}},
+        {{Bp.X, Bp.Y}, Solid, {0.0f, 0.0f}},
+        {{Cp.X, Cp.Y}, Solid, {0.0f, 0.0f}},
     };
     const int Indices[3] = {0, 1, 2};
     SDL_RenderGeometry(SdlRenderer, nullptr, Vertices, 3, Indices, 3);
@@ -526,8 +538,9 @@ void Renderer::DrawText(FontHandle Font, std::string_view Text, Point PositionLo
     float TextureHeight = 0.0f;
     SDL_GetTextureSize(Texture, &TextureWidth, &TextureHeight);
 
-    const SDL_FRect Destination{std::round(PositionLogical.X * DpiScaleFactor),
-                                std::round(PositionLogical.Y * DpiScaleFactor), TextureWidth, TextureHeight};
+    const Point PositionPhysical = ToPhysicalPoint(PositionLogical);
+    const SDL_FRect Destination{std::round(PositionPhysical.X), std::round(PositionPhysical.Y),
+                                TextureWidth, TextureHeight};
     SDL_RenderTexture(SdlRenderer, Texture, nullptr, &Destination);
 }
 
@@ -594,6 +607,70 @@ void Renderer::PopBlendMode() {
     BlendStack.pop_back();
     const SDL_BlendMode Restored = BlendStack.empty() ? SDL_BLENDMODE_BLEND : BlendStack.back();
     SDL_SetRenderDrawBlendMode(SdlRenderer, Restored);
+}
+
+void Renderer::PushTransform(Rect SubjectRectLogical, const Transform& InTransform) {
+    if (InTransform.IsIdentity()) {
+        TransformStack.push_back({nullptr, nullptr, OriginOffsetLogical, SubjectRectLogical, InTransform});
+        return;
+    }
+
+    const int PhysicalWidth  = std::max(1, static_cast<int>(std::ceil(SubjectRectLogical.W * DpiScaleFactor)));
+    const int PhysicalHeight = std::max(1, static_cast<int>(std::ceil(SubjectRectLogical.H * DpiScaleFactor)));
+
+    SDL_Texture* CaptureTexture = SDL_CreateTexture(SdlRenderer, SDL_PIXELFORMAT_RGBA8888,
+                                                     SDL_TEXTUREACCESS_TARGET, PhysicalWidth, PhysicalHeight);
+    SDL_SetTextureBlendMode(CaptureTexture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(CaptureTexture, SDL_SCALEMODE_LINEAR);
+
+    TransformStack.push_back({CaptureTexture, SDL_GetRenderTarget(SdlRenderer), OriginOffsetLogical,
+                              SubjectRectLogical, InTransform});
+
+    // The captured texture is its own render target with its own clip state; the
+    // outer target's clip (e.g. a ScrollablePanel ancestor) doesn't apply to it in any
+    // coordinate space that would make sense here, so it's cleared for the capture and
+    // restored verbatim in PopTransform once the target switches back.
+    SDL_SetRenderClipRect(SdlRenderer, nullptr);
+    SDL_SetRenderTarget(SdlRenderer, CaptureTexture);
+    OriginOffsetLogical = {SubjectRectLogical.X, SubjectRectLogical.Y};
+
+    SDL_SetRenderDrawColor(SdlRenderer, 0, 0, 0, 0);
+    SDL_RenderClear(SdlRenderer);
+}
+
+void Renderer::PopTransform() {
+    assert(!TransformStack.empty() && "PopTransform with no matching PushTransform");
+    const TransformFrame Frame = TransformStack.back();
+    TransformStack.pop_back();
+
+    if (!Frame.CaptureTexture) {
+        return; // identity push -- drawing was never redirected
+    }
+
+    SDL_SetRenderTarget(SdlRenderer, Frame.PreviousTarget);
+    OriginOffsetLogical = Frame.PreviousOriginOffsetLogical;
+    SDL_SetRenderClipRect(SdlRenderer, ClipStack.empty() ? nullptr : &ClipStack.back());
+
+    // Destination size folds in Scale, destination position folds in Translate;
+    // SDL_RenderTextureRotated's own angle/centre params handle Rotation around the
+    // subject's own centre -- exactly the transform-origin: centre semantics
+    // BoxStyle::Transform documents.
+    const Transform& T       = Frame.AppliedTransform;
+    const Rect&       Subject = Frame.SubjectRectLogical;
+
+    const float DestWidth  = Subject.W * T.ScaleX * DpiScaleFactor;
+    const float DestHeight = Subject.H * T.ScaleY * DpiScaleFactor;
+    const Point CentreLogical{Subject.X + Subject.W * 0.5f + T.TranslateXLogical,
+                              Subject.Y + Subject.H * 0.5f + T.TranslateYLogical};
+    const Point CentrePhysical = ToPhysicalPoint(CentreLogical);
+
+    const SDL_FRect Destination{CentrePhysical.X - DestWidth * 0.5f, CentrePhysical.Y - DestHeight * 0.5f,
+                                DestWidth, DestHeight};
+    const SDL_FPoint Pivot{DestWidth * 0.5f, DestHeight * 0.5f};
+
+    SDL_RenderTextureRotated(SdlRenderer, Frame.CaptureTexture, nullptr, &Destination, T.RotationDegrees,
+                             &Pivot, SDL_FLIP_NONE);
+    SDL_DestroyTexture(Frame.CaptureTexture);
 }
 
 TextMetrics Renderer::MeasureText(FontHandle Font, std::string_view Text) const {

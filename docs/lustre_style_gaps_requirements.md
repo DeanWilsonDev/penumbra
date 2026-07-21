@@ -39,7 +39,7 @@ only widgets that want to *use* the new fields (starting with `Frame`, given it'
 `Draw`/interaction-detection logic extended to read them, mirroring `Button`'s existing
 pattern.
 
-## 2. No transform primitive of any kind
+## 2. No transform primitive of any kind — DONE
 
 No scale, translate, or rotate exists anywhere in `Renderer`, `WidgetBase`, or any style
 struct. Lustre's spec includes `transform: scale(...)` as a real property (documented, not
@@ -48,12 +48,31 @@ leaving it out of the language entirely felt wrong even though nothing can execu
 see the old Lustre design draft's own `:active { transform: scale(0.97) }` example, which
 doesn't compile to anything real right now.
 
-### What would unblock this
-
-No proposed API here — this is a bigger primitive than the others (affects layout/hit-testing,
-not just drawing) and deserves its own design pass when it's actually prioritized, not a
-speculative signature bolted on as a side effect of Lustre's own design. Recording the need,
-not the shape.
+> Implemented: `Transform` (`ScaleX/Y`, `TranslateXLogical/YLogical`, `RotationDegrees`,
+> identity default) lives in `Geometry.h` alongside `Point`/`Rect`, and `BoxStyle::Transform`
+> exposes it -- one flat field, not a per-state Hovered/Pressed/Disabled trio like the
+> interaction colours (resolving e.g. `:active { transform: scale(0.97) }` into this field
+> per frame is a resolver-side concern once the primitive exists). Transform-origin is always
+> centre, and layout is untouched -- matches CSS: transform never reflows.
+>
+> Drawing: `Box::Draw` redirects a transformed Box's own paint plus every descendant into an
+> offscreen texture (`Renderer::PushTransform`/`PopTransform`), composited back as one
+> `SDL_RenderTextureRotated` blit -- reusing the render-to-texture pattern `ViewportWidget`
+> already established rather than threading a transform matrix through every `DrawFilledRect`/
+> `DrawText`/etc. vertex computation. This is why children (e.g. a Label inside a scaled
+> Frame) visually transform for free, text included, at the cost of only affecting the
+> primitives Box/Label's own paint path actually uses (`DrawFilledRect`, `DrawRectOutline`,
+> `DrawGradientRect`, `DrawText`) -- a subtree relying on `DrawRadialGradient`/`DrawDropShadow`/
+> `DrawLine`/`DrawTriangleFilled`/`DrawTexture` directly won't transform with it in this first
+> cut. Nested transforms compose naturally (each Push/Pop composites into whichever target --
+> window or an ancestor's own capture -- was active when it was pushed), and the outer
+> target's clip is cleared for the capture and restored on Pop since it doesn't apply to the
+> new texture's coordinate space.
+>
+> Hit-testing: `Box::UpdateInteractionState`/`Button::UpdateInteractionState` inverse-transform
+> the mouse point around the widget's own centre before testing `ArrangedRect`, so clicking
+> tracks the visual position. The common (untransformed) path pays nothing extra -- no
+> `InputState` copy, no trig -- since `Transform::IsIdentity()` short-circuits before either.
 
 ## 3. No fixed-size (width/height) override anywhere
 

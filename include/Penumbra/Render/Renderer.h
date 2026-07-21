@@ -113,6 +113,19 @@ public:
     void PushBlendMode(BlendMode Mode);
     void PopBlendMode();
 
+    // Redirects subsequent drawing to an offscreen texture sized to SubjectRectLogical,
+    // so a whole widget subtree can be painted once and then composited back as a
+    // single scaled/rotated/translated blit (BoxStyle::Transform, docs/
+    // lustre_style_gaps_requirements.md #2). A no-op push/pop (drawing continues
+    // straight to the current target) when InTransform.IsIdentity() -- the common case
+    // costs nothing beyond the check. Nests: an inner push/pop composites into
+    // whichever target -- the window, or an ancestor's own capture -- was active when
+    // it was pushed, so nested transforms compose the way nested clip rects already
+    // do. Every push must be matched by a pop; asserted balanced at
+    // EndFrameAndPresent like the clip/blend stacks.
+    void PushTransform(Rect SubjectRectLogical, const Transform& InTransform);
+    void PopTransform();
+
     // The fully general escape hatch PushBlendMode(BlendMode::Additive) is a convenience
     // wrapper around: composes an arbitrary blend mode from SDL's six blend-factor/
     // operation parameters (SDL_ComposeCustomBlendMode) for callers that need something
@@ -136,6 +149,18 @@ public:
 
 private:
     SDL_FRect ToPhysical(Rect RectLogical) const;
+    Point     ToPhysicalPoint(Point PointLogical) const;
+
+    // One PushTransform frame. CaptureTexture is null for an identity push (nothing
+    // was redirected, Pop is a no-op) so the common untransformed path never
+    // allocates a texture.
+    struct TransformFrame {
+        SDL_Texture* CaptureTexture{nullptr};
+        SDL_Texture* PreviousTarget{nullptr};
+        Point        PreviousOriginOffsetLogical{};
+        Rect         SubjectRectLogical{};
+        Transform    AppliedTransform{};
+    };
 
     SDL_Renderer*         SdlRenderer{nullptr};
     IFontBackend*         FontBackend{nullptr};
@@ -143,6 +168,13 @@ private:
     std::vector<SDL_Rect>      ClipStack;  // physical-pixel rects, already intersected
     std::vector<SDL_BlendMode> BlendStack; // resolved SDL blend modes -- PushBlendMode and
                                             // PushCustomBlendMode both push onto this one stack
+
+    // Subtracted from every logical coordinate before DPI scaling. Zero except while a
+    // PushTransform capture is active, when it equals that capture's SubjectRectLogical
+    // origin -- so widgets keep drawing at their normal absolute logical coordinates
+    // without knowing they've been redirected to a small offscreen texture.
+    Point                       OriginOffsetLogical{};
+    std::vector<TransformFrame> TransformStack;
 };
 
 } // namespace Penumbra::Render
