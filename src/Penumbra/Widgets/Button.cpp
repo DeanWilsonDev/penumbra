@@ -11,10 +11,9 @@ constexpr int LeftButton = 0;
 } // namespace
 
 void Button::ApplyStyle(const ButtonStyle& InStyle) {
-    Style = static_cast<const BoxStyle&>(InStyle); // box model + default background
-    ColorBackgroundHovered  = InStyle.ColorBackgroundHovered;
-    ColorBackgroundPressed  = InStyle.ColorBackgroundPressed;
-    ColorBackgroundDisabled = InStyle.ColorBackgroundDisabled;
+    // Box model + default background + interaction-state colours all live on
+    // BoxStyle now (docs/lustre_style_gaps_requirements.md #1).
+    Style = static_cast<const BoxStyle&>(InStyle);
 }
 
 bool Button::UpdateInteractionState(const Platform::InputState& Input) {
@@ -64,9 +63,9 @@ bool Button::UpdateInteractionState(const Platform::InputState& Input) {
 
 Render::Color Button::BackgroundForState() const {
     switch (CurrentState) {
-    case InteractionState::Hovered:  return ColorBackgroundHovered;
-    case InteractionState::Pressed:  return ColorBackgroundPressed;
-    case InteractionState::Disabled: return ColorBackgroundDisabled;
+    case InteractionState::Hovered:  return Style.ColorBackgroundHovered;
+    case InteractionState::Pressed:  return Style.ColorBackgroundPressed;
+    case InteractionState::Disabled: return Style.ColorBackgroundDisabled;
     case InteractionState::Default:
     default:                         return Style.ColorBackground;
     }

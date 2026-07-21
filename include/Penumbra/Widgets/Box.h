@@ -45,6 +45,8 @@ public:
 
     EdgeInsets GetMarginLogical() const override { return Style.Margin; }
 
+    InteractionState GetInteractionState() const { return CurrentState; }
+
     std::size_t GetChildCount() const override { return Children.size(); }
     WidgetBase* GetChildAt(std::size_t Index) const override { return Children[Index].get(); }
 
@@ -85,9 +87,18 @@ protected:
     Rect  ContentRectFrom(Rect OuterRect) const;
 
 private:
+    // The background Draw should use for CurrentState -- Style.ColorBackgroundHovered/
+    // Pressed/Disabled when set (non-zero alpha), else Style.ColorBackground unchanged.
+    // Mirrors Button::BackgroundForState, minus Button's unconditional (no-fallback)
+    // override: most Boxes with onPress set never define interaction colours, and
+    // those must keep rendering their plain ColorBackground rather than going
+    // transparent on hover (docs/lustre_style_gaps_requirements.md #1).
+    Render::Color BackgroundForState() const;
+
     // Tracks whether a press began inside this Box, so OnReleased pairs with the
     // OnPressed that started it rather than firing on an unrelated mouse-up.
-    bool PressedInside{false};
+    bool              PressedInside{false};
+    InteractionState  CurrentState{InteractionState::Default};
 };
 
 } // namespace Penumbra::Widgets

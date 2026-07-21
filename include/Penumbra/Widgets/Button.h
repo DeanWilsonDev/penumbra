@@ -11,19 +11,14 @@ namespace Penumbra::Widgets {
 // no built-in label: a text button is a Button with one Label child (Milestone 5).
 class Button : public Box {
 public:
-    // Extra state colours (the box-model + default background live in Box::Style).
-    Render::Color ColorBackgroundHovered{0, 0, 0, 0};
-    Render::Color ColorBackgroundPressed{0, 0, 0, 0};
-    Render::Color ColorBackgroundDisabled{0, 0, 0, 0};
-
     std::function<void()> OnClicked;
 
     // Time constant (seconds) for easing the background between state colours. 0 (the
     // default) means instant — Penumbra holds no opinion; the demo supplies the value.
     float BackgroundTransitionSeconds{0.0f};
 
-    // Pours a resolved ButtonStyle into this widget: the BoxStyle slice (box model
-    // + default background) into Box::Style, the state colours into our own fields.
+    // Pours a resolved ButtonStyle into this widget: the whole BoxStyle slice (box
+    // model, default background, and interaction-state colours) into Box::Style.
     // ColorLabel is intentionally ignored — the resolver applies it to a Label child.
     void ApplyStyle(const ButtonStyle& Style);
 

@@ -35,13 +35,20 @@ struct BoxStyle {
     // neither set still draws nothing extra.
     Render::Color GradientTop{0, 0, 0, 0};
     Render::Color GradientBottom{0, 0, 0, 0};
+
+    // Interaction-state background overrides -- universal (not Button-only) so
+    // Lustre's :hover/:active/:disabled selectors have somewhere to land on any
+    // classed element, matching how OnPressed/OnHovered/etc. on WidgetBase already
+    // aren't Button-exclusive (docs/lustre_style_gaps_requirements.md #1). Zero
+    // alpha (the default) means "no override for this state, keep ColorBackground"
+    // -- the same presence-flag convention GradientTop/ColorBackground use above.
+    Render::Color ColorBackgroundHovered{0, 0, 0, 0};
+    Render::Color ColorBackgroundPressed{0, 0, 0, 0};
+    Render::Color ColorBackgroundDisabled{0, 0, 0, 0};
 };
 
 // Per-widget styles extend BoxStyle so the box-model slots stay universal and free.
 struct ButtonStyle : BoxStyle {
-    Render::Color ColorBackgroundHovered{0, 0, 0, 0};
-    Render::Color ColorBackgroundPressed{0, 0, 0, 0};
-    Render::Color ColorBackgroundDisabled{0, 0, 0, 0};
     Render::Color ColorLabel{0, 0, 0, 0}; // applied to a Label child by the resolver, not by Button
 };
 

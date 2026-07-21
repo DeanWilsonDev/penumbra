@@ -5,7 +5,16 @@
 > these properties/selectors now and stubs them at the application boundary until Penumbra
 > grows the equivalent support, per that doc's growing-together principle.
 
-## 1. Interaction-state (hover/pressed/disabled) styling is Button-only today
+## 1. Interaction-state (hover/pressed/disabled) styling is Button-only today — DONE
+
+> Implemented: `BoxStyle` now carries `ColorBackgroundHovered`/`ColorBackgroundPressed`/
+> `ColorBackgroundDisabled` (zero alpha = no override, matching the existing
+> presence-flag convention). `ButtonStyle` no longer redeclares them — inherited from
+> `BoxStyle`. `Box::UpdateInteractionState`/`Box::Draw` now track `InteractionState` and
+> resolve a state-driven background the same way `Button` already did, so any
+> `onPress`-capable `Box` (Iris's `<Frame>`) gets `:hover`/`:active`/`:disabled` styling
+> without needing to be a `Button`. `Button`'s own detection logic is unchanged, just
+> reading the colours off `Style` instead of separate duplicate fields.
 
 `Widgets/Styles.h`'s `BoxStyle` (used directly by `Frame`, and as the base every other style
 struct extends) has no interaction-state fields at all — no hover/pressed/disabled colors,

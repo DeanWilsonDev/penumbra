@@ -198,10 +198,22 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
         }
     }
 
-    // A Box with none of the generic callbacks set is an inert layout container —
-    // exactly as before this API existed — so skip hit-testing it rather than
-    // paying for a PointInRect check on every plain Box in the tree, every frame.
-    if (!IsEnabled || !(OnPressed || OnReleased || OnHovered || OnFocused || OnChanged)) {
+    if (!IsEnabled) {
+        CurrentState  = InteractionState::Disabled;
+        PressedInside = false;
+        return false;
+    }
+
+    // A Box with none of the generic callbacks AND no interaction-state colours set
+    // is an inert layout container -- exactly as before this API existed -- so skip
+    // hit-testing it rather than paying for a PointInRect check on every plain Box
+    // in the tree, every frame. A Box that only sets :hover-equivalent colours (no
+    // onPress) still needs hit-testing to know when to use them.
+    const bool HasCallbacks = OnPressed || OnReleased || OnHovered || OnFocused || OnChanged;
+    const bool HasInteractionColors =
+        Style.ColorBackgroundHovered.A != 0 || Style.ColorBackgroundPressed.A != 0;
+    if (!HasCallbacks && !HasInteractionColors) {
+        CurrentState  = InteractionState::Default;
         PressedInside = false;
         return false;
     }
@@ -227,7 +239,29 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
         PressedInside = false;
     }
 
+    if (PressedInside && Down && Hovered) {
+        CurrentState = InteractionState::Pressed;
+    } else if (Hovered) {
+        CurrentState = InteractionState::Hovered;
+    } else {
+        CurrentState = InteractionState::Default;
+    }
+
     return Hovered || (PressedInside && Down);
+}
+
+Render::Color Box::BackgroundForState() const {
+    switch (CurrentState) {
+    case InteractionState::Hovered:
+        return Style.ColorBackgroundHovered.A != 0 ? Style.ColorBackgroundHovered : Style.ColorBackground;
+    case InteractionState::Pressed:
+        return Style.ColorBackgroundPressed.A != 0 ? Style.ColorBackgroundPressed : Style.ColorBackground;
+    case InteractionState::Disabled:
+        return Style.ColorBackgroundDisabled.A != 0 ? Style.ColorBackgroundDisabled : Style.ColorBackground;
+    case InteractionState::Default:
+    default:
+        return Style.ColorBackground;
+    }
 }
 
 void Box::Draw(Render::Renderer& Renderer) {
@@ -236,10 +270,11 @@ void Box::Draw(Render::Renderer& Renderer) {
     // Lustre mapping documents (a rule that sets background-gradient-start/-end
     // also sets background-color as a solid fallback would be unusual, but this
     // avoids drawing both on top of each other if it happens).
+    const Render::Color Background = BackgroundForState();
     if (Style.GradientTop.A != 0) {
         Renderer.DrawGradientRect(ArrangedRect, Style.GradientTop, Style.GradientBottom, Style.BorderRadius);
-    } else if (Style.ColorBackground.A != 0) {
-        Renderer.DrawFilledRect(ArrangedRect, Style.ColorBackground, Style.BorderRadius);
+    } else if (Background.A != 0) {
+        Renderer.DrawFilledRect(ArrangedRect, Background, Style.BorderRadius);
     }
     if (Style.BorderWidth > 0.0f && Style.ColorBorder.A != 0) {
         Renderer.DrawRectOutline(ArrangedRect, Style.ColorBorder, Style.BorderWidth, Style.BorderRadius);
