@@ -10,6 +10,7 @@
 #include "Penumbra/Widgets/FocusState.h"
 #include "Penumbra/Widgets/Label.h"
 #include "Penumbra/Widgets/NumericDrag.h"
+#include "Penumbra/Widgets/OverlayHost.h"
 #include "Penumbra/Widgets/ScrollablePanel.h"
 #include "Penumbra/Widgets/SplitPanel.h"
 #include "Penumbra/Widgets/TextInput.h"
@@ -202,6 +203,22 @@ int main() {
             Root->AddChild(std::move(Status));
         }
 
+        // Dropdown menu, proving OverlayHost: the button is a normal child deep in
+        // Root's tree, but the menu it opens paints above the whole SplitPanel and
+        // gets first refusal on input, anchored to the button's own arranged rect.
+        Button* MenuButton = nullptr;
+        Label*  MenuStatusLabel = nullptr;
+        {
+            auto Row = MakeRow();
+            auto MenuBtn = MakeTextButton("Show menu", nullptr);
+            MenuButton = MenuBtn.get();
+            Row->AddChild(std::move(MenuBtn));
+            auto MenuStatus = MakeLabel("", Theme.ColorTextDisabled);
+            MenuStatusLabel = MenuStatus.get();
+            Row->AddChild(std::move(MenuStatus));
+            Root->AddChild(std::move(Row));
+        }
+
         Root->AddChild(MakeSeparator());
 
         // Filler rows so the column is taller than the viewport (proves scrolling).
@@ -281,6 +298,39 @@ int main() {
         Split->SetFirst(std::move(Root));
         Split->SetSecond(std::move(ScenePane));
 
+        // OverlayHost wraps the whole app tree so the dropdown menu below can paint
+        // above it and claim input first, however deep the button that opens it is.
+        auto Host = std::make_unique<OverlayHost>();
+        OverlayHost* HostPtr = Host.get();
+        Host->SetRoot(std::move(Split));
+
+        MenuButton->OnClicked = [HostPtr, MenuButton, MenuStatusLabel, &Theme, &MakeTextButton]() {
+            auto Menu = std::make_unique<Box>();
+            Menu->Style          = Demo::ResolvePanelStyle(Theme);
+            Menu->Style.Margin   = {0.0f, 0.0f, 0.0f, 0.0f};
+            Menu->Layout         = LayoutMode::VerticalStack;
+            Menu->ChildGap       = Theme.SpacingSmall;
+            Menu->CrossAlignment = CrossAlign::Stretch;
+
+            auto AddOption = [&](const std::string& Text) {
+                Menu->AddChild(MakeTextButton(Text, [HostPtr, MenuStatusLabel, Text]() {
+                    MenuStatusLabel->Text = "picked: " + Text;
+                    HostPtr->DismissAll();
+                }));
+            };
+            AddOption("Option A");
+            AddOption("Option B");
+
+            // Sized to its own content, anchored just below the button that opened it.
+            constexpr float MenuWidth = 180.0f;
+            const Penumbra::Point Desired = Menu->Measure({MenuWidth, 1000.0f});
+            const Penumbra::Rect  Anchor  = MenuButton->GetArrangedRect();
+            const Penumbra::Rect  Placement{Anchor.X, Anchor.Y + Anchor.H + 4.0f, MenuWidth,
+                                            Desired.Y};
+
+            HostPtr->ShowOverlay(std::move(Menu), Placement);
+        };
+
         bool TextInputActive = false;
 
         Penumbra::Platform::InputState Input;
@@ -317,13 +367,13 @@ int main() {
             const Penumbra::Point WindowSize = Window.GetLogicalWindowSize();
             const Penumbra::Rect  FullRect{0.0f, 0.0f, WindowSize.X, WindowSize.Y};
 
-            Split->Measure({FullRect.W, FullRect.H});
-            Split->Arrange(FullRect);
+            Host->Measure({FullRect.W, FullRect.H});
+            Host->Arrange(FullRect);
 
             if (Input.MouseButtonPressedThisFrame[0]) {
                 Focus.Focused = nullptr;
             }
-            Split->UpdateInteractionState(Input);
+            Host->UpdateInteractionState(Input);
 
             const bool WantTextInput = (Focus.Focused != nullptr);
             if (WantTextInput != TextInputActive) {
@@ -332,7 +382,7 @@ int main() {
             }
 
             Renderer.BeginFrame(Theme.ColorBackgroundPrimary);
-            Split->Draw(Renderer);
+            Host->Draw(Renderer);
             Renderer.EndFrameAndPresent();
         }
     }

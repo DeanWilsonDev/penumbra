@@ -454,6 +454,10 @@ std::string PlatformWindow::GetLastError() const {
 - **A popup/menu-overlay layer.** Pharos's File > Load menu becomes a
   persistently visible toolbar (`TextInput` + `Button`) instead of a
   dropdown. Functionally equivalent; not a framework gap.
+  **Superseded 2026-07-22:** a real consumer needed one after all; see
+  `Widgets::OverlayHost` (`include/Penumbra/Widgets/OverlayHost.h`). This
+  bullet is left in place as the historical record of the original call —
+  see `docs/next_steps.md` for current status.
 - **A circular "radio dot" render primitive.** The Overlay selector's radio
   group reuses `Checkbox` styled as a filled square with app-level mutual
   exclusion. Aesthetic difference only.
