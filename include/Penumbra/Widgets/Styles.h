@@ -57,15 +57,15 @@ struct BoxStyle {
     // Interaction-state background overrides -- universal (not Button-only) so
     // Lustre's :hover/:active/:disabled selectors have somewhere to land on any
     // classed element, matching how OnPressed/OnHovered/etc. on WidgetBase already
-    // aren't Button-exclusive (docs/lustre_style_gaps_requirements.md #1). Zero
-    // alpha (the default) means "no override for this state, keep ColorBackground"
+    // aren't Button-exclusive. Zero alpha (the default) means "no override for this
+    // state, keep ColorBackground"
     // -- the same presence-flag convention GradientTop/ColorBackground use above.
     Render::Color ColorBackgroundHovered{0, 0, 0, 0};
     Render::Color ColorBackgroundPressed{0, 0, 0, 0};
     Render::Color ColorBackgroundDisabled{0, 0, 0, 0};
 
-    // A whole-subtree paint/hit-test transform (docs/lustre_style_gaps_requirements.md
-    // #2) -- Box::Draw composites this Box and every descendant through it as one
+    // A whole-subtree paint/hit-test transform -- Box::Draw composites this Box
+    // and every descendant through it as one
     // scaled/rotated/translated blit, and Box::UpdateInteractionState inverse-transforms
     // the mouse point so clicking/hovering tracks the visual position, not the
     // untransformed layout rect. Layout itself (Measure/Arrange, siblings' positions)
@@ -77,8 +77,8 @@ struct BoxStyle {
     Penumbra::Transform Transform{};
 
     // An explicit border-box size override, distinct from Measure's usual
-    // content-driven sizing (docs/lustre_style_gaps_requirements.md #3 -- Lustre's
-    // width/height properties). -1 (the default, "auto") means Measure falls through
+    // content-driven sizing (Lustre's width/height properties). -1 (the default,
+    // "auto") means Measure falls through
     // to its normal intrinsic calculation; a value >= 0 is "be exactly this many
     // logical pixels", Padding/BorderWidth included -- the same total Arrange would
     // otherwise have derived from content. Negative rather than a zero/sentinel-alpha

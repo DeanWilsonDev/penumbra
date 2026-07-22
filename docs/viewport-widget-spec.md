@@ -191,8 +191,9 @@ proof for this step.
 - **Camera / coordinate transform.** Dawn will need pan + zoom (a 2D camera matrix).
   For this PoC the callback draws at world coords = content coords (no transform). Dawn
   owns the camera state and applies it inside `OnRenderScene` when ready.
-- **Sprite / image drawing.** `Render::Renderer` will need a `DrawSprite` or
-  `DrawTexturedRect` method to render tile and entity textures. Out of scope here.
+- **Sprite / image drawing** — implemented since: `Renderer::DrawTexture(SDL_Texture*, Rect)`
+  is now a public API, used by both `ViewportWidget` (compositing its scene texture back into
+  the UI pass) and `Widgets::ImageWidget`.
 - **Input coordinate transform.** Once a camera exists, Dawn will need to unproject the
   screen-space mouse position into world space. `ContentRect` (passed to `OnSceneInput`)
   gives the origin; the camera transform is Dawn's concern.

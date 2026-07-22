@@ -115,9 +115,9 @@ public:
 
     // Redirects subsequent drawing to an offscreen texture sized to SubjectRectLogical,
     // so a whole widget subtree can be painted once and then composited back as a
-    // single scaled/rotated/translated blit (BoxStyle::Transform, docs/
-    // lustre_style_gaps_requirements.md #2). A no-op push/pop (drawing continues
-    // straight to the current target) when InTransform.IsIdentity() -- the common case
+    // single scaled/rotated/translated blit (BoxStyle::Transform). A no-op push/pop
+    // (drawing continues straight to the current target) when InTransform.IsIdentity()
+    // -- the common case
     // costs nothing beyond the check. Nests: an inner push/pop composites into
     // whichever target -- the window, or an ancestor's own capture -- was active when
     // it was pushed, so nested transforms compose the way nested clip rects already

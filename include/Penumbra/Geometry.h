@@ -16,8 +16,8 @@ struct Rect {
 
 // A scale/rotate/translate transform, always applied around a shape's own centre
 // (transform-origin is unconditionally centre -- no per-call override, keeping this
-// a three-knob primitive rather than a general affine one; docs/
-// lustre_style_gaps_requirements.md #2). Lives alongside Point/Rect rather than under
+// a three-knob primitive rather than a general affine one). Lives alongside Point/Rect
+// rather than under
 // Widgets/ or Render/ because both layers need it: Render applies it when painting
 // (Renderer::PushTransform/PopTransform) and hit-testing inverse-transforms the mouse
 // point through it, neither of which is a Widgets-only concern. Identity by default:

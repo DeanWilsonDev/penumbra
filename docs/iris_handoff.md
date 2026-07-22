@@ -42,9 +42,10 @@ Not two DSLs, and not silent unavailability. Concretely:
 - Penumbra's own spec already anticipated a themed middle tier it calls
   `UmbraComponentLibrary`, sitting between raw Penumbra widgets and a real consuming tool —
   Iris-on-Penumbra is a natural fit for that reserved slot.
-- Penumbra's recent styling work (gradients, radial gradients, drop shadows, blend modes —
-  see `docs/penumbra_theming_requirements.md`, `docs/penumbra_glow_gradient_requirements.md`)
-  already gives Lustre-lite a real, modern token surface to target, not just flat colors.
+- Penumbra's styling work (gradients, radial gradients, drop shadows, blend modes —
+  see `Render::Renderer`'s `DrawGradientRect`/`DrawRadialGradient`/`DrawDropShadow`/
+  `PushBlendMode`) already gives Lustre-lite a real, modern token surface to target,
+  not just flat colors.
 
 ## 4. What Iris needs to build regardless of backend
 
@@ -75,10 +76,11 @@ These are hard parts of Iris itself — no backend choice avoids them:
 - Event props (`onPress`, `onChange`) map directly onto Penumbra's existing
   `std::function` callback members (`Button::OnClicked`, `Checkbox::OnChanged`) — no new
   binding mechanism needed on Penumbra's side; this part already lines up cleanly.
-- **Known gap:** Penumbra's child-mutation API is append-only today, and not every container
-  widget exposes children uniformly. Full detail and a proposed fix is filed as a separate
-  Penumbra feature request — see `docs/penumbra_iris_backend_requirements.md` — to be
-  implemented in a later pass, not blocking Iris's language/compiler design work now.
+- **Resolved:** Penumbra's child-mutation API was append-only when this handoff was written;
+  it now has `Box::RemoveChild/ReplaceChild/ClearChildren/MoveChild/InsertChildAt`
+  (`include/Penumbra/Widgets/Box.h`) plus the generic `WidgetBase::GetChildCount/GetChildAt`
+  enumeration every widget implements, so the reconciler's diff/minimal-mutation step (Stage 3)
+  is unblocked whenever Iris gets there.
 
 ## 6. Proposed phased roadmap
 

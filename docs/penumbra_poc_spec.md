@@ -172,9 +172,11 @@ public:
 
 ### Rounded corners
 
-`SDL_Renderer` has no native rounded-rect fill. `BorderRadius` stays in the token API so themes
-can set it, but the **first cut renders square corners** (radius treated as a no-op). Rounding is
-deferred to a later pass via `SDL_RenderGeometry` or a 9-slice texture. *Design for it, defer it.*
+`SDL_Renderer` has no native rounded-rect fill. `BorderRadius` stayed in the token API from the
+first cut so themes could set it even while the radius was a no-op. **Implemented since:**
+`Renderer` tessellates rounded rects via `SDL_RenderGeometry` (`BuildRoundedRing`/
+`SegmentsForRadius` in `src/Penumbra/Render/Renderer.cpp`) — `DrawFilledRect`, `DrawRectOutline`,
+and `DrawGradientRect` all honour a positive `CornerRadiusLogical`.
 
 ### Font backend abstraction
 
@@ -483,11 +485,11 @@ Step one is a success when milestone 6 runs and writing the demo against Penumbr
 
 - Dawn, and the `UmbraComponentLibrary` middle tier.
 - Any token *values* or semantic names inside Penumbra.
-- Animations (designed-for, not implemented).
-- `SDL_GPU`; rounded-corner rendering; a FreeType glyph atlas.
-- `TextInput` selection, clipboard, IME, multi-line.
+- `SDL_GPU`; a FreeType glyph atlas.
+- `TextInput` IME, multi-line. (Selection and clipboard were designed-for-not-implemented here;
+  both have since landed — see `Widgets::TextInput`'s `HasSelection`/`IClipboard`.)
 - Multi-window, accessibility tree, declarative layout DSL, reactive data-binding.
-- Dirty-flag layout invalidation (layout runs every frame for now).
+- Dirty-flag layout invalidation (layout still runs every frame).
 
 ---
 

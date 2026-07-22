@@ -92,7 +92,7 @@ private:
     // Mirrors Button::BackgroundForState, minus Button's unconditional (no-fallback)
     // override: most Boxes with onPress set never define interaction colours, and
     // those must keep rendering their plain ColorBackground rather than going
-    // transparent on hover (docs/lustre_style_gaps_requirements.md #1).
+    // transparent on hover.
     Render::Color BackgroundForState() const;
 
     // The gradient stops Draw should use for CurrentState -- Style.GradientTopHovered/

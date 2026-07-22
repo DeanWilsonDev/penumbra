@@ -35,7 +35,7 @@ Point InverseTransformPoint(Point ScreenPoint, Point Pivot, const Transform& T) 
 
 void Button::ApplyStyle(const ButtonStyle& InStyle) {
     // Box model + default background + interaction-state colours all live on
-    // BoxStyle now (docs/lustre_style_gaps_requirements.md #1).
+    // BoxStyle now.
     Style = static_cast<const BoxStyle&>(InStyle);
 }
 

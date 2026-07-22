@@ -115,9 +115,9 @@ int main() {
         // ---- the settings panel, inside a scrollable viewport ----
         auto Root = std::make_unique<ScrollablePanel>();
         Root->Style            = Demo::ResolvePanelStyle(Theme);
-        // Floating-card gap around the pane, exercising SplitPanel's new Margin support
-        // (docs/penumbra_theming_requirements.md item 1) -- without it this Margin was
-        // silently ignored and the pane tiled edge-to-edge with its sibling.
+        // Floating-card gap around the pane, exercising SplitPanel's Margin support --
+        // without it this Margin was silently ignored and the pane tiled edge-to-edge
+        // with its sibling.
         Root->Style.Margin      = {Theme.SpacingLarge, Theme.SpacingLarge,
                                    Theme.SpacingLarge, Theme.SpacingLarge};
         Root->ChildGap         = Theme.SpacingMedium;
@@ -238,8 +238,7 @@ int main() {
         ScenePane->SceneClearColor = Theme.ColorBackgroundPrimary; // odd cells show this
         ScenePane->OnRenderScene =
             [&Theme](Penumbra::Render::Renderer& SceneRenderer, Penumbra::Point SceneSize) {
-                // Showcase for the new Renderer primitives from
-                // docs/penumbra_theming_requirements.md (items 3-5): a drop shadow sitting
+                // Showcase for the Renderer's shape primitives: a drop shadow sitting
                 // behind a gradient-filled "card", plus a chevron built from two DrawLine
                 // calls and a caret built from one DrawTriangleFilled -- the kind of thing
                 // Pharos would use in place of TreeRow's ASCII '-'/'+' glyph.
@@ -344,9 +343,9 @@ int main() {
             Renderer.SetDpiScaleFactor(CurrentDpiScaleFactor);
             if (CurrentDpiScaleFactor != LastKnownDpiScaleFactor) {
                 // Existing FontHandles stay rasterised at the old DPI (Penumbra doesn't
-                // reload them itself -- see docs/penumbra_dpi_requirements.md item 3), so
-                // the demo reloads its one font and repoints every widget at the fresh
-                // handle, the same way Pharos would for its own fonts.
+                // reload them itself -- that's each consumer's own job), so the demo
+                // reloads its one font and repoints every widget at the fresh handle,
+                // the same way Pharos would for its own fonts.
                 BodyFont = FontBackend.LoadFont(FontPath.c_str(), Theme.FontSizeBody, CurrentDpiScaleFactor);
                 for (Label* L : LabelsUsingBodyFont) {
                     L->Font = BodyFont;

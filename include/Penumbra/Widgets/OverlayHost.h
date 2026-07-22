@@ -31,9 +31,9 @@ using OverlayId = std::size_t;
 // parent's clip" that a popup needs falls out of draw order, not a new Renderer
 // primitive.
 //
-// docs/penumbra_requirements.md §7 originally deferred "a popup/menu-overlay
-// layer" as not requested (Pharos didn't need one); this is that layer, now that
-// something needs it.
+// A popup/menu-overlay layer was originally deferred as not requested (Pharos
+// didn't need one); this is that layer, now that a real consumer
+// (`ColorFilterDropdown`) does.
 class OverlayHost : public WidgetBase {
 public:
     // Replaces the wrapped subtree. Not meant to be called after the first
