@@ -17,7 +17,11 @@ enum class InteractionState { Default, Hovered, Pressed, Disabled };
 
 class WidgetBase {
 public:
-    virtual ~WidgetBase() = default;
+    virtual ~WidgetBase() {
+        if (OnDestroyed) {
+            OnDestroyed();
+        }
+    }
 
     // Two-phase layout: Measure reports desired size bottom-up; Arrange commits the
     // final rect top-down.
@@ -51,6 +55,14 @@ public:
     std::function<void()> OnHovered  = nullptr;
     std::function<void()> OnFocused  = nullptr;
     std::function<void()> OnChanged  = nullptr;
+
+    // Fires from ~WidgetBase() when set -- the generic "this widget is being torn
+    // down" hook a plain Box handed out via BuildWidgetTree can opt into, mirroring
+    // OnPressed/etc.'s "null by default, opt-in" convention. Lets a caller detect
+    // host-driven removal (e.g. OverlayHost erasing this widget from its stack)
+    // without needing a hand-rolled subclass whose sole purpose is running cleanup
+    // in its own destructor.
+    std::function<void()> OnDestroyed = nullptr;
 
     // Inert storage for Iris's `class` prop (its Lustre-lite class-selector
     // resolution isn't designed yet — see docs/iris_handoff.md §7). Penumbra

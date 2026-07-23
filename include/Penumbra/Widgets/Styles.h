@@ -64,6 +64,15 @@ struct BoxStyle {
     Render::Color ColorBackgroundPressed{0, 0, 0, 0};
     Render::Color ColorBackgroundDisabled{0, 0, 0, 0};
 
+    // Interaction-state border-color overrides, same presence-flag convention and
+    // rationale as ColorBackgroundHovered/Pressed/Disabled above -- unblocks Lustre
+    // `:hover`/`:active`/`:disabled { border-color: ... }` on any classed element
+    // (see docs/next_steps.md's ColorBorderHovered entry for the motivating case,
+    // pharos-proto's ColorFilterDropdown trigger).
+    Render::Color ColorBorderHovered{0, 0, 0, 0};
+    Render::Color ColorBorderPressed{0, 0, 0, 0};
+    Render::Color ColorBorderDisabled{0, 0, 0, 0};
+
     // A whole-subtree paint/hit-test transform -- Box::Draw composites this Box
     // and every descendant through it as one
     // scaled/rotated/translated blit, and Box::UpdateInteractionState inverse-transforms

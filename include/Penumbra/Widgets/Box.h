@@ -102,6 +102,11 @@ private:
     Render::Color GradientTopForState() const;
     Render::Color GradientBottomForState() const;
 
+    // The border color Draw should use for CurrentState -- Style.ColorBorderHovered/
+    // Pressed/Disabled when set (non-zero alpha), else Style.ColorBorder unchanged.
+    // Mirrors BackgroundForState's fallback convention exactly.
+    Render::Color BorderForState() const;
+
     // Tracks whether a press began inside this Box, so OnReleased pairs with the
     // OnPressed that started it rather than firing on an unrelated mouse-up.
     bool              PressedInside{false};

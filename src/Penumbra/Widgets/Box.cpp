@@ -266,7 +266,8 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
     // onPress) still needs hit-testing to know when to use them.
     const bool HasCallbacks = OnPressed || OnReleased || OnHovered || OnFocused || OnChanged;
     const bool HasInteractionColors =
-        Style.ColorBackgroundHovered.A != 0 || Style.ColorBackgroundPressed.A != 0;
+        Style.ColorBackgroundHovered.A != 0 || Style.ColorBackgroundPressed.A != 0 ||
+        Style.ColorBorderHovered.A != 0 || Style.ColorBorderPressed.A != 0;
     if (!HasCallbacks && !HasInteractionColors) {
         CurrentState  = InteractionState::Default;
         PressedInside = false;
@@ -345,6 +346,20 @@ Render::Color Box::GradientBottomForState() const {
     }
 }
 
+Render::Color Box::BorderForState() const {
+    switch (CurrentState) {
+    case InteractionState::Hovered:
+        return Style.ColorBorderHovered.A != 0 ? Style.ColorBorderHovered : Style.ColorBorder;
+    case InteractionState::Pressed:
+        return Style.ColorBorderPressed.A != 0 ? Style.ColorBorderPressed : Style.ColorBorder;
+    case InteractionState::Disabled:
+        return Style.ColorBorderDisabled.A != 0 ? Style.ColorBorderDisabled : Style.ColorBorder;
+    case InteractionState::Default:
+    default:
+        return Style.ColorBorder;
+    }
+}
+
 void Box::Draw(Render::Renderer& Renderer) {
     // A non-identity Transform redirects this Box's own paint plus every descendant's
     // into an offscreen texture, composited back as one scaled/rotated/translated
@@ -374,8 +389,9 @@ void Box::Draw(Render::Renderer& Renderer) {
     } else if (Background.A != 0) {
         Renderer.DrawFilledRect(ArrangedRect, Background, Style.BorderRadius);
     }
-    if (Style.BorderWidth > 0.0f && Style.ColorBorder.A != 0) {
-        Renderer.DrawRectOutline(ArrangedRect, Style.ColorBorder, Style.BorderWidth, Style.BorderRadius);
+    const Render::Color Border = BorderForState();
+    if (Style.BorderWidth > 0.0f && Border.A != 0) {
+        Renderer.DrawRectOutline(ArrangedRect, Border, Style.BorderWidth, Style.BorderRadius);
     }
 
     DrawContent(Renderer, ContentRectFrom(ArrangedRect));
