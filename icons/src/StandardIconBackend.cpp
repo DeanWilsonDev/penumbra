@@ -59,6 +59,13 @@ public:
                                Thickness, GridCornerRadius * Scale + Half);
     }
 
+    // A stroked arc, angles as in Renderer::DrawArc: clockwise from 3 o'clock.
+    void Arc(Point GridCenter, float GridRadius, float StartDegrees, float SweepDegrees) const {
+        const float Radius = GridRadius * Scale;
+        const float Half   = Thickness * 0.5f;
+        Target.DrawArc(At(GridCenter), Radius - Half, Radius + Half, StartDegrees, SweepDegrees, Tint);
+    }
+
     void Fill(std::span<const Point> GridPoints) const {
         for (std::size_t Index = 2; Index < GridPoints.size(); ++Index) {
             Target.DrawTriangleFilled(At(GridPoints[0]), At(GridPoints[Index - 1]), At(GridPoints[Index]), Tint);
@@ -196,6 +203,32 @@ constexpr std::array Glyphs{
           [](const Pen& P) {
               P.Box({4, 4}, {20, 20}, 3);
               P.Stroke({{8, 12}, {11, 15}, {16, 9}});
+          }},
+    Glyph{"kanban",
+          [](const Pen& P) {
+              P.Box({3, 3}, {21, 21}, 3);
+              P.Stroke({{8, 7}, {8, 15}});
+              P.Stroke({{12, 7}, {12, 11}});
+              P.Stroke({{16, 7}, {16, 17}});
+          }},
+    Glyph{"chart-bar",
+          [](const Pen& P) {
+              P.Stroke({{3, 3}, {3, 21}, {21, 21}});
+              P.Stroke({{8, 17}, {8, 13}});
+              P.Stroke({{13, 17}, {13, 6}});
+              P.Stroke({{18, 17}, {18, 10}});
+          }},
+    Glyph{"chart-line",
+          [](const Pen& P) {
+              P.Stroke({{3, 3}, {3, 21}, {21, 21}});
+              P.Stroke({{7, 16}, {11, 11}, {14, 14}, {20, 7}});
+          }},
+    Glyph{"chart-pie",
+          [](const Pen& P) {
+              P.Arc({10, 14}, 8, 0, 270);
+              P.Stroke({{10, 6}, {10, 14}, {18, 14}});
+              P.Arc({14, 10}, 8, -90, 90);
+              P.Stroke({{14, 2}, {14, 10}, {22, 10}});
           }},
 };
 
