@@ -234,6 +234,9 @@ void Renderer::EndFrameAndPresent() {
 
 void Renderer::DrawFilledRect(Rect RectLogical, Color InColor, float CornerRadiusLogical) {
     const SDL_FRect R = ToPhysical(RectLogical);
+    if (R.w <= 0.0f || R.h <= 0.0f) {
+        return; // no area, so no fill; the AA fringe alone would paint a sliver
+    }
     float Radius = CornerRadiusLogical * DpiScaleFactor;
 
     if (Radius <= 0.0f) {
@@ -287,6 +290,9 @@ void Renderer::DrawFilledRect(Rect RectLogical, Color InColor, float CornerRadiu
 void Renderer::DrawGradientRect(Rect RectLogical, Color TopColor, Color BottomColor,
                                 float CornerRadiusLogical) {
     const SDL_FRect R = ToPhysical(RectLogical);
+    if (R.w <= 0.0f || R.h <= 0.0f) {
+        return; // as DrawFilledRect
+    }
     float Radius = CornerRadiusLogical * DpiScaleFactor;
 
     const SDL_FColor Top = ToFColor(TopColor);
@@ -440,6 +446,9 @@ void Renderer::DrawRadialGradient(Point Centre, float RadiusLogical, const std::
 void Renderer::DrawRectOutline(Rect RectLogical, Color InColor, float ThicknessLogical,
                                float CornerRadiusLogical) {
     const SDL_FRect R = ToPhysical(RectLogical);
+    if (R.w <= 0.0f || R.h <= 0.0f) {
+        return; // as DrawFilledRect; the square path would otherwise draw two edges
+    }
     const float T = ThicknessLogical * DpiScaleFactor;
     float Radius = CornerRadiusLogical * DpiScaleFactor;
 

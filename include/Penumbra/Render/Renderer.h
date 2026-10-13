@@ -45,6 +45,7 @@ public:
     // All coordinates are LOGICAL pixels; the renderer multiplies by DPI scale internally.
     // CornerRadiusLogical 0 (the default) draws square corners via the fast path;
     // a positive radius tessellates a rounded rect through SDL_RenderGeometry.
+    // A rect with no width or height draws nothing here, nor in DrawGradientRect.
     void DrawFilledRect (Rect RectLogical, Color InColor, float CornerRadiusLogical = 0.0f);
     void DrawRectOutline(Rect RectLogical, Color InColor, float ThicknessLogical,
                          float CornerRadiusLogical = 0.0f);
