@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/Box.h"
 
+#include "Penumbra/Widgets/LayoutPass.h"
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -220,6 +222,25 @@ Rect Box::ContentRectFrom(Rect OuterRect) const {
 }
 
 Point Box::Measure(Point AvailableSizeLogical) {
+    const std::uint64_t Pass = LayoutPass::Current();
+    if (Pass != 0) {
+        for (const MeasureMemo& Memo : MeasureMemos) {
+            if (Memo.Pass == Pass && Memo.Available.X == AvailableSizeLogical.X &&
+                Memo.Available.Y == AvailableSizeLogical.Y) {
+                return Memo.Desired;
+            }
+        }
+    }
+
+    const Point Desired = MeasureUncached(AvailableSizeLogical);
+    if (Pass != 0) {
+        MeasureMemos[NextMeasureMemo] = {Pass, AvailableSizeLogical, Desired};
+        NextMeasureMemo               = (NextMeasureMemo + 1) % MeasureMemos.size();
+    }
+    return Desired;
+}
+
+Point Box::MeasureUncached(Point AvailableSizeLogical) {
     SyncLayoutTransitions();
     const Point Frame = FrameSize();
 

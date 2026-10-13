@@ -2,6 +2,8 @@
 
 #include "Penumbra/Widgets/WidgetBase.h"
 
+#include <array>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -148,7 +150,20 @@ private:
     struct TransitionState;
     std::unique_ptr<TransitionState> Eased;
 
+    // Measure's results in the running LayoutPass, by available size. A Box is
+    // measured with a few distinct sizes a pass (its parent's Measure, any FlexGrow
+    // sharing, its parent's Arrange), so a handful of slots, reused in turn, holds
+    // them all.
+    struct MeasureMemo {
+        std::uint64_t Pass{0};
+        Point         Available{};
+        Point         Desired{};
+    };
+    std::array<MeasureMemo, 4> MeasureMemos{};
+    std::size_t                NextMeasureMemo{0};
+
     float ConstrainLength(bool IsWidth, float Value, float AvailableLogical) const;
+    Point MeasureUncached(Point AvailableSizeLogical);
 };
 
 } // namespace Penumbra::Widgets

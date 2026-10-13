@@ -13,6 +13,7 @@
 #include "Penumbra/Widgets/FocusState.h"
 #include "Penumbra/Widgets/IconWidget.h"
 #include "Penumbra/Widgets/Label.h"
+#include "Penumbra/Widgets/LayoutPass.h"
 #include "Penumbra/Widgets/LineChart.h"
 #include "Penumbra/Widgets/NumericDrag.h"
 #include "Penumbra/Widgets/OverlayHost.h"
@@ -683,8 +684,11 @@ int main() {
             const Penumbra::Point WindowSize = Window.GetLogicalWindowSize();
             const Penumbra::Rect  FullRect{0.0f, 0.0f, WindowSize.X, WindowSize.Y};
 
-            Host->Measure({FullRect.W, FullRect.H});
-            Host->Arrange(FullRect);
+            {
+                const LayoutPass Pass; // repeated measures within the layout reuse their results
+                Host->Measure({FullRect.W, FullRect.H});
+                Host->Arrange(FullRect);
+            }
 
             if (Input.MouseButtonPressedThisFrame[0]) {
                 Focus.Focused = nullptr;

@@ -1,4 +1,5 @@
 #include "Penumbra/Application.h"
+#include "Penumbra/Widgets/LayoutPass.h"
 #include "Penumbra/Widgets/Length.h"
 
 #include <algorithm>
@@ -60,8 +61,11 @@ bool Application::RunOneFrame() {
         const Point WindowSize = Window.GetLogicalWindowSize();
         const Rect  WindowRect{0.0f, 0.0f, WindowSize.X, WindowSize.Y};
         Widgets::SetLayoutViewportLogical(WindowSize);
-        RootWidget->Measure(WindowSize);
-        RootWidget->Arrange(WindowRect);
+        {
+            const Widgets::LayoutPass Pass;
+            RootWidget->Measure(WindowSize);
+            RootWidget->Arrange(WindowRect);
+        }
         RootWidgetConsumedInputThisFrame = RootWidget->UpdateInteractionState(Input);
     } else {
         RootWidgetConsumedInputThisFrame = false;

@@ -39,7 +39,9 @@ set. `penumbra_demo` is the runnable example.
   `include/Penumbra/` or `src/Penumbra/`. Put concrete visual values in the
   consuming app; this repository's example is `demo/DemoTheme.*`.
 - Preserve the retained-mode frame flow: measure, arrange, update interaction
-  state, then draw.
+  state, then draw. A host that runs its own loop, as the demo does, wraps the
+  root's Measure and Arrange in a `Widgets::LayoutPass`, as `Application` does,
+  so repeated measures within the layout reuse their results.
 - Every visible widget gets `UpdateInteractionState` every frame. A container
   that has seen a child consume the input keeps going, handing the remaining
   children `Platform::OccludedInput`'s copy, and a widget tests hover and the
