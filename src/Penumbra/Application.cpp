@@ -67,7 +67,7 @@ bool Application::RunOneFrame() {
         RootWidgetConsumedInputThisFrame = false;
     }
 
-    Renderer.BeginFrame(Config.ClearColor);
+    Renderer.BeginFrame(Config.ClearColor, Input.DeltaTimeSeconds);
     if (RootWidget) {
         RootWidget->Draw(Renderer);
     }

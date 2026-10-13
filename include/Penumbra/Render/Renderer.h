@@ -6,6 +6,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <cstdint>
 #include <span>
 #include <vector>
 
@@ -39,8 +40,22 @@ class Renderer {
 public:
     bool Initialise(SDL_Renderer* SdlRenderer, float DpiScaleFactor, IFontBackend* FontBackend);
 
+    // BeginFrame also advances the frame clock below. The one-argument form times the
+    // frame itself; a host with its own frame time (Application passes the input's
+    // DeltaTimeSeconds) hands it over instead, so both clocks agree.
     void BeginFrame(Color ClearColor);
+    void BeginFrame(Color ClearColor, float FrameDeltaSeconds);
     void EndFrameAndPresent();
+
+    // The frame clock, for widgets that animate on their own (charts, Box
+    // transitions). They advance in Draw, which reaches every visible widget each
+    // frame, where UpdateInteractionState stops at the first widget that consumes
+    // the input. The index is 0 until the first BeginFrame and goes up by one per
+    // frame, so a widget that remembers the index it last drew at can tell whether it
+    // was hidden in between. The delta is clamped to 0.1s, as the platform clamps the
+    // input's.
+    float         GetFrameDeltaSeconds() const { return FrameDeltaSeconds; }
+    std::uint64_t GetFrameIndex() const { return FrameIndex; }
 
     // All coordinates are LOGICAL pixels; the renderer multiplies by DPI scale internally.
     // CornerRadiusLogical 0 (the default) draws square corners via the fast path;
@@ -211,6 +226,9 @@ private:
     SDL_Renderer*         SdlRenderer{nullptr};
     IFontBackend*         FontBackend{nullptr};
     float                 DpiScaleFactor{1.0f};
+    std::uint64_t         FrameIndex{0};
+    float                 FrameDeltaSeconds{0.0f};
+    std::uint64_t         LastBeginFrameTicksNs{0}; // for the one-argument BeginFrame
     std::vector<SDL_Rect>      ClipStack;  // physical-pixel rects, already intersected
     std::vector<SDL_BlendMode> BlendStack; // resolved SDL blend modes -- PushBlendMode and
                                             // PushCustomBlendMode both push onto this one stack

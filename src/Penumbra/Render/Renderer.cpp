@@ -24,6 +24,10 @@ constexpr float MiterLimit = 4.0f;
 // Consecutive path points closer than this, in physical pixels, count as one point.
 constexpr float MinPointSpacingPhysical = 0.01f;
 
+// The longest frame the frame clock reports, matching PlatformWindow's clamp on the
+// input's DeltaTimeSeconds, so a stalled frame doesn't make every animation jump.
+constexpr float MaxFrameDeltaSeconds = 0.1f;
+
 SDL_Color ToSdlColor(Color InColor) {
     return {InColor.R, InColor.G, InColor.B, InColor.A};
 }
@@ -221,6 +225,17 @@ std::vector<SDL_FPoint> Renderer::ToPhysicalPath(std::span<const Point> PointsLo
 }
 
 void Renderer::BeginFrame(Color ClearColor) {
+    const std::uint64_t Now = SDL_GetTicksNS();
+    const float Delta =
+        LastBeginFrameTicksNs == 0 ? 0.0f : static_cast<float>(static_cast<double>(Now - LastBeginFrameTicksNs) / 1.0e9);
+    LastBeginFrameTicksNs = Now;
+    BeginFrame(ClearColor, Delta);
+}
+
+void Renderer::BeginFrame(Color ClearColor, float InFrameDeltaSeconds) {
+    ++FrameIndex;
+    FrameDeltaSeconds = std::clamp(InFrameDeltaSeconds, 0.0f, MaxFrameDeltaSeconds);
+
     SDL_SetRenderDrawColor(SdlRenderer, ClearColor.R, ClearColor.G, ClearColor.B, ClearColor.A);
     SDL_RenderClear(SdlRenderer);
 }

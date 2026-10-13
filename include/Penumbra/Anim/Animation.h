@@ -4,7 +4,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <span>
+#include <vector>
 
 // Small, header-only animation toolkit. Two models, because they answer different
 // questions:
@@ -109,6 +112,54 @@ struct Tween {
     float Progress() const {
         return (Duration > 0.0f) ? std::clamp(Elapsed / Duration, 0.0f, 1.0f) : 1.0f;
     }
+};
+
+// A list of values that eases (EaseOutCubic) from wherever it is to each new target
+// over a fixed duration: a chart's bars or slices when its data changes. When the
+// target grows, the new values start from 0; when it shrinks, the dropped values go
+// at once. Retargeting mid-flight starts from the values on screen, so nothing jumps.
+class TweenedValues {
+public:
+    // Jumps straight to Target, with nothing left to animate.
+    void SnapTo(std::span<const float> Target) {
+        To.assign(Target.begin(), Target.end());
+        From = To;
+        Timeline = {};
+    }
+
+    // Starts easing toward Target, unless it's already the target. A duration of 0
+    // or less snaps.
+    void RetargetTo(std::span<const float> Target, float DurationSeconds) {
+        if (std::ranges::equal(Target, To)) {
+            return;
+        }
+        if (DurationSeconds <= 0.0f) {
+            SnapTo(Target);
+            return;
+        }
+        std::vector<float> Current(Target.size(), 0.0f);
+        for (std::size_t Index = 0; Index < std::min(Current.size(), To.size()); ++Index) {
+            Current[Index] = ValueAt(Index);
+        }
+        From = std::move(Current);
+        To.assign(Target.begin(), Target.end());
+        Timeline.Start(DurationSeconds);
+    }
+
+    void Update(float DeltaSeconds) { Timeline.Update(DeltaSeconds); }
+
+    std::size_t Size() const { return To.size(); }
+    bool        IsAnimating() const { return Timeline.Playing; }
+
+    float ValueAt(std::size_t Index) const {
+        const float T = EaseOutCubic(Timeline.Progress());
+        return From[Index] + (To[Index] - From[Index]) * T;
+    }
+
+private:
+    std::vector<float> From;
+    std::vector<float> To;
+    Tween              Timeline;
 };
 
 } // namespace Penumbra::Anim
