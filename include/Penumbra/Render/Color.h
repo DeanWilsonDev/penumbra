@@ -11,6 +11,8 @@ struct Color {
     std::uint8_t G{0};
     std::uint8_t B{0};
     std::uint8_t A{0};
+
+    friend bool operator==(const Color&, const Color&) = default;
 };
 
 } // namespace Penumbra::Render

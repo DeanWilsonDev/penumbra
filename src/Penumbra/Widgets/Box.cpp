@@ -79,19 +79,52 @@ float GrowExtentAt(const std::vector<float>& Extents, std::size_t Index) {
     return Extents.empty() ? -1.0f : Extents[Index];
 }
 
-float ConstrainWidth(const BoxStyle& Style, float Width, float AvailableWidth) {
-    float Result = Style.Width.IsSet() ? Style.Width.Resolve(AvailableWidth) : Width;
-    if (Style.MaxWidth.IsSet()) {
-        Result = std::min(Result, Style.MaxWidth.Resolve(AvailableWidth));
+float Lerp(float From, float To, float T) { return From + (To - From) * T; }
+
+// The last of Style's transitions on Property, which wins as in CSS, or null.
+const Transition* FindTransition(const BoxStyle& Style, TransitionProperty Property) {
+    const Transition* Found = nullptr;
+    for (const Transition& Entry : Style.Transitions) {
+        if (Entry.Property == Property) {
+            Found = &Entry;
+        }
     }
-    if (Style.MinWidth.IsSet()) {
-        Result = std::max(Result, Style.MinWidth.Resolve(AvailableWidth));
-    }
-    return Result;
+    return Found;
 }
 
-float ConstrainHeight(const BoxStyle& Style, float Height, float AvailableHeight) {
-    return Style.Height.IsSet() ? Style.Height.Resolve(AvailableHeight) : Height;
+// One eased value: From is what showed when Target last changed.
+template <typename T> struct EasedTrack {
+    T            From{};
+    T            Target{};
+    Anim::Tween  Timeline;
+    Anim::Easing Curve{Anim::Easing::Linear};
+    bool         Known{false}; // Target has been set at least once
+
+    float Progress() const { return Anim::Ease(Curve, Timeline.Progress()); }
+};
+
+// Starts Track toward Target: eased from From under Spec when CanEase, else at once.
+template <typename T>
+void StartTrack(EasedTrack<T>& Track, const T& From, const T& Target, const Transition* Spec, bool CanEase) {
+    Track.Target = Target;
+    Track.Known  = true;
+    if (CanEase && Spec && Spec->DurationSeconds > 0.0f) {
+        Track.From  = From;
+        Track.Curve = Spec->Curve;
+        Track.Timeline.Start(Spec->DurationSeconds);
+    } else {
+        Track.From     = Target;
+        Track.Timeline = {};
+    }
+}
+
+// Points Track at Target if that's a change, easing from Current, the value showing.
+template <typename T>
+void RetargetTrack(EasedTrack<T>& Track, const T& Target, const T& Current, const Transition* Spec, bool CanEase) {
+    if (Track.Known && Track.Target == Target) {
+        return;
+    }
+    StartTrack(Track, Current, Target, Spec, Track.Known && CanEase);
 }
 
 Point StackChildAvailable(Point ContentSize, EdgeInsets Margin, bool Vertical, float GrowExtent) {
@@ -103,6 +136,25 @@ Point StackChildAvailable(Point ContentSize, EdgeInsets Margin, bool Vertical, f
     return Available;
 }
 } // namespace
+
+struct Box::TransitionState {
+    EasedTrack<Length>        Width;
+    EasedTrack<Length>        Height;
+    EasedTrack<float>         FlexGrow;
+    EasedTrack<Render::Color> Background;
+    EasedTrack<float>         Opacity;
+
+    // The width and height last laid out, in logical pixels, or -1 when unset: where
+    // a size eases from when its target changes mid-flight.
+    float LastWidthLogical{-1.0f};
+    float LastHeightLogical{-1.0f};
+
+    bool          Entered{false}; // the enter transitions have started since the Box last appeared
+    std::uint64_t LastAdvancedFrame{0};
+};
+
+Box::Box() = default;
+Box::~Box() = default;
 
 WidgetBase* Box::AddChild(std::unique_ptr<WidgetBase> Child) {
     WidgetBase* Raw = Child.get();
@@ -168,6 +220,7 @@ Rect Box::ContentRectFrom(Rect OuterRect) const {
 }
 
 Point Box::Measure(Point AvailableSizeLogical) {
+    SyncLayoutTransitions();
     const Point Frame = FrameSize();
 
     const Point EffectiveAvailable = ConstrainAvailable(AvailableSizeLogical);
@@ -235,13 +288,138 @@ Point Box::Measure(Point AvailableSizeLogical) {
 }
 
 Point Box::ConstrainAvailable(Point AvailableSizeLogical) const {
-    return {ConstrainWidth(Style, AvailableSizeLogical.X, AvailableSizeLogical.X),
-            ConstrainHeight(Style, AvailableSizeLogical.Y, AvailableSizeLogical.Y)};
+    return {ConstrainLength(true, AvailableSizeLogical.X, AvailableSizeLogical.X),
+            ConstrainLength(false, AvailableSizeLogical.Y, AvailableSizeLogical.Y)};
 }
 
 Point Box::ConstrainDesired(Point DesiredSizeLogical, Point AvailableSizeLogical) const {
-    return {ConstrainWidth(Style, DesiredSizeLogical.X, AvailableSizeLogical.X),
-            ConstrainHeight(Style, DesiredSizeLogical.Y, AvailableSizeLogical.Y)};
+    return {ConstrainLength(true, DesiredSizeLogical.X, AvailableSizeLogical.X),
+            ConstrainLength(false, DesiredSizeLogical.Y, AvailableSizeLogical.Y)};
+}
+
+float Box::ConstrainLength(bool IsWidth, float Value, float AvailableLogical) const {
+    const Length& Size   = IsWidth ? Style.Width : Style.Height;
+    float         Result = Value;
+    if (Size.IsSet()) {
+        Result = Size.Resolve(AvailableLogical);
+        if (Eased) {
+            const EasedTrack<Length>& Track = IsWidth ? Eased->Width : Eased->Height;
+            if (Track.Known && Track.Target == Size && Track.From.IsSet()) {
+                Result = Lerp(Track.From.Resolve(AvailableLogical), Result, Track.Progress());
+            }
+        }
+    }
+    if (Eased) {
+        (IsWidth ? Eased->LastWidthLogical : Eased->LastHeightLogical) = Size.IsSet() ? Result : -1.0f;
+    }
+
+    if (IsWidth && Style.MaxWidth.IsSet()) {
+        Result = std::min(Result, Style.MaxWidth.Resolve(AvailableLogical));
+    }
+    if (IsWidth && Style.MinWidth.IsSet()) {
+        Result = std::max(Result, Style.MinWidth.Resolve(AvailableLogical));
+    }
+    return Result;
+}
+
+float Box::GetFlexGrow() const {
+    if (!Eased || !Eased->FlexGrow.Known || !FindTransition(Style, TransitionProperty::FlexGrow)) {
+        return Style.FlexGrow;
+    }
+    // Until this Box's own Measure picks up a new FlexGrow, keep showing the old one:
+    // the parent asks before measuring it.
+    const EasedTrack<float>& Track = Eased->FlexGrow;
+    return Lerp(Track.From, Track.Target, Track.Progress());
+}
+
+void Box::SyncLayoutTransitions() {
+    if (Style.Transitions.empty()) {
+        Eased.reset();
+        return;
+    }
+    if (!Eased) {
+        Eased = std::make_unique<TransitionState>();
+    }
+    TransitionState&  State      = *Eased;
+    const Transition* WidthSpec  = FindTransition(Style, TransitionProperty::Width);
+    const Transition* HeightSpec = FindTransition(Style, TransitionProperty::Height);
+    const Transition* GrowSpec   = FindTransition(Style, TransitionProperty::FlexGrow);
+
+    if (!State.Entered) {
+        // Appearing: start from StartingStyle where there is one, else as styled.
+        // Sizes ease only between set lengths, as in RetargetTrack below.
+        State.Entered          = true;
+        State.LastWidthLogical = State.LastHeightLogical = -1.0f;
+        const BoxStyle* Start  = StartingStyle ? &*StartingStyle : nullptr;
+        StartTrack(State.Width, Start ? Start->Width : Length{}, Style.Width, WidthSpec,
+                   Start && Start->Width.IsSet() && Style.Width.IsSet());
+        StartTrack(State.Height, Start ? Start->Height : Length{}, Style.Height, HeightSpec,
+                   Start && Start->Height.IsSet() && Style.Height.IsSet());
+        StartTrack(State.FlexGrow, Start ? Start->FlexGrow : 0.0f, Style.FlexGrow, GrowSpec, Start != nullptr);
+        StartTrack(State.Background, Start ? Start->ColorBackground : Render::Color{}, BackgroundForState(),
+                   FindTransition(Style, TransitionProperty::BackgroundColor), Start != nullptr);
+        StartTrack(State.Opacity, Start ? Start->Opacity : 0.0f, Style.Opacity,
+                   FindTransition(Style, TransitionProperty::Opacity), Start != nullptr);
+        return;
+    }
+
+    const Length WidthNow  = State.LastWidthLogical >= 0.0f ? Length::Logical(State.LastWidthLogical) : Length{};
+    const Length HeightNow = State.LastHeightLogical >= 0.0f ? Length::Logical(State.LastHeightLogical) : Length{};
+    RetargetTrack(State.Width, Style.Width, WidthNow, WidthSpec, Style.Width.IsSet() && WidthNow.IsSet());
+    RetargetTrack(State.Height, Style.Height, HeightNow, HeightSpec, Style.Height.IsSet() && HeightNow.IsSet());
+    RetargetTrack(State.FlexGrow, Style.FlexGrow, Lerp(State.FlexGrow.From, State.FlexGrow.Target, State.FlexGrow.Progress()),
+                  GrowSpec, true);
+}
+
+void Box::AdvanceTransitions(Render::Renderer& Renderer) {
+    if (!Eased) {
+        return;
+    }
+    TransitionState&    State = *Eased;
+    const std::uint64_t Frame = Renderer.GetFrameIndex();
+    if (Frame == 0) {
+        // No frame clock to move them on by: show every value as it's styled.
+        State.Width.Timeline = State.Height.Timeline = State.FlexGrow.Timeline = {};
+        State.Background.Timeline = State.Opacity.Timeline = {};
+    } else if (Frame != State.LastAdvancedFrame) {
+        const float Delta = Renderer.GetFrameDeltaSeconds();
+        State.Width.Timeline.Update(Delta);
+        State.Height.Timeline.Update(Delta);
+        State.FlexGrow.Timeline.Update(Delta);
+        State.Background.Timeline.Update(Delta);
+        State.Opacity.Timeline.Update(Delta);
+    }
+    State.LastAdvancedFrame = Frame;
+
+    // The background follows the interaction state, which settles after layout, so it
+    // and opacity retarget here rather than in Measure: after advancing, so a change
+    // shows its starting value this frame, as a size change does.
+    RetargetTrack(State.Background, BackgroundForState(), DisplayedBackground(),
+                  FindTransition(Style, TransitionProperty::BackgroundColor), true);
+    RetargetTrack(State.Opacity, Style.Opacity, DisplayedOpacity(), FindTransition(Style, TransitionProperty::Opacity),
+                  true);
+}
+
+Render::Color Box::DisplayedBackground() const {
+    if (!Eased || !Eased->Background.Known || !FindTransition(Style, TransitionProperty::BackgroundColor)) {
+        return BackgroundForState();
+    }
+    const EasedTrack<Render::Color>& Track = Eased->Background;
+    return Anim::LerpColor(Track.From, Track.Target, Track.Progress());
+}
+
+float Box::DisplayedOpacity() const {
+    if (!Eased || !Eased->Opacity.Known || !FindTransition(Style, TransitionProperty::Opacity)) {
+        return Style.Opacity;
+    }
+    const EasedTrack<float>& Track = Eased->Opacity;
+    return Lerp(Track.From, Track.Target, Track.Progress());
+}
+
+void Box::OnShown() {
+    if (Eased) {
+        Eased->Entered = false;
+    }
 }
 
 void Box::Arrange(Rect FinalRectLogical) {
@@ -522,13 +700,20 @@ Render::Color Box::BorderForState() const {
 }
 
 void Box::Draw(Render::Renderer& Renderer) {
-    // A non-identity Transform redirects this Box's own paint plus every descendant's
-    // into an offscreen texture, composited back as one scaled/rotated/translated
-    // blit -- see Renderer::PushTransform. Layout (ArrangedRect, children's rects) is
-    // untouched either way, matching CSS: transform never reflows.
-    const bool Transformed = !Style.Transform.IsIdentity();
+    AdvanceTransitions(Renderer);
+    const float Opacity = DisplayedOpacity();
+    if (Opacity <= 0.0f) {
+        return;
+    }
+
+    // A non-identity Transform, or an Opacity below 1, redirects this Box's own paint
+    // plus every descendant's into an offscreen texture, composited back as one
+    // scaled/rotated/translated, translucent blit -- see Renderer::PushTransform.
+    // Layout (ArrangedRect, children's rects) is untouched either way, matching CSS:
+    // transform never reflows.
+    const bool Transformed = !Style.Transform.IsIdentity() || Opacity < 1.0f;
     if (Transformed) {
-        Renderer.PushTransform(ArrangedRect, Style.Transform);
+        Renderer.PushTransform(ArrangedRect, Style.Transform, Opacity);
     }
 
     // A shadow is drawn just before this Box's own fill, so it reads as sitting
@@ -540,7 +725,7 @@ void Box::Draw(Render::Renderer& Renderer) {
 
     // GradientTop set (alpha != 0) wins over the flat ColorBackground fill --
     // gradient takes priority, avoiding two fills when a consumer sets both.
-    const Render::Color Background = BackgroundForState();
+    const Render::Color Background = DisplayedBackground();
     const Render::Color GradientTop = GradientTopForState();
     if (GradientTop.A != 0) {
         Renderer.DrawGradientRect(ArrangedRect, GradientTop, GradientBottomForState(), Style.BorderRadius);

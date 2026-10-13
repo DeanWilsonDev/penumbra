@@ -1,8 +1,11 @@
 #pragma once
 
+#include "Penumbra/Anim/Animation.h"
 #include "Penumbra/Geometry.h"
 #include "Penumbra/Render/Color.h"
 #include "Penumbra/Widgets/Length.h"
+
+#include <vector>
 
 namespace Penumbra::Widgets {
 
@@ -35,6 +38,20 @@ enum class CrossAlign { Start, Center, End, Stretch };
 // laid out at all). No SpaceAround/SpaceEvenly -- not requested by any real consumer;
 // This is intentionally not a full flexbox-equivalent distribution model.
 enum class Justify { Start, Center, End, SpaceBetween };
+
+// The BoxStyle values a Transition can ease.
+enum class TransitionProperty { Width, Height, FlexGrow, BackgroundColor, Opacity };
+
+// Eases one BoxStyle value when it changes, as CSS's transition does: the Box moves
+// from the value it shows now to the new one over DurationSeconds along Curve,
+// instead of jumping. Width and Height ease only between two set lengths, never to
+// or from unset, as CSS doesn't animate to or from auto. BackgroundColor follows
+// whatever the Box draws, so it eases between interaction-state colours too.
+struct Transition {
+    TransitionProperty Property{TransitionProperty::Width};
+    float              DurationSeconds{0.0f};
+    Anim::Easing       Curve{Anim::Easing::Linear};
+};
 
 // The universal style slots — the "tokens" every widget honours. Penumbra defines
 // the SHAPE; it supplies NO values and NO semantic names. Default-constructed it is
@@ -104,6 +121,17 @@ struct BoxStyle {
     Length MinWidth;
     Length MaxWidth;
     float  FlexGrow{0.0f};
+
+    // How opaque this Box and its whole subtree draw, 0 to 1. Below 1 the subtree is
+    // drawn to an offscreen texture and composited that translucent, as a Transform
+    // is (see Renderer::PushTransform); at 0 nothing is drawn, though the Box still
+    // takes up its space and its input. 1, fully opaque, is the default -- the one
+    // slot here whose absence isn't 0.
+    float Opacity{1.0f};
+
+    // The values that ease when they change. Empty, every change shows at once. When
+    // two entries name the same property, the later one wins, as in CSS.
+    std::vector<Transition> Transitions;
 };
 
 // Per-widget styles extend BoxStyle so the box-model slots stay universal and free.

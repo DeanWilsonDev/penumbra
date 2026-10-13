@@ -1070,9 +1070,10 @@ void Renderer::PopBlendMode() {
     SDL_SetRenderDrawBlendMode(SdlRenderer, Restored);
 }
 
-void Renderer::PushTransform(Rect SubjectRectLogical, const Transform& InTransform) {
-    if (InTransform.IsIdentity()) {
-        TransformStack.push_back({nullptr, nullptr, OriginOffsetLogical, SubjectRectLogical, InTransform});
+void Renderer::PushTransform(Rect SubjectRectLogical, const Transform& InTransform, float Opacity) {
+    Opacity = std::clamp(Opacity, 0.0f, 1.0f);
+    if (InTransform.IsIdentity() && Opacity >= 1.0f) {
+        TransformStack.push_back({nullptr, nullptr, OriginOffsetLogical, SubjectRectLogical, InTransform, Opacity});
         return;
     }
 
@@ -1084,8 +1085,10 @@ void Renderer::PushTransform(Rect SubjectRectLogical, const Transform& InTransfo
     SDL_SetTextureBlendMode(CaptureTexture, SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(CaptureTexture, SDL_SCALEMODE_LINEAR);
 
+    SDL_SetTextureAlphaModFloat(CaptureTexture, Opacity);
+
     TransformStack.push_back({CaptureTexture, SDL_GetRenderTarget(SdlRenderer), OriginOffsetLogical,
-                              SubjectRectLogical, InTransform});
+                              SubjectRectLogical, InTransform, Opacity});
 
     // The captured texture is its own render target with its own clip state; the
     // outer target's clip (e.g. a ScrollablePanel ancestor) doesn't apply to it in any

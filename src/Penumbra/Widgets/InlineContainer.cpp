@@ -47,6 +47,7 @@ InlineContainer::BuildLines(Point ContentAvailable) const {
 }
 
 Point InlineContainer::Measure(Point AvailableSizeLogical) {
+    SyncLayoutTransitions();
     const Point Frame = FrameSize();
     const Point ContentAvailable{NonNegative(AvailableSizeLogical.X - Frame.X),
                                  NonNegative(AvailableSizeLogical.Y - Frame.Y)};

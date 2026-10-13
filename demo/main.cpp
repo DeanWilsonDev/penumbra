@@ -460,6 +460,38 @@ int main() {
             Root->AddChild(std::move(SparklineWidget));
         }
 
+        // A progress bar built from plain Boxes, the way Cairn builds its bars: a fill
+        // and a spacer whose FlexGrow split is the share of tasks done. A FlexGrow
+        // transition eases each change, and StartingStyle grows the fill in from 0 when
+        // it first appears.
+        Box* ProgressFill   = nullptr;
+        Box* ProgressSpacer = nullptr;
+        {
+            Root->AddChild(MakeLabel("Share of tasks done", Theme.ColorTextDisabled));
+            const float Radius = Theme.ProgressHeight * 0.5f;
+            const std::vector<Transition> EaseGrow = {
+                {TransitionProperty::FlexGrow, Theme.ChartAppearSeconds, Penumbra::Anim::Easing::EaseOut}};
+
+            auto Track                   = std::make_unique<Box>();
+            Track->Layout                = LayoutMode::HorizontalStack;
+            Track->CrossAlignment        = CrossAlign::Stretch;
+            Track->Style.Height          = Length::Logical(Theme.ProgressHeight);
+            Track->Style.ColorBackground = Theme.ColorBackgroundPrimary;
+            Track->Style.BorderRadius    = Radius;
+
+            auto Fill                   = std::make_unique<Box>();
+            Fill->Style.ColorBackground = Theme.ColorChartGreen;
+            Fill->Style.BorderRadius    = Radius;
+            Fill->Style.Transitions     = EaseGrow;
+            Fill->StartingStyle         = Fill->Style; // FlexGrow 0
+            ProgressFill                = static_cast<Box*>(Track->AddChild(std::move(Fill)));
+
+            auto Spacer               = std::make_unique<Box>();
+            Spacer->Style.Transitions = EaseGrow;
+            ProgressSpacer            = static_cast<Box*>(Track->AddChild(std::move(Spacer)));
+            Root->AddChild(std::move(Track));
+        }
+
         auto ApplyChartData = [&](const ChartDataSet& Data) {
             Columns->Series   = {{"Done", Data.Done, Theme.ColorChartBlue}, {"Added", Data.Added, Theme.ColorChartOrange}};
             Donut->Slices     = {{"Todo", Data.Todo, Theme.ColorChartOrange},
@@ -471,6 +503,10 @@ int main() {
             Velocity->Series  = {{"Velocity", Data.Velocity, Theme.ColorChartBlue},
                                  {"Bugs", Data.Bugs, Theme.ColorChartOrange}};
             Sparkline->Series = {{"Trend", Data.Trend, Theme.ColorChartGreen}};
+
+            const float DoneShare          = Data.Finished / (Data.Todo + Data.Doing + Data.Finished);
+            ProgressFill->Style.FlexGrow   = DoneShare;
+            ProgressSpacer->Style.FlexGrow = 1.0f - DoneShare;
         };
         ApplyChartData(ChartDataSets[ChartDataIndex]);
 

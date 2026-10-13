@@ -78,6 +78,35 @@ inline float EaseOutCubic(float T) {
     return 1.0f - U * U * U;
 }
 
+inline float EaseInCubic(float T) { return T * T * T; }
+
+inline float EaseInOutCubic(float T) {
+    if (T < 0.5f) {
+        return 4.0f * T * T * T;
+    }
+    const float U = -2.0f * T + 2.0f;
+    return 1.0f - U * U * U / 2.0f;
+}
+
+// A named curve, for timing a consumer chooses by name (BoxStyle's Transitions).
+// The eased ones are cubic: CSS's ease-in, ease-out and ease-in-out keywords, near
+// enough.
+enum class Easing { Linear, EaseIn, EaseOut, EaseInOut };
+
+inline float Ease(Easing Curve, float T) {
+    switch (Curve) {
+    case Easing::EaseIn:
+        return EaseInCubic(T);
+    case Easing::EaseOut:
+        return EaseOutCubic(T);
+    case Easing::EaseInOut:
+        return EaseInOutCubic(T);
+    case Easing::Linear:
+    default:
+        return T;
+    }
+}
+
 // Overshoots past 1.0 then settles — reads as a "pop".
 inline float EaseOutBack(float T) {
     constexpr float C1 = 1.70158f;

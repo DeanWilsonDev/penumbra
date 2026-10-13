@@ -64,6 +64,7 @@ struct Theme {
     float ChartSegmentGap       = 3.0f;
     float ChartAppearSeconds    = 0.6f;
     float ChartTransitionSeconds = 0.4f;
+    float ProgressHeight         = 8.0f; // the Box-built progress bar under the charts
 
     float AnimColorSeconds   = 0.09f;  // easing time constant for hover/press colours
 };

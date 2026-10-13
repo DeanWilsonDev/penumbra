@@ -82,13 +82,36 @@ public:
 
     // A widget that is not visible contributes zero size, is not arranged, does not
     // participate in hit-testing, and is not drawn — the same way display:none does.
-    void SetIsVisible(bool Visible) { IsVisible = Visible; }
+    // Showing it again calls OnShown on it and its visible descendants.
+    void SetIsVisible(bool Visible) {
+        const bool Shown = Visible && !IsVisible;
+        IsVisible        = Visible;
+        if (Shown) {
+            NotifyShown();
+        }
+    }
     bool GetIsVisible() const { return IsVisible; }
 
 protected:
+    // Called when this widget, or a hidden ancestor, is shown again: the moment CSS
+    // applies @starting-style after display: none. A Box replays its enter
+    // transitions here.
+    virtual void OnShown() {}
+
     bool IsEnabled{true};
     bool IsVisible{true};
     Rect ArrangedRect{0.0f, 0.0f, 0.0f, 0.0f};
+
+private:
+    void NotifyShown() {
+        OnShown();
+        for (std::size_t Index = 0; Index < GetChildCount(); ++Index) {
+            WidgetBase* Child = GetChildAt(Index);
+            if (Child && Child->IsVisible) {
+                Child->NotifyShown();
+            }
+        }
+    }
 };
 
 } // namespace Penumbra::Widgets

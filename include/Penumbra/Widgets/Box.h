@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,16 @@ public:
     // WidthLogical/HeightLogical's own "explicit non-negative override" shape.
     float                                    LeadingExtentLogical{-1.0f};
 
+    // Where the values Style.Transitions names start from when this Box first
+    // appears, and again each time it's shown after SetIsVisible(false) on it or an
+    // ancestor: CSS's @starting-style. Only the transitioned values are read, all of
+    // them, so build it from Style and change just the ones that should ease in (a
+    // bar's FlexGrow from 0, say). Unset, the Box appears with its style as it stands.
+    std::optional<BoxStyle> StartingStyle;
+
+    Box();
+    ~Box() override;
+
     WidgetBase* AddChild(std::unique_ptr<WidgetBase> Child);
     WidgetBase* InsertChildAt(std::size_t Index, std::unique_ptr<WidgetBase> Child);
 
@@ -56,7 +67,7 @@ public:
     void  Draw(Render::Renderer&) override;
 
     EdgeInsets GetMarginLogical() const override { return Style.Margin; }
-    float      GetFlexGrow() const override { return Style.FlexGrow; }
+    float      GetFlexGrow() const override; // eased, under a FlexGrow transition
 
     InteractionState GetInteractionState() const { return CurrentState; }
 
@@ -94,6 +105,18 @@ protected:
     Point ConstrainAvailable(Point AvailableSizeLogical) const;
     Point ConstrainDesired(Point DesiredSizeLogical, Point AvailableSizeLogical) const;
 
+    // Style.Transitions. A subclass that overrides Measure or Draw without calling
+    // Box's calls these instead: SyncLayoutTransitions at the start of Measure, to
+    // catch changes to Width, Height and FlexGrow, and AdvanceTransitions at the start
+    // of Draw, which moves every eased value on by the Renderer's frame clock. The
+    // Displayed values are what to draw with.
+    void          SyncLayoutTransitions();
+    void          AdvanceTransitions(Render::Renderer&);
+    Render::Color DisplayedBackground() const;
+    float         DisplayedOpacity() const;
+
+    void OnShown() override;
+
 private:
     // The background Draw should use for CurrentState -- Style.ColorBackgroundHovered/
     // Pressed/Disabled when set (non-zero alpha), else Style.ColorBackground unchanged.
@@ -119,6 +142,13 @@ private:
     // OnPressed that started it rather than firing on an unrelated mouse-up.
     bool              PressedInside{false};
     InteractionState  CurrentState{InteractionState::Default};
+
+    // The eased values, created once Style.Transitions isn't empty, so a plain Box
+    // carries nothing extra.
+    struct TransitionState;
+    std::unique_ptr<TransitionState> Eased;
+
+    float ConstrainLength(bool IsWidth, float Value, float AvailableLogical) const;
 };
 
 } // namespace Penumbra::Widgets

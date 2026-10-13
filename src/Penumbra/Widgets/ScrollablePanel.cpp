@@ -16,6 +16,7 @@ float Clamp(float Value, float Low, float High) {
 } // namespace
 
 Point ScrollablePanel::Measure(Point AvailableSizeLogical) {
+    SyncLayoutTransitions();
     const Point Frame = FrameSize();
     const Point Viewport = ConstrainAvailable(AvailableSizeLogical);
     const Point ContentAvailable{NonNegative(Viewport.X - Frame.X), NonNegative(Viewport.Y - Frame.Y)};
@@ -179,8 +180,19 @@ bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Input) 
 }
 
 void ScrollablePanel::Draw(Render::Renderer& Renderer) {
-    if (Style.ColorBackground.A != 0) {
-        Renderer.DrawFilledRect(ArrangedRect, Style.ColorBackground, Style.BorderRadius);
+    AdvanceTransitions(Renderer);
+    const float Opacity = DisplayedOpacity();
+    if (Opacity <= 0.0f) {
+        return;
+    }
+    const bool Translucent = Opacity < 1.0f;
+    if (Translucent) {
+        Renderer.PushTransform(ArrangedRect, Transform{}, Opacity);
+    }
+
+    const Render::Color Background = DisplayedBackground();
+    if (Background.A != 0) {
+        Renderer.DrawFilledRect(ArrangedRect, Background, Style.BorderRadius);
     }
     if (Style.BorderWidth > 0.0f && Style.ColorBorder.A != 0) {
         Renderer.DrawRectOutline(ArrangedRect, Style.ColorBorder, Style.BorderWidth, Style.BorderRadius);
@@ -197,6 +209,9 @@ void ScrollablePanel::Draw(Render::Renderer& Renderer) {
     Renderer.PopClipRect();
 
     DrawScrollbar(Renderer, Content);
+    if (Translucent) {
+        Renderer.PopTransform();
+    }
 }
 
 ScrollablePanel::ScrollbarLayout ScrollablePanel::LayOutScrollbar(Rect Content) const {

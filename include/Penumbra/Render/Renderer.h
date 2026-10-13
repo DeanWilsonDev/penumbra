@@ -174,13 +174,16 @@ public:
     // so a whole widget subtree can be painted once and then composited back as a
     // single scaled/rotated/translated blit (BoxStyle::Transform). A no-op push/pop
     // (drawing continues straight to the current target) when InTransform.IsIdentity()
-    // -- the common case
-    // costs nothing beyond the check. Nests: an inner push/pop composites into
+    // and Opacity is 1 -- the common case costs nothing beyond the check. Nests: an inner push/pop composites into
     // whichever target -- the window, or an ancestor's own capture -- was active when
     // it was pushed, so nested transforms compose the way nested clip rects already
     // do. Every push must be matched by a pop; asserted balanced at
     // EndFrameAndPresent like the clip/blend stacks.
-    void PushTransform(Rect SubjectRectLogical, const Transform& InTransform);
+    //
+    // Opacity below 1 captures too, even with an identity transform, and the capture
+    // composites back that translucent (BoxStyle::Opacity), so overlapping children
+    // fade as one layer rather than showing through each other.
+    void PushTransform(Rect SubjectRectLogical, const Transform& InTransform, float Opacity = 1.0f);
     void PopTransform();
 
     // The fully general escape hatch PushBlendMode(BlendMode::Additive) is a convenience
@@ -221,6 +224,7 @@ private:
         Point        PreviousOriginOffsetLogical{};
         Rect         SubjectRectLogical{};
         Transform    AppliedTransform{};
+        float        Opacity{1.0f};
     };
 
     SDL_Renderer*         SdlRenderer{nullptr};

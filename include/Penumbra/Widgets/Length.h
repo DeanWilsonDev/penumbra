@@ -17,6 +17,8 @@ struct Length {
 
     bool  IsSet() const { return Value >= 0.0f; }
     float Resolve(float PercentBasisLogical) const;
+
+    friend bool operator==(const Length&, const Length&) = default;
 };
 
 void  SetLayoutViewportLogical(Point SizeLogical);
