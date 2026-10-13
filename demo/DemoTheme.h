@@ -38,6 +38,8 @@ struct Theme {
     float SeparatorThickness = 2.0f;   // height of a separator Box
     float IconSize            = 20.0f;
     float IconStrokeThickness = 1.5f;
+    float CanvasHeight        = 64.0f; // content height of the settings column's wave canvas
+    float CanvasLineThickness = 2.0f;
 
     float AnimColorSeconds   = 0.09f;  // easing time constant for hover/press colours
 };

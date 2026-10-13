@@ -6,6 +6,7 @@
 #include "Penumbra/Render/SdlTtfFontBackend.h"
 #include "Penumbra/Widgets/Box.h"
 #include "Penumbra/Widgets/Button.h"
+#include "Penumbra/Widgets/CanvasWidget.h"
 #include "Penumbra/Widgets/Checkbox.h"
 #include "Penumbra/Widgets/FocusState.h"
 #include "Penumbra/Widgets/IconWidget.h"
@@ -20,10 +21,12 @@
 #include "PenumbraIcons/StandardIconBackend.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -244,6 +247,34 @@ int main() {
             auto Status = MakeLabel("", Theme.ColorTextDisabled);
             StatusLabel = Status.get();
             Root->AddChild(std::move(Status));
+        }
+
+        // A CanvasWidget drawing a sine wave whose amplitude follows the drag value. It
+        // redraws every frame, so dragging the value reshapes it live; past a value of
+        // 2 the wave runs off the canvas and the content-rect clip cuts it off.
+        {
+            auto Wave = std::make_unique<CanvasWidget>();
+            Wave->Style                  = Demo::ResolveInputFieldStyle(Theme);
+            Wave->PreferredHeightLogical = Theme.CanvasHeight;
+            Wave->OnDraw = [&Theme, Drag](Penumbra::Render::Renderer& CanvasRenderer, Penumbra::Rect Content) {
+                const float MidY = Content.Y + Content.H * 0.5f;
+                CanvasRenderer.DrawLine({Content.X, MidY}, {Content.X + Content.W, MidY}, Theme.ColorBorderDefault,
+                                        Theme.BorderWidthDefault);
+
+                constexpr int   Samples = 64;
+                constexpr float Cycles  = 2.0f;
+                const float     Amplitude = Content.H * 0.25f * Drag->Value;
+                std::vector<Penumbra::Point> WavePoints;
+                WavePoints.reserve(Samples + 1);
+                for (int Index = 0; Index <= Samples; ++Index) {
+                    const float T = static_cast<float>(Index) / Samples;
+                    WavePoints.push_back({Content.X + Content.W * T,
+                                          MidY - Amplitude * std::sin(T * Cycles * 2.0f * std::numbers::pi_v<float>)});
+                }
+                CanvasRenderer.DrawPolyline(WavePoints, Theme.ColorAccentHovered, Theme.CanvasLineThickness,
+                                            Penumbra::Render::LineJoin::Round, Penumbra::Render::LineCap::Round);
+            };
+            Root->AddChild(std::move(Wave));
         }
 
         // Dropdown menu, proving OverlayHost: the button is a normal child deep in
