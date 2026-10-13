@@ -132,4 +132,38 @@ struct DropdownStyle : BoxStyle {
     float         OpenTransitionSeconds{0.0f};
 };
 
+// The slots DonutChart, BarChart and LineChart share. Every value is the consumer's;
+// a zero size or a zero-alpha colour draws nothing, as everywhere else here.
+struct ChartStyle : BoxStyle {
+    Render::Color ColorAxis{0, 0, 0, 0};     // the baseline, at value 0
+    Render::Color ColorGridLine{0, 0, 0, 0}; // one line per value tick
+    Render::Color ColorLabel{0, 0, 0, 0};    // value, category and donut-centre text
+    // Behind the hovered category in a BarChart or LineChart (a band, or a guide line
+    // GridLineThicknessLogical wide), over the hovered slice in a DonutChart.
+    Render::Color ColorHover{0, 0, 0, 0};
+
+    float AxisThicknessLogical{0.0f};
+    float GridLineThicknessLogical{0.0f};
+    // The least distance between value ticks. The chart steps its value axis in
+    // 1, 2 or 5 x 10^n, the smallest such step that keeps ticks this far apart (and
+    // horizontal value labels clear of each other). 0 draws no ticks, grid lines or
+    // value labels.
+    float TickSpacingLogical{0.0f};
+    float LabelGapLogical{0.0f}; // between the plot and its labels, and between labels
+
+    float LineThicknessLogical{0.0f};    // LineChart
+    float PointRadiusLogical{0.0f};      // LineChart: a dot on every value
+    float HoverPointRadiusLogical{0.0f}; // LineChart: the dots of the hovered category
+    float AreaOpacity{0.0f};             // LineChart: the fill under each line, as a fraction of its colour's alpha
+
+    float BarGapFraction{0.0f}; // BarChart: the share of each category's band left empty
+    float BarCornerRadiusLogical{0.0f};
+
+    float DonutThicknessLogical{0.0f}; // DonutChart: the ring's width; 0 fills to the centre, a pie
+    float SegmentGapDegrees{0.0f};     // DonutChart: the gap between neighbouring slices
+
+    float AppearSeconds{0.0f};     // growing in each time the chart is shown
+    float TransitionSeconds{0.0f}; // easing from one data set to the next
+};
+
 } // namespace Penumbra::Widgets

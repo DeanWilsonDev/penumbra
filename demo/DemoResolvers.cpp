@@ -50,4 +50,28 @@ Penumbra::Widgets::BoxStyle ResolveInputFieldStyle(const Theme& Theme) {
     return Style;
 }
 
+Penumbra::Widgets::ChartStyle ResolveChartStyle(const Theme& Theme) {
+    Penumbra::Widgets::ChartStyle Style;
+    static_cast<Penumbra::Widgets::BoxStyle&>(Style) = ResolveInputFieldStyle(Theme);
+    Style.ColorAxis                = Theme.ColorTextDisabled;
+    Style.ColorGridLine            = Theme.ColorChartGrid;
+    Style.ColorLabel               = Theme.ColorTextDisabled;
+    Style.ColorHover               = Theme.ColorChartHover;
+    Style.AxisThicknessLogical     = Theme.BorderWidthDefault;
+    Style.GridLineThicknessLogical = Theme.BorderWidthDefault;
+    Style.TickSpacingLogical       = Theme.ChartTickSpacing;
+    Style.LabelGapLogical          = Theme.ChartLabelGap;
+    Style.LineThicknessLogical     = Theme.ChartLineThickness;
+    Style.PointRadiusLogical       = Theme.ChartPointRadius;
+    Style.HoverPointRadiusLogical  = Theme.ChartHoverPointRadius;
+    Style.AreaOpacity              = Theme.ChartAreaOpacity;
+    Style.BarGapFraction           = Theme.ChartBarGapFraction;
+    Style.BarCornerRadiusLogical   = Theme.ChartBarCornerRadius;
+    Style.DonutThicknessLogical    = Theme.ChartDonutThickness;
+    Style.SegmentGapDegrees        = Theme.ChartSegmentGap;
+    Style.AppearSeconds            = Theme.ChartAppearSeconds;
+    Style.TransitionSeconds        = Theme.ChartTransitionSeconds;
+    return Style;
+}
+
 } // namespace Demo

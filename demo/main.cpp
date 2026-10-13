@@ -4,13 +4,16 @@
 #include "Penumbra/Platform/PlatformWindow.h"
 #include "Penumbra/Render/Renderer.h"
 #include "Penumbra/Render/SdlTtfFontBackend.h"
+#include "Penumbra/Widgets/BarChart.h"
 #include "Penumbra/Widgets/Box.h"
 #include "Penumbra/Widgets/Button.h"
 #include "Penumbra/Widgets/CanvasWidget.h"
 #include "Penumbra/Widgets/Checkbox.h"
+#include "Penumbra/Widgets/DonutChart.h"
 #include "Penumbra/Widgets/FocusState.h"
 #include "Penumbra/Widgets/IconWidget.h"
 #include "Penumbra/Widgets/Label.h"
+#include "Penumbra/Widgets/LineChart.h"
 #include "Penumbra/Widgets/NumericDrag.h"
 #include "Penumbra/Widgets/OverlayHost.h"
 #include "Penumbra/Widgets/ScrollablePanel.h"
@@ -50,6 +53,13 @@ std::string FormatFloat(float Value) {
     return Buffer;
 }
 
+// The shortest form of a value, for chart readouts: "11", "7.8".
+std::string FormatShort(float Value) {
+    char Buffer[32];
+    std::snprintf(Buffer, sizeof(Buffer), "%g", Value);
+    return Buffer;
+}
+
 } // namespace
 
 int main() {
@@ -72,6 +82,8 @@ int main() {
         float LastKnownDpiScaleFactor = Window.GetDpiScaleFactor();
         Penumbra::Render::FontHandle BodyFont =
             FontBackend.LoadFont(FontPath.c_str(), Theme.FontSizeBody, LastKnownDpiScaleFactor);
+        Penumbra::Render::FontHandle ChartFont =
+            FontBackend.LoadFont(FontPath.c_str(), Theme.FontSizeSmall, LastKnownDpiScaleFactor);
 
         Penumbra::Render::Renderer Renderer;
         if (!Renderer.Initialise(Window.GetSdlRenderer(), LastKnownDpiScaleFactor, &FontBackend)) {
@@ -312,6 +324,173 @@ int main() {
 
         Root->AddChild(MakeSeparator());
 
+        // ---- charts, fed plain C++ data ----
+        // "Next data set" cycles three data sets and every chart eases to the new values,
+        // "Replay" grows them in again, and the label below them names whatever chart
+        // entry the mouse is over.
+        struct ChartDataSet {
+            std::vector<float> Done, Added;         // per weekday, the column chart
+            float              Todo, Doing, Finished; // the donut
+            std::vector<float> ProjectDone, ProjectOpen;
+            std::vector<float> Velocity, Bugs;      // per week, the line chart
+            std::vector<float> Trend;               // the sparkline
+        };
+        const std::vector<ChartDataSet> ChartDataSets = {
+            {{3, 5, 2, 8, 6, 0, 1}, {4, 2, 6, 3, 7, 1, 0}, 12, 5, 21, {14, 9, 4, 22}, {6, 11, 3, 8},
+             {3.5f, 5, 4.2f, 7, 6.2f, 8.5f, 7.8f, 9, 6, 7.5f, 10, 11}, {1, 2, 1.5f, 3, 2, 1, -1.5f, -2, 0.5f, 1, 2, 1},
+             {5, 7, 6, 9, 8, 12, 10, 14, 13, 16}},
+            {{6, 9, 4, 14, 11, 2, 3}, {2, 1, 3, 2, 4, 1, 0}, 4, 9, 30, {18, 12, 9, 27}, {2, 6, 1, 4},
+             {5, 6, 8, 7, 9, 11, 10, 12, 14, 13, 15, 17}, {2, 1, 0, -1, 1, 2, 3, 1, 0, -2, -1, 0},
+             {9, 8, 10, 11, 9, 13, 15, 14, 17, 19}},
+            {{1, 2, 1, 3, 2, 0, 0}, {5, 6, 4, 7, 5, 2, 1}, 25, 3, 8, {5, 3, 1, 10}, {14, 16, 9, 20},
+             {2, 3, 2.5f, 4, 3, 2, 3.5f, 4, 5, 4.5f, 6, 5}, {3, 4, 5, 3, 6, 4, 5, 7, 6, 5, 4, 6},
+             {16, 14, 15, 12, 11, 12, 9, 8, 9, 6}},
+        };
+        std::size_t ChartDataIndex = 0;
+
+        std::vector<ChartBase*> Charts; // repointed at the reloaded font on a DPI change
+        auto SetUpChart = [&](ChartBase& Chart, float Height) {
+            Chart.ApplyStyle(Demo::ResolveChartStyle(Theme));
+            Chart.FontBackend            = &FontBackend;
+            Chart.Font                   = ChartFont;
+            Chart.PreferredHeightLogical = Height;
+            Charts.push_back(&Chart);
+        };
+
+        // The hovered entry's description, owned by the chart that set it, so one chart
+        // clearing its hover doesn't wipe another's.
+        std::string      ChartHoverText;
+        const ChartBase* ChartHoverOwner = nullptr;
+        auto ReportHover = [&ChartHoverText, &ChartHoverOwner](const ChartBase* Chart, int Index, std::string Text) {
+            if (Index >= 0) {
+                ChartHoverText  = std::move(Text);
+                ChartHoverOwner = Chart;
+            } else if (ChartHoverOwner == Chart) {
+                ChartHoverText.clear();
+                ChartHoverOwner = nullptr;
+            }
+        };
+
+        BarChart*   Columns   = nullptr;
+        DonutChart* Donut     = nullptr;
+        BarChart*   Projects  = nullptr;
+        LineChart*  Velocity  = nullptr;
+        LineChart*  Sparkline = nullptr;
+        {
+            auto ColumnsWidget = std::make_unique<BarChart>();
+            SetUpChart(*ColumnsWidget, Theme.ChartHeight);
+            ColumnsWidget->Labels = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+            Columns                 = ColumnsWidget.get();
+            Columns->OnHoverChanged = [&ReportHover, Columns](int Index) {
+                if (Index < 0) {
+                    ReportHover(Columns, Index, {});
+                    return;
+                }
+                const auto Day = static_cast<std::size_t>(Index);
+                ReportHover(Columns, Index,
+                            Columns->Labels[Day] + ": " + FormatShort(Columns->Series[0].Values[Day]) + " done, " +
+                                FormatShort(Columns->Series[1].Values[Day]) + " added");
+            };
+            Root->AddChild(std::move(ColumnsWidget));
+        }
+        {
+            // As wide as the column, and the ring takes the biggest circle that fits.
+            auto DonutWidget = std::make_unique<DonutChart>();
+            SetUpChart(*DonutWidget, Theme.ChartHeight);
+            DonutWidget->CentreFont    = BodyFont;
+            DonutWidget->CentreCaption = "tasks";
+            Donut                      = DonutWidget.get();
+            Donut->OnHoverChanged      = [&ReportHover, Donut](int Index) {
+                if (Index < 0) {
+                    ReportHover(Donut, Index, {});
+                    return;
+                }
+                const ChartSlice& Slice = Donut->Slices[static_cast<std::size_t>(Index)];
+                ReportHover(Donut, Index, Slice.Label + ": " + FormatShort(Slice.Value) + " of " + Donut->CentreText);
+            };
+            Root->AddChild(std::move(DonutWidget));
+        }
+        {
+            auto ProjectsWidget = std::make_unique<BarChart>();
+            SetUpChart(*ProjectsWidget, Theme.ChartHeight * 0.7f);
+            ProjectsWidget->Orientation = BarOrientation::Horizontal;
+            ProjectsWidget->Stacked     = true;
+            ProjectsWidget->Labels      = {"Penumbra", "Iris", "Lustre", "Cairn"};
+            Projects                    = ProjectsWidget.get();
+            Projects->OnHoverChanged    = [&ReportHover, Projects](int Index) {
+                if (Index < 0) {
+                    ReportHover(Projects, Index, {});
+                    return;
+                }
+                const auto Project = static_cast<std::size_t>(Index);
+                ReportHover(Projects, Index,
+                            Projects->Labels[Project] + ": " + FormatShort(Projects->Series[0].Values[Project]) +
+                                " done, " + FormatShort(Projects->Series[1].Values[Project]) + " open");
+            };
+            Root->AddChild(std::move(ProjectsWidget));
+        }
+        {
+            auto VelocityWidget = std::make_unique<LineChart>();
+            SetUpChart(*VelocityWidget, Theme.ChartHeight);
+            for (int Week = 1; Week <= 12; ++Week) {
+                VelocityWidget->Labels.push_back("W" + std::to_string(Week));
+            }
+            Velocity                 = VelocityWidget.get();
+            Velocity->OnHoverChanged = [&ReportHover, Velocity](int Index) {
+                if (Index < 0) {
+                    ReportHover(Velocity, Index, {});
+                    return;
+                }
+                const auto Week = static_cast<std::size_t>(Index);
+                ReportHover(Velocity, Index,
+                            Velocity->Labels[Week] + ": velocity " + FormatShort(Velocity->Series[0].Values[Week]) +
+                                ", bugs " + FormatShort(Velocity->Series[1].Values[Week]));
+            };
+            Root->AddChild(std::move(VelocityWidget));
+        }
+        {
+            auto SparklineWidget = std::make_unique<LineChart>();
+            SetUpChart(*SparklineWidget, Theme.ChartSparklineHeight);
+            SparklineWidget->ShowAxes = false;
+            Sparkline                 = SparklineWidget.get();
+            Root->AddChild(std::move(SparklineWidget));
+        }
+
+        auto ApplyChartData = [&](const ChartDataSet& Data) {
+            Columns->Series   = {{"Done", Data.Done, Theme.ColorChartBlue}, {"Added", Data.Added, Theme.ColorChartOrange}};
+            Donut->Slices     = {{"Todo", Data.Todo, Theme.ColorChartOrange},
+                                 {"Doing", Data.Doing, Theme.ColorChartBlue},
+                                 {"Done", Data.Finished, Theme.ColorChartGreen}};
+            Donut->CentreText = FormatShort(Data.Todo + Data.Doing + Data.Finished);
+            Projects->Series  = {{"Done", Data.ProjectDone, Theme.ColorChartGreen},
+                                 {"Open", Data.ProjectOpen, Theme.ColorChartOrange}};
+            Velocity->Series  = {{"Velocity", Data.Velocity, Theme.ColorChartBlue},
+                                 {"Bugs", Data.Bugs, Theme.ColorChartOrange}};
+            Sparkline->Series = {{"Trend", Data.Trend, Theme.ColorChartGreen}};
+        };
+        ApplyChartData(ChartDataSets[ChartDataIndex]);
+
+        Label* ChartStatusLabel = nullptr;
+        {
+            auto Row = MakeRow();
+            Row->AddChild(MakeTextButton("Next data set", [&]() {
+                ChartDataIndex = (ChartDataIndex + 1) % ChartDataSets.size();
+                ApplyChartData(ChartDataSets[ChartDataIndex]);
+            }));
+            // The charts grew in at startup, below the fold; this shows it again.
+            Row->AddChild(MakeTextButton("Replay", [&Charts]() {
+                for (ChartBase* Chart : Charts) {
+                    Chart->ReplayAppear();
+                }
+            }));
+            Root->AddChild(std::move(Row));
+            auto Status      = MakeLabel("", Theme.ColorTextDisabled);
+            ChartStatusLabel = Status.get();
+            Root->AddChild(std::move(Status));
+        }
+
+        Root->AddChild(MakeSeparator());
+
         // Filler rows so the column is taller than the viewport (proves scrolling).
         for (int Index = 1; Index <= ExtraSettingRows; ++Index) {
             Root->AddChild(MakeLabel("Additional setting entry " + std::to_string(Index),
@@ -356,43 +535,6 @@ int main() {
                                                  {CaretCx - CaretR * 0.6f, CaretCy + CaretR},
                                                  {CaretCx + CaretR * 0.9f, CaretCy},
                                                  Theme.ColorTextPrimary);
-
-                // A small line chart on the card: DrawFilledPolygon for the area under
-                // the line, DrawPolyline for the line, DrawFilledCircle for its points.
-                constexpr float ChartValues[] = {0.35f, 0.5f, 0.42f, 0.7f, 0.62f, 0.85f, 0.78f};
-                constexpr std::size_t ChartPointCount = std::size(ChartValues);
-                const Penumbra::Rect Plot{Card.X + Card.W * 0.08f, Card.Y + Card.H * 0.15f, Card.W * 0.84f,
-                                          Card.H * 0.7f};
-                std::vector<Penumbra::Point> ChartLine;
-                for (std::size_t Index = 0; Index < ChartPointCount; ++Index) {
-                    ChartLine.push_back({Plot.X + Plot.W * static_cast<float>(Index) / (ChartPointCount - 1),
-                                         Plot.Y + Plot.H * (1.0f - ChartValues[Index])});
-                }
-                std::vector<Penumbra::Point> ChartArea = ChartLine;
-                ChartArea.push_back({Plot.X + Plot.W, Plot.Y + Plot.H});
-                ChartArea.push_back({Plot.X, Plot.Y + Plot.H});
-                Penumbra::Render::Color AreaColor = Theme.ColorTextPrimary;
-                AreaColor.A = 60;
-                SceneRenderer.DrawFilledPolygon(ChartArea, AreaColor);
-                SceneRenderer.DrawPolyline(ChartLine, Theme.ColorTextPrimary, 2.0f,
-                                           Penumbra::Render::LineJoin::Round, Penumbra::Render::LineCap::Round);
-                for (const Penumbra::Point& ChartPoint : ChartLine) {
-                    SceneRenderer.DrawFilledCircle(ChartPoint, 3.0f, Theme.ColorTextPrimary);
-                }
-
-                // A donut from DrawArc segments, starting at 12 o'clock with a small gap
-                // between segments, beside the chevron and the caret.
-                const Penumbra::Point DonutCentre{SceneSize.X * 0.8f, SceneSize.Y * 0.62f};
-                constexpr float DonutShares[] = {0.5f, 0.3f, 0.2f};
-                const Penumbra::Render::Color DonutColors[] = {Theme.ColorAccentHovered, Theme.ColorTextPrimary,
-                                                               Theme.ColorTextDisabled};
-                float DonutAngle = -90.0f;
-                for (std::size_t Index = 0; Index < std::size(DonutShares); ++Index) {
-                    const float Sweep = DonutShares[Index] * 360.0f;
-                    SceneRenderer.DrawArc(DonutCentre, 14.0f, 22.0f, DonutAngle + 1.5f, Sweep - 3.0f,
-                                          DonutColors[Index]);
-                    DonutAngle += Sweep;
-                }
 
                 // Original checkerboard, shifted below the showcase -- still exercises the
                 // off-screen scene texture render-target seam ViewportWidget exists to test.
@@ -481,6 +623,11 @@ int main() {
                 Drag->Font  = BodyFont;
                 Field->Font = BodyFont;
                 Notes->Font = BodyFont;
+                ChartFont = FontBackend.LoadFont(FontPath.c_str(), Theme.FontSizeSmall, CurrentDpiScaleFactor);
+                for (ChartBase* Chart : Charts) {
+                    Chart->Font = ChartFont;
+                }
+                Donut->CentreFont = BodyFont;
                 LastKnownDpiScaleFactor = CurrentDpiScaleFactor;
             }
 
@@ -488,6 +635,7 @@ int main() {
             CountLabel->Text = "Count: " + std::to_string(Counter);
             StatusLabel->Text =
                 "live: value=" + FormatFloat(Drag->Value) + "  name=\"" + Field->Text + "\"";
+            ChartStatusLabel->Text = ChartHoverText;
 
             // Settings on the left, the scene viewport on the right, sized by the
             // SplitPanel; each pane's own Style.Margin (set above) is what produces the
@@ -509,7 +657,7 @@ int main() {
                 TextInputActive = WantTextInput;
             }
 
-            Renderer.BeginFrame(Theme.ColorBackgroundPrimary);
+            Renderer.BeginFrame(Theme.ColorBackgroundPrimary, Input.DeltaTimeSeconds);
             Host->Draw(Renderer);
             Renderer.EndFrameAndPresent();
         }

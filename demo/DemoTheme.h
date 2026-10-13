@@ -22,10 +22,18 @@ struct Theme {
     Penumbra::Render::Color ColorControlDisabled   = {45, 45, 50, 255};
     Penumbra::Render::Color ColorSelection         = {77, 127, 235, 120}; // translucent accent
 
+    // Chart series colours, and the translucent wash behind a hovered category.
+    Penumbra::Render::Color ColorChartBlue   = {97, 147, 255, 255};
+    Penumbra::Render::Color ColorChartOrange = {240, 160, 70, 255};
+    Penumbra::Render::Color ColorChartGreen  = {90, 200, 140, 255};
+    Penumbra::Render::Color ColorChartHover  = {255, 255, 255, 28};
+    Penumbra::Render::Color ColorChartGrid   = {70, 70, 78, 255};
+
     float BorderRadiusSmall  = 20.0f;
     float BorderWidthDefault = 1.0f;
 
-    float FontSizeBody = 16.0f;
+    float FontSizeBody  = 16.0f;
+    float FontSizeSmall = 11.0f; // chart labels
 
     float CheckboxGlyphSize  = 18.0f;  // edge length of the checkbox square
     float DragSensitivity    = 0.05f;  // value change per logical px dragged
@@ -40,6 +48,21 @@ struct Theme {
     float IconStrokeThickness = 1.5f;
     float CanvasHeight        = 64.0f; // content height of the settings column's wave canvas
     float CanvasLineThickness = 2.0f;
+
+    float ChartHeight           = 150.0f; // content height of a full-size chart
+    float ChartSparklineHeight  = 32.0f;
+    float ChartTickSpacing      = 28.0f;
+    float ChartLabelGap         = 6.0f;
+    float ChartLineThickness    = 2.0f;
+    float ChartPointRadius      = 2.5f;
+    float ChartHoverPointRadius = 4.5f;
+    float ChartAreaOpacity      = 0.25f;
+    float ChartBarGapFraction   = 0.3f;
+    float ChartBarCornerRadius  = 2.0f;
+    float ChartDonutThickness   = 18.0f;
+    float ChartSegmentGap       = 3.0f;
+    float ChartAppearSeconds    = 0.6f;
+    float ChartTransitionSeconds = 0.4f;
 
     float AnimColorSeconds   = 0.09f;  // easing time constant for hover/press colours
 };

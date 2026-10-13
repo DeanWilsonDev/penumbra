@@ -12,5 +12,6 @@ Penumbra::Widgets::BoxStyle      ResolvePanelStyle(const Theme&);
 Penumbra::Widgets::ButtonStyle   ResolvePrimaryButtonStyle(const Theme&);
 Penumbra::Widgets::CheckboxStyle ResolveCheckboxStyle(const Theme&);
 Penumbra::Widgets::BoxStyle      ResolveInputFieldStyle(const Theme&);
+Penumbra::Widgets::ChartStyle    ResolveChartStyle(const Theme&);
 
 } // namespace Demo

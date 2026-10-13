@@ -35,6 +35,10 @@ add_library(penumbra STATIC
     src/Penumbra/Render/TextWrap.cpp
     src/Penumbra/Backends/SdlImageBackend.cpp
     src/Penumbra/Widgets/Box.cpp
+    src/Penumbra/Widgets/Chart.cpp
+    src/Penumbra/Widgets/BarChart.cpp
+    src/Penumbra/Widgets/DonutChart.cpp
+    src/Penumbra/Widgets/LineChart.cpp
     src/Penumbra/Widgets/CanvasWidget.cpp
     src/Penumbra/Widgets/InlineContainer.cpp
     src/Penumbra/Widgets/ImageWidget.cpp
