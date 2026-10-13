@@ -148,6 +148,10 @@ int main() {
         Root->ChildGap         = Theme.SpacingMedium;
         Root->CrossAlignment   = CrossAlign::Stretch;
         Root->WheelStepLogical = Theme.SpacingLarge * 3.0f;
+        // In the right padding; drag the thumb, or press the track to jump there.
+        Root->ScrollbarWidthLogical      = Theme.PanelScrollbarWidth;
+        Root->ColorScrollbarThumb        = Theme.ColorBorderDefault;
+        Root->ColorScrollbarThumbHovered = Theme.ColorTextDisabled;
 
         Root->AddChild(MakeLabel("Penumbra - Settings (Milestone 6)", Theme.ColorTextPrimary));
         Root->AddChild(MakeSeparator());

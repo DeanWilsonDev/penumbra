@@ -43,6 +43,7 @@ struct Theme {
     float FieldHeightLarge   = 96.0f;  // height for the multi-line text area
     float TextAreaWheelStep  = 24.0f;  // logical px scrolled per wheel notch in a text area
     float ScrollbarWidth    = 4.0f;    // gutter width for the text area's scroll indicator
+    float PanelScrollbarWidth = 6.0f;  // the settings column's draggable scrollbar
     float SeparatorThickness = 2.0f;   // height of a separator Box
     float IconSize            = 20.0f;
     float IconStrokeThickness = 1.5f;

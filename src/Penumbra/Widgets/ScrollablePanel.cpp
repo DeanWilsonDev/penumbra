@@ -128,9 +128,11 @@ bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Input) 
 
     // Children see the pointer only while it's over the visible content, and only
     // until one of them takes it; the rest still update, with it occluded.
-    const Rect              Content = ContentRectFrom(ArrangedRect);
+    // The scrollbar is drawn over the children, so it gets the pointer first.
+    const Rect              Content       = ContentRectFrom(ArrangedRect);
+    const bool              ScrollbarTook = UpdateScrollbar(Input, Content);
     Platform::OccludedInput Occluded(Input);
-    bool                    PointerTaken       = !Input.IsPointerOver(Content);
+    bool                    PointerTaken       = ScrollbarTook || !Input.IsPointerOver(Content);
     bool                    Consumed           = false;
     bool                    ChildConsumedWheel = false;
     for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
@@ -146,8 +148,9 @@ bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Input) 
 
     WheelHandledThisFrame = false;
     if (!OverPanel) {
-        return false;
+        return DraggingThumb;
     }
+    Consumed = Consumed || ScrollbarTook;
 
     // A nested wheel-scrollable child (another ScrollablePanel, or a TextArea) that
     // still had room to scroll already used the wheel delta on itself -- don't also
@@ -196,42 +199,85 @@ void ScrollablePanel::Draw(Render::Renderer& Renderer) {
     DrawScrollbar(Renderer, Content);
 }
 
-void ScrollablePanel::DrawScrollbar(Render::Renderer& Renderer, Rect Content) const {
+ScrollablePanel::ScrollbarLayout ScrollablePanel::LayOutScrollbar(Rect Content) const {
+    ScrollbarLayout Layout;
     if (ScrollbarWidthLogical <= 0.0f) {
-        return;
+        return Layout;
     }
 
     const bool  IsHorizontal = (Direction == ScrollDirection::Horizontal);
     const float Viewport     = IsHorizontal ? Content.W : Content.H;
     const float Extent       = IsHorizontal ? ContentWidth : ContentHeight;
     if (Viewport <= 0.0f || Extent <= Viewport) {
-        return;
+        return Layout;
     }
 
     const float Thickness = ScrollbarWidthLogical;
-    const Rect  Track = IsHorizontal
+    Layout.Shown          = true;
+    Layout.Track          = IsHorizontal
         ? Rect{Content.X, ArrangedRect.Y + ArrangedRect.H - Style.BorderWidth - Thickness, Content.W, Thickness}
         : Rect{ArrangedRect.X + ArrangedRect.W - Style.BorderWidth - Thickness, Content.Y, Thickness, Content.H};
-    const float Radius = Thickness / 2.0f;
 
-    if (ColorScrollbarTrack.A != 0) {
-        Renderer.DrawFilledRect(Track, ColorScrollbarTrack, Radius);
-    }
-
-    const Render::Color Thumb =
-        PointerOver && ColorScrollbarThumbHovered.A != 0 ? ColorScrollbarThumbHovered : ColorScrollbarThumb;
-    if (Thumb.A == 0) {
-        return;
-    }
-
-    const float TrackLength = IsHorizontal ? Track.W : Track.H;
+    const float TrackLength = IsHorizontal ? Layout.Track.W : Layout.Track.H;
     const float ThumbLength = std::min(TrackLength, std::max(Thickness, TrackLength * Viewport / Extent));
     const float Offset      = IsHorizontal ? ScrollOffsetX : ScrollOffsetY;
-    const float ThumbStart  = (Offset / (Extent - Viewport)) * (TrackLength - ThumbLength);
+    Layout.MaxScroll        = Extent - Viewport;
+    Layout.Travel           = TrackLength - ThumbLength;
+    const float ThumbStart  = (Offset / Layout.MaxScroll) * Layout.Travel;
 
-    const Rect ThumbRect = IsHorizontal ? Rect{Track.X + ThumbStart, Track.Y, ThumbLength, Thickness}
-                                        : Rect{Track.X, Track.Y + ThumbStart, Thickness, ThumbLength};
-    Renderer.DrawFilledRect(ThumbRect, Thumb, Radius);
+    Layout.Thumb = IsHorizontal ? Rect{Layout.Track.X + ThumbStart, Layout.Track.Y, ThumbLength, Thickness}
+                                : Rect{Layout.Track.X, Layout.Track.Y + ThumbStart, Thickness, ThumbLength};
+    return Layout;
+}
+
+bool ScrollablePanel::UpdateScrollbar(const Platform::InputState& Input, Rect Content) {
+    const ScrollbarLayout Layout = LayOutScrollbar(Content);
+    if (!Layout.Shown || !IsEnabled) {
+        DraggingThumb = false;
+        return false;
+    }
+
+    const bool  IsHorizontal = (Direction == ScrollDirection::Horizontal);
+    const float Pointer      = IsHorizontal ? Input.MousePosition.X : Input.MousePosition.Y;
+    const float TrackStart   = IsHorizontal ? Layout.Track.X : Layout.Track.Y;
+    const float ThumbStart   = IsHorizontal ? Layout.Thumb.X : Layout.Thumb.Y;
+    const float ThumbLength  = IsHorizontal ? Layout.Thumb.W : Layout.Thumb.H;
+    const bool  OverTrack    = Input.IsPointerOver(Layout.Track);
+
+    if (Input.MouseButtonPressedThisFrame[0] && OverTrack) {
+        DraggingThumb = true;
+        // On the thumb, hold it where it was grabbed; elsewhere on the track, jump so
+        // its centre is under the pointer.
+        ThumbGrabOffset = Input.IsPointerOver(Layout.Thumb) ? Pointer - ThumbStart : ThumbLength * 0.5f;
+    }
+    if (DraggingThumb && !Input.MouseButtonDown[0]) {
+        DraggingThumb = false;
+    }
+    if (DraggingThumb && Layout.Travel > 0.0f) {
+        const float Along  = Clamp(Pointer - TrackStart - ThumbGrabOffset, 0.0f, Layout.Travel);
+        const float Offset = Along / Layout.Travel * Layout.MaxScroll;
+        (IsHorizontal ? ScrollOffsetX : ScrollOffsetY) = Offset;
+    }
+
+    return DraggingThumb || OverTrack;
+}
+
+void ScrollablePanel::DrawScrollbar(Render::Renderer& Renderer, Rect Content) const {
+    const ScrollbarLayout Layout = LayOutScrollbar(Content);
+    if (!Layout.Shown) {
+        return;
+    }
+    const float Radius = ScrollbarWidthLogical / 2.0f;
+
+    if (ColorScrollbarTrack.A != 0) {
+        Renderer.DrawFilledRect(Layout.Track, ColorScrollbarTrack, Radius);
+    }
+
+    const bool          Hot   = PointerOver || DraggingThumb;
+    const Render::Color Thumb = Hot && ColorScrollbarThumbHovered.A != 0 ? ColorScrollbarThumbHovered : ColorScrollbarThumb;
+    if (Thumb.A != 0) {
+        Renderer.DrawFilledRect(Layout.Thumb, Thumb, Radius);
+    }
 }
 
 } // namespace Penumbra::Widgets
