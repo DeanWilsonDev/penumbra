@@ -1,8 +1,10 @@
 #include "Penumbra/Render/Renderer.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
+#include <cstddef>
 #include <vector>
 
 namespace Penumbra::Render {
@@ -13,6 +15,14 @@ constexpr float Pi = 3.14159265358979323846f;
 
 // Width in physical pixels of the anti-aliasing fringe; it straddles the edge.
 constexpr float AaFeatherPhysical = 1.0f;
+
+// SVG's default stroke-miterlimit: the longest a miter corner may reach, as a multiple
+// of the line's thickness, before DrawPolyline bevels it instead. DrawFilledPolygon
+// caps its fringe's corners at the same length.
+constexpr float MiterLimit = 4.0f;
+
+// Consecutive path points closer than this, in physical pixels, count as one point.
+constexpr float MinPointSpacingPhysical = 0.01f;
 
 SDL_Color ToSdlColor(Color InColor) {
     return {InColor.R, InColor.G, InColor.B, InColor.A};
@@ -80,6 +90,94 @@ RoundedRing BuildCircleRing(SDL_FPoint Centre, float Radius, int Segments) {
     return Ring;
 }
 
+SDL_FPoint operator+(SDL_FPoint A, SDL_FPoint B) { return {A.x + B.x, A.y + B.y}; }
+SDL_FPoint operator-(SDL_FPoint A, SDL_FPoint B) { return {A.x - B.x, A.y - B.y}; }
+SDL_FPoint operator-(SDL_FPoint A) { return {-A.x, -A.y}; }
+SDL_FPoint operator*(SDL_FPoint A, float Scale) { return {A.x * Scale, A.y * Scale}; }
+
+float Dot(SDL_FPoint A, SDL_FPoint B) { return A.x * B.x + A.y * B.y; }
+float Cross(SDL_FPoint A, SDL_FPoint B) { return A.x * B.y - A.y * B.x; }
+float Length(SDL_FPoint A) { return std::sqrt(Dot(A, A)); }
+
+// A direction turned a quarter turn clockwise on screen (y runs down).
+SDL_FPoint Normal(SDL_FPoint Direction) { return {-Direction.y, Direction.x}; }
+
+SDL_FPoint Rotated(SDL_FPoint A, float Radians) {
+    const float CosA = std::cos(Radians);
+    const float SinA = std::sin(Radians);
+    return {A.x * CosA - A.y * SinA, A.x * SinA + A.y * CosA};
+}
+
+// Removes the zero-area triangles a strip leaves wherever two of its vertices land on
+// the same spot: a pie's centre, or the inside of a polyline's corner.
+void DropDegenerateTriangles(const std::vector<SDL_Vertex>& Vertices, std::vector<int>& Indices) {
+    std::size_t Kept = 0;
+    for (std::size_t Index = 0; Index + 2 < Indices.size(); Index += 3) {
+        const SDL_FPoint A = Vertices[static_cast<std::size_t>(Indices[Index])].position;
+        const SDL_FPoint B = Vertices[static_cast<std::size_t>(Indices[Index + 1])].position;
+        const SDL_FPoint C = Vertices[static_cast<std::size_t>(Indices[Index + 2])].position;
+        if (std::abs(Cross(B - A, C - A)) > 1e-6f) {
+            std::copy_n(Indices.begin() + static_cast<std::ptrdiff_t>(Index), 3,
+                        Indices.begin() + static_cast<std::ptrdiff_t>(Kept));
+            Kept += 3;
+        }
+    }
+    Indices.resize(Kept);
+}
+
+// Triangulates a polygon whose edges don't cross by ear clipping, returning index
+// triples into Path. Winding is the sign of Path's signed area. If no ear can be found
+// (the edges do cross after all, or every corner left is a straight line) the rest is
+// fanned out, so a bad polygon still draws something rather than nothing.
+std::vector<int> TriangulatePolygon(const std::vector<SDL_FPoint>& Path, float Winding) {
+    std::vector<int> Remaining(Path.size());
+    for (std::size_t Index = 0; Index < Remaining.size(); ++Index) {
+        Remaining[Index] = static_cast<int>(Index);
+    }
+    std::vector<int> Triangles;
+    Triangles.reserve(3 * (Path.size() - 2));
+
+    // Positive when A -> B -> C turns the same way the whole polygon winds.
+    auto Turn = [&](int A, int B, int C) { return Winding * Cross(Path[B] - Path[A], Path[C] - Path[A]); };
+    auto Neighbours = [&](std::size_t At) {
+        const std::size_t Size = Remaining.size();
+        return std::array<int, 3>{Remaining[(At + Size - 1) % Size], Remaining[At], Remaining[(At + 1) % Size]};
+    };
+    auto IsEar = [&](std::size_t At) {
+        const auto [A, B, C] = Neighbours(At);
+        if (Turn(A, B, C) <= 0.0f) {
+            return false;
+        }
+        for (const int Other : Remaining) {
+            if (Other != A && Other != B && Other != C && Turn(A, B, Other) > 0.0f && Turn(B, C, Other) > 0.0f &&
+                Turn(C, A, Other) > 0.0f) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    std::size_t At = 0;
+    std::size_t Misses = 0;
+    while (Remaining.size() > 3 && Misses < Remaining.size()) {
+        if (IsEar(At)) {
+            const auto [A, B, C] = Neighbours(At);
+            Triangles.insert(Triangles.end(), {A, B, C});
+            Remaining.erase(Remaining.begin() + static_cast<std::ptrdiff_t>(At));
+            // Removing B can turn A into an ear, so look there next.
+            At = (At + Remaining.size() - 1) % Remaining.size();
+            Misses = 0;
+        } else {
+            At = (At + 1) % Remaining.size();
+            ++Misses;
+        }
+    }
+    for (std::size_t Index = 1; Index + 1 < Remaining.size(); ++Index) {
+        Triangles.insert(Triangles.end(), {Remaining[0], Remaining[Index], Remaining[Index + 1]});
+    }
+    return Triangles;
+}
+
 } // namespace
 
 bool Renderer::Initialise(SDL_Renderer* InSdlRenderer, float InDpiScaleFactor,
@@ -104,6 +202,22 @@ Point Renderer::ToPhysicalPoint(Point PointLogical) const {
 SDL_FRect Renderer::ToPhysical(Rect RectLogical) const {
     const Point Origin = ToPhysicalPoint({RectLogical.X, RectLogical.Y});
     return {Origin.X, Origin.Y, RectLogical.W * DpiScaleFactor, RectLogical.H * DpiScaleFactor};
+}
+
+std::vector<SDL_FPoint> Renderer::ToPhysicalPath(std::span<const Point> PointsLogical, bool IsClosed) const {
+    std::vector<SDL_FPoint> Path;
+    Path.reserve(PointsLogical.size());
+    for (const Point& PointLogical : PointsLogical) {
+        const Point Physical = ToPhysicalPoint(PointLogical);
+        const SDL_FPoint Next{Physical.X, Physical.Y};
+        if (Path.empty() || Length(Next - Path.back()) > MinPointSpacingPhysical) {
+            Path.push_back(Next);
+        }
+    }
+    if (IsClosed && Path.size() > 1 && Length(Path.front() - Path.back()) <= MinPointSpacingPhysical) {
+        Path.pop_back();
+    }
+    return Path;
 }
 
 void Renderer::BeginFrame(Color ClearColor) {
@@ -520,6 +634,329 @@ void Renderer::DrawTriangleFilled(Point A, Point B, Point C, Color InColor) {
     };
     const int Indices[3] = {0, 1, 2};
     SDL_RenderGeometry(SdlRenderer, nullptr, Vertices, 3, Indices, 3);
+}
+
+void Renderer::DrawFilledCircle(Point Centre, float RadiusLogical, Color InColor) {
+    DrawArc(Centre, 0.0f, RadiusLogical, 0.0f, 360.0f, InColor);
+}
+
+void Renderer::DrawCircleOutline(Point Centre, float RadiusLogical, Color InColor, float ThicknessLogical) {
+    if (ThicknessLogical <= 0.0f) {
+        return;
+    }
+    DrawArc(Centre, std::max(0.0f, RadiusLogical - ThicknessLogical), RadiusLogical, 0.0f, 360.0f, InColor);
+}
+
+void Renderer::DrawArc(Point Centre, float InnerRadiusLogical, float OuterRadiusLogical, float StartDegrees,
+                       float SweepDegrees, Color InColor) {
+    const float Outer = OuterRadiusLogical * DpiScaleFactor;
+    const float Inner = std::max(0.0f, InnerRadiusLogical * DpiScaleFactor);
+    if (Outer <= 0.0f || Inner >= Outer || SweepDegrees == 0.0f) {
+        return;
+    }
+    if (SweepDegrees < 0.0f) {
+        StartDegrees += SweepDegrees;
+        SweepDegrees = -SweepDegrees;
+    }
+    const bool  IsWholeRing = SweepDegrees >= 360.0f;
+    const float Start = StartDegrees * Pi / 180.0f;
+    const float Sweep = std::min(SweepDegrees, 360.0f) * Pi / 180.0f;
+
+    const Point CentrePhysical = ToPhysicalPoint(Centre);
+    const SDL_FPoint C{CentrePhysical.X, CentrePhysical.Y};
+    const float Half = AaFeatherPhysical * 0.5f;
+
+    // The arc is built from columns of vertices, each running outward from the centre at
+    // one angle. A pie slice's column starts at the solid centre; a ring's starts with a
+    // fade inside its inner edge. The fringe straddles each curved edge as in
+    // DrawFilledRect, and a ring thinner than the feather keeps no solid core: its two
+    // core radii meet in the middle.
+    struct ColumnStop {
+        float Radius;
+        bool  IsSolid;
+    };
+    std::array<ColumnStop, 4> Stops{};
+    int StopCount = 0;
+    if (Inner <= 0.0f) {
+        Stops = {{{0.0f, true}, {std::max(0.0f, Outer - Half), true}, {Outer + Half, false}}};
+        StopCount = 3;
+    } else {
+        const float Middle = (Inner + Outer) * 0.5f;
+        Stops = {{{std::max(0.0f, Inner - Half), false},
+                  {std::min(Inner + Half, Middle), true},
+                  {std::max(Outer - Half, Middle), true},
+                  {Outer + Half, false}}};
+        StopCount = 4;
+    }
+
+    // Same angular resolution as a rounded-rect corner of the outer radius, carried
+    // across the sweep the way DrawRadialGradient carries it around a whole circle.
+    const int Segments =
+        std::max(1, static_cast<int>(std::ceil(4.0f * SegmentsForRadius(Outer) * Sweep / (2.0f * Pi))));
+    const float SegmentSweep = Sweep / static_cast<float>(Segments);
+
+    const SDL_FColor Solid = ToFColor(InColor);
+    SDL_FColor Clear = Solid;
+    Clear.a = 0.0f;
+
+    // Shift slides a column along the arc's direction of travel, which is how the two
+    // straight ends get their fringe: each end's solid column moves in by Half and a
+    // clear column sits Half outside it. Close to the centre a full Half could carry a
+    // solid column past its neighbour, so there it moves at most half a segment.
+    std::vector<SDL_Vertex> Vertices;
+    Vertices.reserve(static_cast<std::size_t>(StopCount) * static_cast<std::size_t>(Segments + 3));
+    auto PushColumn = [&](float Angle, float Shift, bool IsClearColumn) {
+        const SDL_FPoint Outward{std::cos(Angle), std::sin(Angle)};
+        const SDL_FPoint Along = Normal(Outward);
+        for (int Index = 0; Index < StopCount; ++Index) {
+            const ColumnStop& Stop = Stops[static_cast<std::size_t>(Index)];
+            const float MaxShift = Stop.Radius * SegmentSweep * 0.5f;
+            const float StopShift = IsClearColumn ? Shift : std::clamp(Shift, -MaxShift, MaxShift);
+            Vertices.push_back({C + Outward * Stop.Radius + Along * StopShift,
+                                (Stop.IsSolid && !IsClearColumn) ? Solid : Clear, {0.0f, 0.0f}});
+        }
+    };
+
+    if (IsWholeRing) {
+        for (int Step = 0; Step < Segments; ++Step) {
+            PushColumn(Start + SegmentSweep * static_cast<float>(Step), 0.0f, false);
+        }
+    } else {
+        PushColumn(Start, -Half, true);
+        PushColumn(Start, Half, false);
+        for (int Step = 1; Step < Segments; ++Step) {
+            PushColumn(Start + SegmentSweep * static_cast<float>(Step), 0.0f, false);
+        }
+        PushColumn(Start + Sweep, -Half, false);
+        PushColumn(Start + Sweep, Half, true);
+    }
+
+    const int ColumnCount = static_cast<int>(Vertices.size()) / StopCount;
+    const int BandCount = IsWholeRing ? ColumnCount : ColumnCount - 1;
+    std::vector<int> Indices;
+    Indices.reserve(static_cast<std::size_t>(BandCount) * static_cast<std::size_t>(StopCount - 1) * 6);
+    for (int Column = 0; Column < BandCount; ++Column) {
+        const int A = Column * StopCount;
+        const int B = ((Column + 1) % ColumnCount) * StopCount;
+        for (int Stop = 0; Stop + 1 < StopCount; ++Stop) {
+            Indices.insert(Indices.end(), {A + Stop, A + Stop + 1, B + Stop + 1, A + Stop, B + Stop + 1, B + Stop});
+        }
+    }
+
+    DropDegenerateTriangles(Vertices, Indices);
+    SDL_RenderGeometry(SdlRenderer, nullptr, Vertices.data(), static_cast<int>(Vertices.size()),
+                       Indices.data(), static_cast<int>(Indices.size()));
+}
+
+void Renderer::DrawPolyline(std::span<const Point> Points, Color InColor, float ThicknessLogical,
+                            LineJoin Join, LineCap Cap, bool Closed) {
+    const float HalfWidth = ThicknessLogical * DpiScaleFactor * 0.5f;
+    const std::vector<SDL_FPoint> Path = ToPhysicalPath(Points, Closed);
+    if (HalfWidth <= 0.0f || Path.size() < 2) {
+        return;
+    }
+    Closed = Closed && Path.size() > 2;
+
+    const int PointCount = static_cast<int>(Path.size());
+    const int SegmentCount = Closed ? PointCount : PointCount - 1;
+    std::vector<SDL_FPoint> Directions(static_cast<std::size_t>(SegmentCount));
+    std::vector<float> Lengths(static_cast<std::size_t>(SegmentCount));
+    for (int Index = 0; Index < SegmentCount; ++Index) {
+        const SDL_FPoint Delta = Path[static_cast<std::size_t>((Index + 1) % PointCount)] -
+                                 Path[static_cast<std::size_t>(Index)];
+        Lengths[static_cast<std::size_t>(Index)] = Length(Delta);
+        Directions[static_cast<std::size_t>(Index)] = Delta * (1.0f / Length(Delta));
+    }
+
+    const float Half = AaFeatherPhysical * 0.5f;
+    const SDL_FColor Solid = ToFColor(InColor);
+    SDL_FColor Clear = Solid;
+    Clear.a = 0.0f;
+
+    // The line is a strip of cross-sections, four vertices across: a fade and a solid
+    // vertex on the side its segment's Normal points to, then a solid and a fade vertex
+    // on the other. Solid vertices sit HalfWidth out from the path and fades Half beyond
+    // them, as in DrawLine. Three bands of quads join each section to the one before.
+    std::vector<SDL_Vertex> Vertices;
+    std::vector<int> Indices;
+    auto AddBands = [&](int A, int B) {
+        for (int Lane = 0; Lane < 3; ++Lane) {
+            Indices.insert(Indices.end(), {A + Lane, A + Lane + 1, B + Lane + 1, A + Lane, B + Lane + 1, B + Lane});
+        }
+    };
+    auto PushSection = [&](SDL_FPoint At, SDL_FPoint NormalSide, SDL_FPoint OtherSide, bool IsClearSection = false) {
+        const int Base = static_cast<int>(Vertices.size());
+        const SDL_FColor Core = IsClearSection ? Clear : Solid;
+        Vertices.push_back({At + NormalSide * (HalfWidth + Half), Clear, {0.0f, 0.0f}});
+        Vertices.push_back({At + NormalSide * HalfWidth, Core, {0.0f, 0.0f}});
+        Vertices.push_back({At + OtherSide * HalfWidth, Core, {0.0f, 0.0f}});
+        Vertices.push_back({At + OtherSide * (HalfWidth + Half), Clear, {0.0f, 0.0f}});
+        if (Base > 0) {
+            AddBands(Base - 4, Base);
+        }
+    };
+
+    // Butt and Square caps end in a clear section Half past the solid one, fading the
+    // end the way the sides fade. A Round cap sweeps both sides of the section round to
+    // meet at the tip, so its fringe runs round the curve. Outward points off the end.
+    const int RoundSteps = 2 * SegmentsForRadius(HalfWidth);
+    auto PushCap = [&](SDL_FPoint At, SDL_FPoint Outward, SDL_FPoint Across, bool IsStart) {
+        if (Cap == LineCap::Round) {
+            for (int Step = 0; Step <= RoundSteps; ++Step) {
+                const float Angle = (Pi * 0.5f) * static_cast<float>(IsStart ? RoundSteps - Step : Step) /
+                                    static_cast<float>(RoundSteps);
+                const SDL_FPoint Ahead = Outward * std::sin(Angle);
+                PushSection(At, Across * std::cos(Angle) + Ahead, -Across * std::cos(Angle) + Ahead);
+            }
+            return;
+        }
+        const float Extension = (Cap == LineCap::Square) ? HalfWidth : 0.0f;
+        const SDL_FPoint SolidEnd = At + Outward * Extension;
+        const SDL_FPoint FadeEnd = At + Outward * (Extension + Half);
+        if (IsStart) {
+            PushSection(FadeEnd, Across, -Across, true);
+            PushSection(SolidEnd, Across, -Across);
+        } else {
+            PushSection(SolidEnd, Across, -Across);
+            PushSection(FadeEnd, Across, -Across, true);
+        }
+    };
+
+    auto PushJoin = [&](int Vertex, int InSegment, int OutSegment) {
+        const SDL_FPoint At = Path[static_cast<std::size_t>(Vertex)];
+        const SDL_FPoint InDirection = Directions[static_cast<std::size_t>(InSegment)];
+        const SDL_FPoint OutDirection = Directions[static_cast<std::size_t>(OutSegment)];
+        const SDL_FPoint InNormal = Normal(InDirection);
+        const SDL_FPoint OutNormal = Normal(OutDirection);
+
+        const SDL_FPoint Bisector = InNormal + OutNormal;
+        const float BisectorLength = Length(Bisector);
+        if (BisectorLength < 1e-4f) { // the line doubles straight back on itself
+            PushSection(At, InNormal, -InNormal);
+            PushSection(At, OutNormal, -OutNormal);
+            return;
+        }
+        // Where the two edges on one side of the line meet, as an offset per unit of
+        // half-width: 1 / cos(half the turn) along the bisector.
+        const SDL_FPoint Miter = Bisector * (1.0f / BisectorLength);
+        const float MiterScale = 1.0f / Dot(Miter, InNormal);
+        const SDL_FPoint MiterOffset = Miter * MiterScale;
+
+        // A positive turn bends towards the Normal side, so that side is the inside.
+        const float Turn = Cross(InDirection, OutDirection);
+        const float InsideSign = (Turn > 0.0f) ? 1.0f : -1.0f;
+
+        // The inside of the turn shares the point where its two edges meet, unless that
+        // point lies further back than either segment is long. Then each section keeps
+        // its own inside edge and the inside of the corner overlaps itself slightly.
+        const float InsideReach = (HalfWidth + Half) * std::abs(Dot(MiterOffset, InDirection));
+        const bool InsideMeets = InsideReach <= std::min(Lengths[static_cast<std::size_t>(InSegment)],
+                                                         Lengths[static_cast<std::size_t>(OutSegment)]);
+
+        if (Join == LineJoin::Miter && MiterScale <= MiterLimit && InsideMeets) {
+            PushSection(At, MiterOffset, -MiterOffset);
+            return;
+        }
+
+        auto PushTurnSection = [&](SDL_FPoint Outside) {
+            const SDL_FPoint Inside = InsideMeets ? MiterOffset * InsideSign : -Outside;
+            if (InsideSign > 0.0f) {
+                PushSection(At, Inside, Outside);
+            } else {
+                PushSection(At, Outside, Inside);
+            }
+        };
+        const SDL_FPoint OutsideIn = InNormal * -InsideSign;
+        if (Join == LineJoin::Round) {
+            const float TurnAngle = std::atan2(std::abs(Turn), Dot(InDirection, OutDirection));
+            const int Steps = std::max(
+                1, static_cast<int>(std::ceil(TurnAngle / (Pi * 0.5f) * static_cast<float>(SegmentsForRadius(HalfWidth)))));
+            for (int Step = 0; Step <= Steps; ++Step) {
+                const float Angle = (Turn > 0.0f ? TurnAngle : -TurnAngle) * static_cast<float>(Step) /
+                                    static_cast<float>(Steps);
+                PushTurnSection(Rotated(OutsideIn, Angle));
+            }
+        } else {
+            PushTurnSection(OutsideIn);
+            PushTurnSection(OutNormal * -InsideSign);
+        }
+    };
+
+    if (Closed) {
+        for (int Index = 0; Index < PointCount; ++Index) {
+            PushJoin(Index, (Index + SegmentCount - 1) % SegmentCount, Index);
+        }
+        AddBands(static_cast<int>(Vertices.size()) - 4, 0);
+    } else {
+        const SDL_FPoint FirstDirection = Directions.front();
+        const SDL_FPoint LastDirection = Directions.back();
+        PushCap(Path.front(), -FirstDirection, Normal(FirstDirection), true);
+        for (int Index = 1; Index + 1 < PointCount; ++Index) {
+            PushJoin(Index, Index - 1, Index);
+        }
+        PushCap(Path.back(), LastDirection, Normal(LastDirection), false);
+    }
+
+    DropDegenerateTriangles(Vertices, Indices);
+    SDL_RenderGeometry(SdlRenderer, nullptr, Vertices.data(), static_cast<int>(Vertices.size()),
+                       Indices.data(), static_cast<int>(Indices.size()));
+}
+
+void Renderer::DrawFilledPolygon(std::span<const Point> Points, Color InColor) {
+    const std::vector<SDL_FPoint> Path = ToPhysicalPath(Points, true);
+    const int Count = static_cast<int>(Path.size());
+    if (Count < 3) {
+        return;
+    }
+
+    float TwiceArea = 0.0f;
+    for (int Index = 0; Index < Count; ++Index) {
+        TwiceArea += Cross(Path[static_cast<std::size_t>(Index)], Path[static_cast<std::size_t>((Index + 1) % Count)]);
+    }
+    if (std::abs(TwiceArea) < 1e-4f) {
+        return;
+    }
+    // A positive area winds clockwise on screen, where each edge's Normal points inside.
+    const float Winding = (TwiceArea > 0.0f) ? 1.0f : -1.0f;
+
+    const float Half = AaFeatherPhysical * 0.5f;
+    const SDL_FColor Solid = ToFColor(InColor);
+    SDL_FColor Clear = Solid;
+    Clear.a = 0.0f;
+
+    // Each corner moves Half in (solid) and Half out (clear) along its miter, so the
+    // fringe straddles the true edge as in DrawFilledRect. The interior is triangulated
+    // over the inset corners, which keep the outline's shape.
+    std::vector<SDL_Vertex> Vertices(static_cast<std::size_t>(2 * Count));
+    for (int Index = 0; Index < Count; ++Index) {
+        const SDL_FPoint Previous = Path[static_cast<std::size_t>((Index + Count - 1) % Count)];
+        const SDL_FPoint Current = Path[static_cast<std::size_t>(Index)];
+        const SDL_FPoint Next = Path[static_cast<std::size_t>((Index + 1) % Count)];
+        const SDL_FPoint InOutward = Normal(Current - Previous) * (-Winding / Length(Current - Previous));
+        const SDL_FPoint OutOutward = Normal(Next - Current) * (-Winding / Length(Next - Current));
+
+        SDL_FPoint Offset = InOutward;
+        const SDL_FPoint Bisector = InOutward + OutOutward;
+        const float BisectorLength = Length(Bisector);
+        if (BisectorLength >= 1e-4f) {
+            const SDL_FPoint Miter = Bisector * (1.0f / BisectorLength);
+            Offset = Miter * std::min(MiterLimit, 1.0f / Dot(Miter, InOutward));
+        }
+        Vertices[static_cast<std::size_t>(Index)] = {Current - Offset * Half, Solid, {0.0f, 0.0f}};
+        Vertices[static_cast<std::size_t>(Count + Index)] = {Current + Offset * Half, Clear, {0.0f, 0.0f}};
+    }
+
+    std::vector<int> Indices = TriangulatePolygon(Path, Winding);
+    Indices.reserve(Indices.size() + static_cast<std::size_t>(Count) * 6);
+    for (int Index = 0; Index < Count; ++Index) {
+        const int A = Index;
+        const int B = (Index + 1) % Count;
+        Indices.insert(Indices.end(), {A, B, Count + B, A, Count + B, Count + A});
+    }
+
+    DropDegenerateTriangles(Vertices, Indices);
+    SDL_RenderGeometry(SdlRenderer, nullptr, Vertices.data(), static_cast<int>(Vertices.size()),
+                       Indices.data(), static_cast<int>(Indices.size()));
 }
 
 void Renderer::DrawText(FontHandle Font, std::string_view Text, Point PositionLogical,

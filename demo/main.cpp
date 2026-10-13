@@ -22,8 +22,10 @@
 #include <algorithm>
 #include <cstdio>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -323,6 +325,43 @@ int main() {
                                                  {CaretCx - CaretR * 0.6f, CaretCy + CaretR},
                                                  {CaretCx + CaretR * 0.9f, CaretCy},
                                                  Theme.ColorTextPrimary);
+
+                // A small line chart on the card: DrawFilledPolygon for the area under
+                // the line, DrawPolyline for the line, DrawFilledCircle for its points.
+                constexpr float ChartValues[] = {0.35f, 0.5f, 0.42f, 0.7f, 0.62f, 0.85f, 0.78f};
+                constexpr std::size_t ChartPointCount = std::size(ChartValues);
+                const Penumbra::Rect Plot{Card.X + Card.W * 0.08f, Card.Y + Card.H * 0.15f, Card.W * 0.84f,
+                                          Card.H * 0.7f};
+                std::vector<Penumbra::Point> ChartLine;
+                for (std::size_t Index = 0; Index < ChartPointCount; ++Index) {
+                    ChartLine.push_back({Plot.X + Plot.W * static_cast<float>(Index) / (ChartPointCount - 1),
+                                         Plot.Y + Plot.H * (1.0f - ChartValues[Index])});
+                }
+                std::vector<Penumbra::Point> ChartArea = ChartLine;
+                ChartArea.push_back({Plot.X + Plot.W, Plot.Y + Plot.H});
+                ChartArea.push_back({Plot.X, Plot.Y + Plot.H});
+                Penumbra::Render::Color AreaColor = Theme.ColorTextPrimary;
+                AreaColor.A = 60;
+                SceneRenderer.DrawFilledPolygon(ChartArea, AreaColor);
+                SceneRenderer.DrawPolyline(ChartLine, Theme.ColorTextPrimary, 2.0f,
+                                           Penumbra::Render::LineJoin::Round, Penumbra::Render::LineCap::Round);
+                for (const Penumbra::Point& ChartPoint : ChartLine) {
+                    SceneRenderer.DrawFilledCircle(ChartPoint, 3.0f, Theme.ColorTextPrimary);
+                }
+
+                // A donut from DrawArc segments, starting at 12 o'clock with a small gap
+                // between segments, beside the chevron and the caret.
+                const Penumbra::Point DonutCentre{SceneSize.X * 0.8f, SceneSize.Y * 0.62f};
+                constexpr float DonutShares[] = {0.5f, 0.3f, 0.2f};
+                const Penumbra::Render::Color DonutColors[] = {Theme.ColorAccentHovered, Theme.ColorTextPrimary,
+                                                               Theme.ColorTextDisabled};
+                float DonutAngle = -90.0f;
+                for (std::size_t Index = 0; Index < std::size(DonutShares); ++Index) {
+                    const float Sweep = DonutShares[Index] * 360.0f;
+                    SceneRenderer.DrawArc(DonutCentre, 14.0f, 22.0f, DonutAngle + 1.5f, Sweep - 3.0f,
+                                          DonutColors[Index]);
+                    DonutAngle += Sweep;
+                }
 
                 // Original checkerboard, shifted below the showcase -- still exercises the
                 // off-screen scene texture render-target seam ViewportWidget exists to test.

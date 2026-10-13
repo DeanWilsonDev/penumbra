@@ -6,6 +6,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <span>
 #include <vector>
 
 namespace Penumbra::Render {
@@ -23,6 +24,12 @@ struct GradientStop {
     float T{0.0f};
     Color StopColor;
 };
+
+// How DrawPolyline turns a corner and ends an open line, as SVG's stroke-linejoin
+// and stroke-linecap do. A Miter join longer than four times the line's thickness
+// (SVG's default miter limit) is drawn as a Bevel instead.
+enum class LineJoin { Miter, Bevel, Round };
+enum class LineCap { Butt, Square, Round };
 
 // Wraps SDL_Renderer and exposes a logical-pixel drawing API. The renderer
 // applies the DPI scale to geometry at submission; glyph textures are drawn at
@@ -90,6 +97,40 @@ public:
     // top of Box.
     void DrawTriangleFilled(Point A, Point B, Point C, Color InColor);
 
+    // A filled disc, with the same anti-aliased edge as DrawFilledRect.
+    void DrawFilledCircle(Point Centre, float RadiusLogical, Color InColor);
+
+    // A circle's outline, ThicknessLogical wide and drawn inside RadiusLogical, the
+    // same way DrawRectOutline keeps its border inside the rect. A thickness of
+    // RadiusLogical or more draws a filled disc.
+    void DrawCircleOutline(Point Centre, float RadiusLogical, Color InColor, float ThicknessLogical);
+
+    // The part of a ring between InnerRadiusLogical and OuterRadiusLogical that starts
+    // at StartDegrees and sweeps SweepDegrees: a donut segment, or a progress ring.
+    // Angles run clockwise from 3 o'clock, the same direction as
+    // Transform::RotationDegrees, so -90 is 12 o'clock; a negative sweep runs
+    // anticlockwise. InnerRadiusLogical 0 draws a pie slice, and a sweep of 360 or
+    // more draws the whole ring. Every edge is anti-aliased, the two straight ends
+    // included, so segments that share an end show a faint seam where both fringes
+    // fade; a donut chart that wants none leaves a small gap between its segments.
+    void DrawArc(Point Centre, float InnerRadiusLogical, float OuterRadiusLogical, float StartDegrees,
+                 float SweepDegrees, Color InColor);
+
+    // Line segments through Points, ThicknessLogical wide with DrawLine's anti-aliased
+    // edge, built as one mesh so a translucent line doesn't darken at its joints. The
+    // exception is a turn so sharp that its inside reaches back past a whole segment,
+    // where the line overlaps itself. Repeated points are skipped. Closed also joins
+    // the last point back to the first, and then Cap is unused.
+    void DrawPolyline(std::span<const Point> Points, Color InColor, float ThicknessLogical,
+                      LineJoin Join = LineJoin::Miter, LineCap Cap = LineCap::Butt, bool Closed = false);
+
+    // A filled polygon with an anti-aliased edge. Points can wind either way and the
+    // polygon can be concave, but its edges mustn't cross. It's triangulated by ear
+    // clipping on every call, which is quick for the tens to low hundreds of points a
+    // chart's area has. Like DrawArc, two polygons that share an edge show a faint
+    // seam along it.
+    void DrawFilledPolygon(std::span<const Point> Points, Color InColor);
+
     // Returns the underlying SDL_Renderer so ViewportWidget can manage its off-screen
     // scene texture (create, switch target). Penumbra internals only — Dawn never calls
     // this; it keeps SDL render-target juggling locked inside the Render layer.
@@ -150,6 +191,10 @@ public:
 private:
     SDL_FRect ToPhysical(Rect RectLogical) const;
     Point     ToPhysicalPoint(Point PointLogical) const;
+
+    // Points in physical pixels, without consecutive repeats; when IsClosed, also
+    // without a last point that repeats the first.
+    std::vector<SDL_FPoint> ToPhysicalPath(std::span<const Point> PointsLogical, bool IsClosed) const;
 
     // One PushTransform frame. CaptureTexture is null for an identity push (nothing
     // was redirected, Pop is a no-op) so the common untransformed path never
