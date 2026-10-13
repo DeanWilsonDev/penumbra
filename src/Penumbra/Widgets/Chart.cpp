@@ -8,11 +8,6 @@ namespace Penumbra::Widgets {
 
 namespace {
 
-bool PointInRect(Point Point, Rect Rect) {
-    return Point.X >= Rect.X && Point.X < Rect.X + Rect.W &&
-           Point.Y >= Rect.Y && Point.Y < Rect.Y + Rect.H;
-}
-
 // Slack for comparing tick arithmetic that floats can't do exactly.
 constexpr float TickTolerance = 1e-4f;
 
@@ -75,7 +70,7 @@ bool ChartBase::HoverInUse() const {
 }
 
 bool ChartBase::UpdateInteractionState(const Platform::InputState& Input) {
-    const bool Over       = IsEnabled && HoverInUse() && PointInRect(Input.MousePosition, ArrangedRect);
+    const bool Over       = IsEnabled && HoverInUse() && Input.IsPointerOver(ArrangedRect);
     const int  NewHovered = Over ? HitTest(Input.MousePosition) : -1;
     if (NewHovered != HoveredIndex) {
         HoveredIndex = NewHovered;

@@ -6,10 +6,6 @@
 namespace Penumbra::Widgets {
 
 namespace {
-bool PointInRect(Point Point, Rect Rect) {
-    return Point.X >= Rect.X && Point.X < Rect.X + Rect.W &&
-           Point.Y >= Rect.Y && Point.Y < Rect.Y + Rect.H;
-}
 constexpr int LeftButton = 0;
 } // namespace
 
@@ -53,7 +49,7 @@ Point TextInput::MeasureContent(Point /*AvailableContentSize*/) {
 }
 
 bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
-    const bool Hovered  = PointInRect(Input.MousePosition, ArrangedRect);
+    const bool Hovered  = Input.IsPointerOver(ArrangedRect);
     const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
     const bool Down     = Input.MouseButtonDown[LeftButton];
     const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];

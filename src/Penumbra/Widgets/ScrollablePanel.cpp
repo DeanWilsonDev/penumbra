@@ -13,11 +13,6 @@ float Clamp(float Value, float Low, float High) {
     return std::min(std::max(Value, Low), High);
 }
 
-bool PointInRect(Point Point, Rect Rect) {
-    return Point.X >= Rect.X && Point.X < Rect.X + Rect.W &&
-           Point.Y >= Rect.Y && Point.Y < Rect.Y + Rect.H;
-}
-
 } // namespace
 
 Point ScrollablePanel::Measure(Point AvailableSizeLogical) {
@@ -128,32 +123,35 @@ void ScrollablePanel::Arrange(Rect FinalRectLogical) {
 }
 
 bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Input) {
-    const bool OverPanel = PointInRect(Input.MousePosition, ArrangedRect);
+    const bool OverPanel = Input.IsPointerOver(ArrangedRect);
     PointerOver = OverPanel;
-    if (!OverPanel) {
-        return false;
+
+    // Children see the pointer only while it's over the visible content, and only
+    // until one of them takes it; the rest still update, with it occluded.
+    const Rect              Content = ContentRectFrom(ArrangedRect);
+    Platform::OccludedInput Occluded(Input);
+    bool                    PointerTaken       = !Input.IsPointerOver(Content);
+    bool                    Consumed           = false;
+    bool                    ChildConsumedWheel = false;
+    for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
+        if (!(*Iterator)->GetIsVisible()) {
+            continue;
+        }
+        if ((*Iterator)->UpdateInteractionState(PointerTaken ? Occluded.Get() : Input) && !PointerTaken) {
+            PointerTaken       = true;
+            Consumed           = true;
+            ChildConsumedWheel = (*Iterator)->ConsumedWheelThisFrame();
+        }
     }
 
-    const Rect Content = ContentRectFrom(ArrangedRect);
-    bool Consumed = false;
-    bool ChildConsumedWheel = false;
-    if (PointInRect(Input.MousePosition, Content)) {
-        for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
-            if (!(*Iterator)->GetIsVisible()) {
-                continue;
-            }
-            if ((*Iterator)->UpdateInteractionState(Input)) {
-                Consumed = true;
-                ChildConsumedWheel = (*Iterator)->ConsumedWheelThisFrame();
-                break;
-            }
-        }
+    WheelHandledThisFrame = false;
+    if (!OverPanel) {
+        return false;
     }
 
     // A nested wheel-scrollable child (another ScrollablePanel, or a TextArea) that
     // still had room to scroll already used the wheel delta on itself -- don't also
     // apply it here, or hovering it would scroll both it and this panel at once.
-    WheelHandledThisFrame = false;
     if (Direction == ScrollDirection::Horizontal) {
         if (!ChildConsumedWheel && HorizontalWheelStepLogical != 0.0f && Input.MouseWheelDeltaX != 0.0f) {
             const float MaxScrollX = NonNegative(ContentWidth - Content.W);

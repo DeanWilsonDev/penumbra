@@ -78,29 +78,34 @@ bool OverlayHost::UpdateInteractionState(const Platform::InputState& Input) {
     const Rect TopPlacement = PlacementOf(Top);
     const bool TopDismissesOutside = Top.DismissOnOutsideClick;
 
-    for (Platform::Key PressedKey : Input.KeysPressedThisFrame) {
-        if (PressedKey == Platform::Key::Escape) {
+    const bool EscapePressed = std::ranges::contains(Input.KeysPressedThisFrame, Platform::Key::Escape);
+    if (EscapePressed) {
+        DismissOverlay(TopId);
+    } else {
+        DispatchingOverlayInput = true;
+        const bool ContentConsumed = Top.Content->UpdateInteractionState(Input);
+        DispatchingOverlayInput = false;
+        for (const OverlayId Id : PendingDismissals) {
+            DismissOverlay(Id);
+        }
+        PendingDismissals.clear();
+
+        const bool PressedOutside = Input.MouseButtonPressedThisFrame[0] && !Input.PointerOccluded &&
+            !PointInRect(Input.MousePosition, TopPlacement);
+        if (!ContentConsumed && !Overlays.empty() && TopDismissesOutside && PressedOutside) {
             DismissOverlay(TopId);
-            return true;
         }
     }
 
-    DispatchingOverlayInput = true;
-    const bool ContentConsumed = Top.Content->UpdateInteractionState(Input);
-    DispatchingOverlayInput = false;
-    for (const OverlayId Id : PendingDismissals) {
-        DismissOverlay(Id);
-    }
-    PendingDismissals.clear();
-    if (ContentConsumed || Overlays.empty()) {
-        return true;
-    }
-
-    const bool PressedOutside = Input.MouseButtonPressedThisFrame[0] &&
-        !PointInRect(Input.MousePosition, TopPlacement);
-    if (TopDismissesOutside && PressedOutside) {
-        DismissOverlay(TopId);
-        return true;
+    // Root, beneath the overlays, still updates, so a hover there clears and its
+    // animations run, but with the pointer occluded and no keys: an open overlay has
+    // the keyboard too.
+    if (Root) {
+        Platform::InputState Beneath = Input;
+        Beneath.PointerOccluded = true;
+        Beneath.TextInputThisFrame.clear();
+        Beneath.KeysPressedThisFrame.clear();
+        Root->UpdateInteractionState(Beneath);
     }
 
     // Opaque even over its own dead space (padding, gaps between overlay content)

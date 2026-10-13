@@ -21,10 +21,6 @@ struct DropdownState {
 
 namespace {
 
-bool PointInRect(Point P, Rect R) {
-    return P.X >= R.X && P.X < R.X + R.W && P.Y >= R.Y && P.Y < R.Y + R.H;
-}
-
 Rect PanelRect(const DropdownState& State) {
     const float Progress = Anim::EaseOutCubic(State.WidthTween.Progress());
     const float Width = State.TriggerRect.W + (State.OpenWidth - State.TriggerRect.W) * Progress;
@@ -115,7 +111,7 @@ void Dropdown::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
 }
 
 bool Dropdown::UpdateInteractionState(const Platform::InputState& Input) {
-    const bool Hovered = PointInRect(Input.MousePosition, ArrangedRect);
+    const bool Hovered = Input.IsPointerOver(ArrangedRect);
     if (Input.MouseButtonPressedThisFrame[0] && Hovered) PressedInside = true;
     if (Input.MouseButtonReleasedThisFrame[0]) {
         if (PressedInside && Hovered && !GetIsOpen()) Open();

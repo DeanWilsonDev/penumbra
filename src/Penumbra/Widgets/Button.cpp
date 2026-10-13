@@ -52,7 +52,7 @@ bool Button::UpdateInteractionState(const Platform::InputState& Input) {
             MousePosition = InverseTransformPoint(MousePosition, Pivot, Style.Transform);
         }
 
-        const bool Hovered = PointInRect(MousePosition, ArrangedRect);
+        const bool Hovered = !Input.PointerOccluded && PointInRect(MousePosition, ArrangedRect);
         const bool Down     = Input.MouseButtonDown[LeftButton];
         const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
         const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];

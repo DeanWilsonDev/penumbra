@@ -3,10 +3,6 @@
 namespace Penumbra::Widgets {
 
 namespace {
-bool PointInRect(Point Point, Rect Rect) {
-    return Point.X >= Rect.X && Point.X < Rect.X + Rect.W &&
-           Point.Y >= Rect.Y && Point.Y < Rect.Y + Rect.H;
-}
 constexpr int LeftButton = 0;
 constexpr float MarkInsetRatio = 0.25f; // proportion of the glyph, not a pixel value
 } // namespace
@@ -27,7 +23,7 @@ bool Checkbox::UpdateInteractionState(const Platform::InputState& Input) {
         return false;
     }
 
-    const bool Hovered  = PointInRect(Input.MousePosition, ArrangedRect);
+    const bool Hovered  = Input.IsPointerOver(ArrangedRect);
     const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
     const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];
 

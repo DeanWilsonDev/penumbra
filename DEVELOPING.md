@@ -40,6 +40,12 @@ set. `penumbra_demo` is the runnable example.
   consuming app; this repository's example is `demo/DemoTheme.*`.
 - Preserve the retained-mode frame flow: measure, arrange, update interaction
   state, then draw.
+- Every visible widget gets `UpdateInteractionState` every frame. A container
+  that has seen a child consume the input keeps going, handing the remaining
+  children `Platform::OccludedInput`'s copy, and a widget tests hover and the
+  start of a press with `InputState::IsPointerOver`, never a raw mouse test.
+  Animations that must not stall advance in `Draw` on the `Renderer`'s frame
+  clock instead.
 - Keep the core library independent of `demo/` and application languages.
   Language and declarative-UI integrations belong in their backend repositories.
 - Public names use `PascalCase`, including methods and local variables. The

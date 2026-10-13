@@ -9,16 +9,12 @@ namespace Penumbra::Widgets {
 namespace {
 float NonNegative(float Value) { return Value > 0.0f ? Value : 0.0f; }
 
-bool PointInRect(Point Point, Rect Rect) {
-    return Point.X >= Rect.X && Point.X < Rect.X + Rect.W &&
-           Point.Y >= Rect.Y && Point.Y < Rect.Y + Rect.H;
-}
 constexpr int LeftButton = 0;
 
 // Inverse of the SRT-around-Pivot composition Renderer::PopTransform applies when
 // painting: undoes Translate, then Rotate, then Scale, so a ScreenPoint that landed
 // on the transformed visual maps back to the same LocalPoint it would have hit had
-// the widget never been transformed -- letting the untouched PointInRect(..,
+// the widget never been transformed -- letting the untouched IsPointerOver(
 // ArrangedRect) check downstream work unchanged.
 Point InverseTransformPoint(Point ScreenPoint, Point Pivot, const Transform& T) {
     const float OffsetX = ScreenPoint.X - Pivot.X - T.TranslateXLogical;
@@ -403,25 +399,28 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
         Effective = &TransformedInput;
     }
 
-    // Depth-first, last child (drawn on top) gets first refusal.
+    // Depth-first, last child (drawn on top) gets first refusal. Once one consumes the
+    // input, the rest still update, with the pointer occluded.
+    Platform::OccludedInput Occluded(*Effective);
+    bool                    ChildConsumed = false;
     for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
         if (!(*Iterator)->GetIsVisible()) {
             continue; // a hidden subtree can't consume input
         }
-        if ((*Iterator)->UpdateInteractionState(*Effective)) {
-            return true;
+        if ((*Iterator)->UpdateInteractionState(ChildConsumed ? Occluded.Get() : *Effective)) {
+            ChildConsumed = true;
         }
     }
 
     if (!IsEnabled) {
         CurrentState  = InteractionState::Disabled;
         PressedInside = false;
-        return false;
+        return ChildConsumed;
     }
 
     // A Box with none of the generic callbacks AND no interaction-state colours set
     // is an inert layout container -- exactly as before this API existed -- so skip
-    // hit-testing it rather than paying for a PointInRect check on every plain Box
+    // hit-testing it rather than paying for a hit test on every plain Box
     // in the tree, every frame. A Box that only sets :hover-equivalent colours (no
     // onPress) still needs hit-testing to know when to use them.
     const bool HasCallbacks = OnPressed || OnReleased || OnHovered || OnFocused || OnChanged;
@@ -431,10 +430,12 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
     if (!HasCallbacks && !HasInteractionColors) {
         CurrentState  = InteractionState::Default;
         PressedInside = false;
-        return false;
+        return ChildConsumed;
     }
 
-    const bool Hovered  = PointInRect(Effective->MousePosition, ArrangedRect);
+    // Hovered whenever the pointer is over this Box, even while a child has it, as
+    // CSS's :hover covers ancestors; but a press a child took isn't also this Box's.
+    const bool Hovered  = Effective->IsPointerOver(ArrangedRect);
     const bool Pressed  = Effective->MouseButtonPressedThisFrame[LeftButton];
     const bool Down     = Effective->MouseButtonDown[LeftButton];
     const bool Released = Effective->MouseButtonReleasedThisFrame[LeftButton];
@@ -442,7 +443,7 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
     if (Hovered && OnHovered) {
         OnHovered();
     }
-    if (Pressed && Hovered) {
+    if (Pressed && Hovered && !ChildConsumed) {
         PressedInside = true;
         if (OnPressed) {
             OnPressed();
@@ -463,7 +464,7 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
         CurrentState = InteractionState::Default;
     }
 
-    return Hovered || (PressedInside && Down);
+    return ChildConsumed || Hovered || (PressedInside && Down);
 }
 
 Render::Color Box::BackgroundForState() const {

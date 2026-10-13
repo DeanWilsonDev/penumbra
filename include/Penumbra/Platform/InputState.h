@@ -2,6 +2,7 @@
 
 #include "Penumbra/Geometry.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,45 @@ struct InputState {
     // Frame timing carried alongside input, so per-frame widget updates (e.g.
     // animations) can advance without changing the WidgetBase interface.
     float DeltaTimeSeconds{0.0f};
+
+    // Set when something drawn above has already taken the pointer this frame. Every
+    // widget still gets its UpdateInteractionState each frame: a container hands the
+    // children it reaches after one of them consumed the input this input with the
+    // pointer occluded (and does the same for all of them when the pointer isn't over
+    // it), instead of skipping them. An occluded widget hovers nothing and starts no
+    // press, so a hover it showed clears, but a drag already under way carries on
+    // with the real MousePosition, and keys still reach whatever has focus.
+    bool PointerOccluded{false};
+
+    // Whether the pointer is over Area and nothing above has taken it. Use this, not
+    // a raw MousePosition test, for hover and for starting a press.
+    bool IsPointerOver(Rect Area) const {
+        return !PointerOccluded && MousePosition.X >= Area.X && MousePosition.X < Area.X + Area.W &&
+               MousePosition.Y >= Area.Y && MousePosition.Y < Area.Y + Area.H;
+    }
+};
+
+// The input a container hands the children it reaches after one of them took the
+// pointer: Source with PointerOccluded set. It copies Source at most once, and not at
+// all when Source is occluded already.
+class OccludedInput {
+public:
+    explicit OccludedInput(const InputState& InSource) : Source(InSource) {}
+
+    const InputState& Get() {
+        if (Source.PointerOccluded) {
+            return Source;
+        }
+        if (!Copy) {
+            Copy = Source;
+            Copy->PointerOccluded = true;
+        }
+        return *Copy;
+    }
+
+private:
+    const InputState&         Source;
+    std::optional<InputState> Copy;
 };
 
 } // namespace Penumbra::Platform

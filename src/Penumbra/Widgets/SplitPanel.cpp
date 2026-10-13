@@ -5,10 +5,6 @@
 namespace Penumbra::Widgets {
 
 namespace {
-bool PointInRect(Point Point, Rect Rect) {
-    return Point.X >= Rect.X && Point.X < Rect.X + Rect.W &&
-           Point.Y >= Rect.Y && Point.Y < Rect.Y + Rect.H;
-}
 constexpr int LeftButton = 0;
 
 float NonNegative(float Value) { return Value > 0.0f ? Value : 0.0f; }
@@ -98,7 +94,7 @@ void SplitPanel::Arrange(Rect FinalRectLogical) {
 }
 
 bool SplitPanel::UpdateInteractionState(const Platform::InputState& Input) {
-    const bool Hovered  = PointInRect(Input.MousePosition, HandleRect);
+    const bool Hovered  = Input.IsPointerOver(HandleRect);
     const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
     const bool Down     = Input.MouseButtonDown[LeftButton];
     const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];
@@ -123,15 +119,17 @@ bool SplitPanel::UpdateInteractionState(const Platform::InputState& Input) {
     }
     HandleHovered = Hovered;
 
-    // Reverse order, same first-refusal rule as Box: Second is drawn on top of First.
-    if (Second && Second->UpdateInteractionState(Input)) {
-        return true;
-    }
-    if (First && First->UpdateInteractionState(Input)) {
-        return true;
+    // Reverse order, same first-refusal rule as Box: Second is drawn on top of First,
+    // and First still updates, with the pointer occluded, when Second takes it.
+    Platform::OccludedInput Occluded(Input);
+    bool                    PaneConsumed = false;
+    for (WidgetBase* Pane : {Second.get(), First.get()}) {
+        if (Pane && Pane->UpdateInteractionState(PaneConsumed ? Occluded.Get() : Input)) {
+            PaneConsumed = true;
+        }
     }
 
-    return Dragging || Hovered;
+    return PaneConsumed || Dragging || Hovered;
 }
 
 std::size_t SplitPanel::GetChildCount() const { return (First ? 1u : 0u) + (Second ? 1u : 0u); }

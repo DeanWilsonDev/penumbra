@@ -6,11 +6,6 @@ namespace Penumbra::Widgets {
 
 namespace {
 
-bool PointInRect(Point Point, Rect Rect) {
-    return Point.X >= Rect.X && Point.X < Rect.X + Rect.W &&
-           Point.Y >= Rect.Y && Point.Y < Rect.Y + Rect.H;
-}
-
 // Logical size × dpi, rounded to whole physical pixels — how big the scene texture
 // must be to stay crisp at the current display density (spec §4, §6).
 Point PhysicalSizeFor(Point ContentSizeLogical, float DpiScale) {
@@ -41,21 +36,30 @@ void ViewportWidget::Arrange(Rect FinalRectLogical) {
 }
 
 bool ViewportWidget::UpdateInteractionState(const Platform::InputState& Input) {
-    // Outside the widget entirely → no consumption, input falls through (spec §7.1).
-    if (!PointInRect(Input.MousePosition, ArrangedRect)) {
-        return false;
+    // Overlay children (toolbars, gizmo panels) get first refusal, front-to-back. They
+    // still update when the pointer is elsewhere, or once one has taken it, with the
+    // pointer occluded.
+    const bool              Over = Input.IsPointerOver(ArrangedRect);
+    Platform::OccludedInput Occluded(Input);
+    bool                    ChildConsumed = false;
+    for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
+        const bool Occlude = !Over || ChildConsumed;
+        if ((*Iterator)->UpdateInteractionState(Occlude ? Occluded.Get() : Input) && !Occlude) {
+            ChildConsumed = true;
+        }
     }
 
-    // Overlay children (toolbars, gizmo panels) get first refusal, front-to-back.
-    for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
-        if ((*Iterator)->UpdateInteractionState(Input)) {
-            return true;
-        }
+    // Outside the widget entirely → no consumption, input falls through (spec §7.1).
+    if (!Over) {
+        return false;
+    }
+    if (ChildConsumed) {
+        return true;
     }
 
     // Inside the scene area and unclaimed by an overlay → the consumer handles it.
     const Rect Content = ContentRectFrom(ArrangedRect);
-    if (PointInRect(Input.MousePosition, Content) && OnSceneInput) {
+    if (Input.IsPointerOver(Content) && OnSceneInput) {
         return OnSceneInput(Input, Content);
     }
 
