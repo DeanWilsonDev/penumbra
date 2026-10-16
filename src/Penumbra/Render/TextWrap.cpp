@@ -1,5 +1,7 @@
 #include "Penumbra/Render/TextWrap.h"
 
+#include "Penumbra/Render/Utf8.h"
+
 #include <string_view>
 
 namespace Penumbra::Render {
@@ -58,9 +60,11 @@ std::vector<TextLine> WrapText(const std::string& Text, float WrapWidthLogical, 
                     Lines.push_back({LineStart, Fits});
                     LineStart = Fits + 1;
                 } else {
-                    std::size_t Cursor = LineStart + 1;
-                    while (Cursor < Over && !Overflows(Cursor)) {
-                        ++Cursor;
+                    std::size_t Cursor = NextCodePoint(Text, LineStart);
+                    std::size_t Next = NextCodePoint(Text, Cursor);
+                    while (Cursor < Over && MeasureRange(LineStart, Next) <= WrapWidthLogical) {
+                        Cursor = Next;
+                        Next = NextCodePoint(Text, Cursor);
                     }
                     Lines.push_back({LineStart, Cursor});
                     LineStart = Cursor;

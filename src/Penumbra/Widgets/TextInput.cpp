@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/TextInput.h"
 
+#include "Penumbra/Render/Utf8.h"
+
 #include <cmath>
 #include <string_view>
 
@@ -20,10 +22,10 @@ std::size_t TextInput::CaretIndexAtX(float LocalX) const {
     if (!FontBackend || Text.empty() || LocalX <= 0.0f) {
         return 0;
     }
-    // Pick the character boundary whose x is nearest the click.
     std::size_t Best = 0;
     float BestDistance = std::fabs(LocalX);
-    for (std::size_t Index = 1; Index <= Text.size(); ++Index) {
+    for (std::size_t Index = 0; Index < Text.size();) {
+        Index = Render::NextCodePoint(Text, Index);
         const float Distance = std::fabs(LocalX - TextWidthTo(Index));
         if (Distance < BestDistance) {
             BestDistance = Distance;
@@ -133,8 +135,9 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
                 DeleteSelection();
                 Changed = true;
             } else if (CaretIndex > 0) {
-                Text.erase(CaretIndex - 1, 1);
-                --CaretIndex;
+                const std::size_t Previous = Render::PreviousCodePoint(Text, CaretIndex);
+                Text.erase(Previous, CaretIndex - Previous);
+                CaretIndex = Previous;
                 Changed = true;
             }
             SelectionAnchor = CaretIndex;
@@ -144,7 +147,7 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
                 DeleteSelection();
                 Changed = true;
             } else if (CaretIndex < Text.size()) {
-                Text.erase(CaretIndex, 1);
+                Text.erase(CaretIndex, Render::NextCodePoint(Text, CaretIndex) - CaretIndex);
                 Changed = true;
             }
             SelectionAnchor = CaretIndex;
@@ -152,8 +155,8 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
         case Platform::Key::Left:
             if (!Shift && HasSelection()) {
                 CaretIndex = SelectionStart();
-            } else if (CaretIndex > 0) {
-                --CaretIndex;
+            } else {
+                CaretIndex = Render::PreviousCodePoint(Text, CaretIndex);
             }
             if (!Shift) {
                 SelectionAnchor = CaretIndex;
@@ -162,8 +165,8 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
         case Platform::Key::Right:
             if (!Shift && HasSelection()) {
                 CaretIndex = SelectionEnd();
-            } else if (CaretIndex < Text.size()) {
-                ++CaretIndex;
+            } else {
+                CaretIndex = Render::NextCodePoint(Text, CaretIndex);
             }
             if (!Shift) {
                 SelectionAnchor = CaretIndex;

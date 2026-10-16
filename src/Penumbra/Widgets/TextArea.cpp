@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/TextArea.h"
 
+#include "Penumbra/Render/Utf8.h"
+
 #include <algorithm>
 #include <cmath>
 #include <string_view>
@@ -149,17 +151,17 @@ std::size_t TextArea::IndexAtLineX(const Line& L, float LocalX) const {
     if (!FontBackend || Length == 0 || LocalX <= 0.0f) {
         return L.ContentStart;
     }
-    std::size_t Best = 0;
+    std::size_t Best = L.ContentStart;
     float BestDistance = std::fabs(LocalX);
-    for (std::size_t Offset = 1; Offset <= Length; ++Offset) {
-        const float X = MeasureRange(L.ContentStart, L.ContentStart + Offset);
-        const float Distance = std::fabs(LocalX - X);
+    for (std::size_t Index = L.ContentStart; Index < L.ContentEnd;) {
+        Index = std::min(Render::NextCodePoint(Text, Index), L.ContentEnd);
+        const float Distance = std::fabs(LocalX - MeasureRange(L.ContentStart, Index));
         if (Distance < BestDistance) {
             BestDistance = Distance;
-            Best = Offset;
+            Best = Index;
         }
     }
-    return L.ContentStart + Best;
+    return Best;
 }
 
 std::size_t TextArea::IndexAtLocalPoint(float LocalX, float LocalY) const {
@@ -350,8 +352,9 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
                 DeleteSelection();
                 Changed = true;
             } else if (CaretIndex > 0) {
-                EraseText(CaretIndex - 1, 1);
-                --CaretIndex;
+                const std::size_t Previous = Render::PreviousCodePoint(Text, CaretIndex);
+                EraseText(Previous, CaretIndex - Previous);
+                CaretIndex = Previous;
                 Changed = true;
             }
             SelectionAnchor = CaretIndex;
@@ -362,7 +365,7 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
                 DeleteSelection();
                 Changed = true;
             } else if (CaretIndex < Text.size()) {
-                EraseText(CaretIndex, 1);
+                EraseText(CaretIndex, Render::NextCodePoint(Text, CaretIndex) - CaretIndex);
                 Changed = true;
             }
             SelectionAnchor = CaretIndex;
@@ -378,8 +381,8 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
         case Platform::Key::Left:
             if (!Shift && HasSelection()) {
                 CaretIndex = SelectionStart();
-            } else if (CaretIndex > 0) {
-                --CaretIndex;
+            } else {
+                CaretIndex = Render::PreviousCodePoint(Text, CaretIndex);
             }
             if (!Shift) {
                 SelectionAnchor = CaretIndex;
@@ -389,8 +392,8 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
         case Platform::Key::Right:
             if (!Shift && HasSelection()) {
                 CaretIndex = SelectionEnd();
-            } else if (CaretIndex < Text.size()) {
-                ++CaretIndex;
+            } else {
+                CaretIndex = Render::NextCodePoint(Text, CaretIndex);
             }
             if (!Shift) {
                 SelectionAnchor = CaretIndex;
