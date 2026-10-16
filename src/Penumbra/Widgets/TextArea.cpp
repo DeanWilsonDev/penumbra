@@ -182,8 +182,8 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
         return Hovered || Consumed;
     }
 
-    const bool Ctrl  = Input.ModifierState.Ctrl;
-    const bool Shift = Input.ModifierState.Shift;
+    const bool Shortcut = Input.ModifierState.Shortcut;
+    const bool Shift    = Input.ModifierState.Shift;
     bool Changed = false;
 
     // Typed text replaces any selection.
@@ -202,7 +202,7 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
     for (const Platform::Key Key : Input.KeysPressedThisFrame) {
         RebuildLinesIfNeeded(WrapWidth); // keep Lines current if an earlier key this frame edited Text
 
-        if (Ctrl) {
+        if (Shortcut) {
             switch (Key) {
             case Platform::Key::A:
                 SelectionAnchor = 0;
@@ -242,7 +242,7 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
             default:
                 break;
             }
-            continue; // Ctrl combos never fall through to plain editing/navigation
+            continue;
         }
 
         switch (Key) {

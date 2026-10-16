@@ -16,7 +16,7 @@ enum class Key {
     Unknown,
     Left, Right, Up, Down,
     Home, End, Backspace, Delete, Escape, Enter, Tab,
-    A, C, V, X, // the letters TextInput's Ctrl-shortcuts need; extend as widgets need more
+    A, C, V, X,
 };
 
 struct Modifiers {
@@ -24,6 +24,7 @@ struct Modifiers {
     bool Ctrl{false};
     bool Alt{false};
     bool Super{false};
+    bool Shortcut{false};
 };
 
 // A snapshot of all OS input for a single frame, built by PlatformWindow.

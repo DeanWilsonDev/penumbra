@@ -31,8 +31,14 @@ Key MapKey(SDL_Keycode Code) {
 }
 
 Modifiers MapModifiers(SDL_Keymod Mod) {
-    return {(Mod & SDL_KMOD_SHIFT) != 0, (Mod & SDL_KMOD_CTRL) != 0,
-            (Mod & SDL_KMOD_ALT) != 0, (Mod & SDL_KMOD_GUI) != 0};
+    Modifiers Result{(Mod & SDL_KMOD_SHIFT) != 0, (Mod & SDL_KMOD_CTRL) != 0,
+                     (Mod & SDL_KMOD_ALT) != 0, (Mod & SDL_KMOD_GUI) != 0};
+#if defined(__APPLE__)
+    Result.Shortcut = Result.Super;
+#else
+    Result.Shortcut = Result.Ctrl;
+#endif
+    return Result;
 }
 
 // The scale actually baked into Window's real drawable, derived from its

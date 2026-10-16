@@ -73,8 +73,8 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
         return Hovered;
     }
 
-    const bool Ctrl  = Input.ModifierState.Ctrl;
-    const bool Shift = Input.ModifierState.Shift;
+    const bool Shortcut = Input.ModifierState.Shortcut;
+    const bool Shift    = Input.ModifierState.Shift;
     bool Changed = false;
 
     // Typed text replaces any selection.
@@ -89,7 +89,7 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
     }
 
     for (const Platform::Key Key : Input.KeysPressedThisFrame) {
-        if (Ctrl) {
+        if (Shortcut) {
             switch (Key) {
             case Platform::Key::A:
                 SelectionAnchor = 0;
@@ -124,7 +124,7 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
             default:
                 break;
             }
-            continue; // Ctrl combos never fall through to plain editing/navigation
+            continue;
         }
 
         switch (Key) {

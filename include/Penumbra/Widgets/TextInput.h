@@ -12,10 +12,6 @@
 
 namespace Penumbra::Widgets {
 
-// Single-line text entry. PoC scope: visible caret; type / backspace / delete;
-// left / right / home / end movement; selection (shift-arrows, click-drag, Ctrl+A);
-// clipboard (Ctrl+C / X / V). Deferred: IME, multi-line.
-// Requests focus on click; only acts on text/key events while it holds focus.
 class TextInput : public Box {
 public:
     Render::IFontBackend* FontBackend{nullptr};
