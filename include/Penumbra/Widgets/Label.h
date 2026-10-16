@@ -4,6 +4,7 @@
 #include "Penumbra/Render/TextWrap.h"
 #include "Penumbra/Widgets/Box.h"
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -12,9 +13,6 @@
 
 namespace Penumbra::Widgets {
 
-// Intrinsic text content; a leaf. The font backend is injected (the Measure pass
-// has no Renderer, yet text size must be known there) and identifies the font the
-// Renderer was initialised with.
 class Label : public Box {
 public:
     Render::IFontBackend* FontBackend{nullptr};
@@ -22,29 +20,15 @@ public:
     std::string           Text;
     Render::Color         ColorText{0, 0, 0, 0};
 
-    // Optional width constraint and overflow behavior. Unset MaxWidthLogical
-    // means "no constraint," the
-    // current unbounded-intrinsic-size behavior. Set with
-    // TruncateWithEllipsis false means "clip, no dots" (a Renderer clip
-    // rect); true means "truncate and append .." -- both plain fields
-    // rather than Builder methods, same "set directly post-build" pattern
-    // FontBackend/Font above already use.
     std::optional<float> MaxWidthLogical;
     bool                  TruncateWithEllipsis{false};
-
-    // Wrap -- when true, Text reflows across as many lines as it takes to fit
-    // whatever content width MeasureContent/DrawContent are actually given (the
-    // same greedy word-wrap-with-character-fallback TextArea already implements,
-    // Render::WrapText, factored out so both widgets share one algorithm), rather
-    // than the single-line MaxWidthLogical/TruncateWithEllipsis clip-or-ellipsis
-    // behavior above. For static multi-line text that was never meant to be
-    // editable (TextArea's own reason for existing) -- no caret, selection, or
-    // scroll state, just reflow. Mutually exclusive with MaxWidthLogical/
-    // TruncateWithEllipsis in practice (they're two different overflow
-    // strategies); nothing enforces that here, so don't set both.
     bool                  Wrap{false};
 
-    // Fluent, chainable construction; adds text() to the shared Box builder set.
+    std::size_t IndexAtPoint(Point PointLogical);
+    Rect        CaretRectAt(std::size_t Index);
+    void        SetSelection(std::size_t Start, std::size_t End, Render::Color Color);
+    void        ClearSelection();
+
     class Builder {
     public:
         Builder();
@@ -72,6 +56,13 @@ protected:
 private:
     float LineHeight() const;
     const std::vector<Render::TextLine>& WrappedLinesFor(float WidthLogical);
+    std::vector<Render::TextLine>        LinesFor(float WidthLogical);
+    std::size_t                          LineIndexOf(const std::vector<Render::TextLine>& Lines, std::size_t Index) const;
+    float                                WidthOf(std::size_t Start, std::size_t End) const;
+
+    std::size_t   SelectionStart{0};
+    std::size_t   SelectionEnd{0};
+    Render::Color ColorSelection{0, 0, 0, 0};
 
     std::vector<Render::TextLine> WrapLines;
     float                         WrapLineHeight{0.0f};

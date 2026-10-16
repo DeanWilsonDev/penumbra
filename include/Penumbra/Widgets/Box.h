@@ -12,6 +12,8 @@
 
 namespace Penumbra::Widgets {
 
+class TextSelection;
+
 // The universal primitive — the "div". Everything is a Box. A Box owns the box
 // model, an optional list of children, and a layout mode for arranging them.
 // "Container-ness" is just a Box that has children.
@@ -73,6 +75,9 @@ public:
 
     InteractionState GetInteractionState() const { return CurrentState; }
 
+    TextSelection& EnableTextSelection();
+    TextSelection* GetTextSelection() const { return Selection.get(); }
+
     std::size_t GetChildCount() const override { return Children.size(); }
     WidgetBase* GetChildAt(std::size_t Index) const override { return Children[Index].get(); }
 
@@ -98,7 +103,8 @@ public:
     };
 
 protected:
-    // Subclasses override these for their own intrinsic visuals (text, glyphs).
+    std::unique_ptr<TextSelection> Selection;
+
     virtual Point MeasureContent(Point AvailableContentSize) { return {0.0f, 0.0f}; }
     virtual void  DrawContent(Render::Renderer&, Rect ContentRect) {}
 

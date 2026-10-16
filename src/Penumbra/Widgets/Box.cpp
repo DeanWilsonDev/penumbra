@@ -1,6 +1,7 @@
 #include "Penumbra/Widgets/Box.h"
 
 #include "Penumbra/Widgets/LayoutPass.h"
+#include "Penumbra/Widgets/TextSelection.h"
 
 #include <algorithm>
 #include <cmath>
@@ -157,6 +158,13 @@ struct Box::TransitionState {
 
 Box::Box() = default;
 Box::~Box() = default;
+
+TextSelection& Box::EnableTextSelection() {
+    if (!Selection) {
+        Selection = std::make_unique<TextSelection>();
+    }
+    return *Selection;
+}
 
 WidgetBase* Box::AddChild(std::unique_ptr<WidgetBase> Child) {
     WidgetBase* Raw = Child.get();
@@ -598,8 +606,10 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
         Effective = &TransformedInput;
     }
 
-    // Depth-first, last child (drawn on top) gets first refusal. Once one consumes the
-    // input, the rest still update, with the pointer occluded.
+    if (Selection) {
+        Selection->Update(*this, ArrangedRect, *Effective);
+    }
+
     Platform::OccludedInput Occluded(*Effective);
     bool                    ChildConsumed = false;
     for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
@@ -759,6 +769,9 @@ void Box::Draw(Render::Renderer& Renderer) {
     }
 
     DrawContent(Renderer, ContentRectFrom(ArrangedRect));
+    if (Selection) {
+        Selection->DrawGaps(Renderer);
+    }
 
     for (auto& Child : Children) {
         if (!Child->GetIsVisible()) {

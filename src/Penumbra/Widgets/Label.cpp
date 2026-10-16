@@ -1,6 +1,9 @@
 #include "Penumbra/Widgets/Label.h"
 
+#include "Penumbra/Render/Utf8.h"
+
 #include <algorithm>
+#include <cmath>
 #include <string_view>
 #include <utility>
 
@@ -21,6 +24,76 @@ const std::vector<Render::TextLine>& Label::WrappedLinesFor(float WidthLogical) 
         WrappedText     = Text;
     }
     return WrapLines;
+}
+
+std::vector<Render::TextLine> Label::LinesFor(float WidthLogical) {
+    if (Wrap) {
+        return WrappedLinesFor(WidthLogical);
+    }
+    return {{0, Text.size()}};
+}
+
+std::size_t Label::LineIndexOf(const std::vector<Render::TextLine>& Lines, std::size_t Index) const {
+    for (std::size_t Line = 0; Line + 1 < Lines.size(); ++Line) {
+        if (Index < Lines[Line + 1].ContentStart) {
+            return Line;
+        }
+    }
+    return Lines.size() - 1;
+}
+
+float Label::WidthOf(std::size_t Start, std::size_t End) const {
+    if (!FontBackend || End <= Start) {
+        return 0.0f;
+    }
+    return FontBackend->MeasureTextWidth(Font, std::string_view(Text).substr(Start, End - Start));
+}
+
+std::size_t Label::IndexAtPoint(Point PointLogical) {
+    if (!FontBackend || Text.empty()) {
+        return 0;
+    }
+    const Rect                          Content = ContentRectFrom(ArrangedRect);
+    const std::vector<Render::TextLine> Lines = LinesFor(Content.W);
+    const float                         LH = LineHeight();
+    std::size_t                         LineIndex = 0;
+    if (LH > 0.0f && PointLogical.Y > Content.Y) {
+        LineIndex = std::min(static_cast<std::size_t>((PointLogical.Y - Content.Y) / LH), Lines.size() - 1);
+    }
+    const Render::TextLine& L = Lines[LineIndex];
+    const float             LocalX = PointLogical.X - Content.X;
+    std::size_t             Best = L.ContentStart;
+    float                   BestDistance = std::fabs(LocalX);
+    for (std::size_t Index = L.ContentStart; Index < L.ContentEnd;) {
+        Index = std::min(Render::NextCodePoint(Text, Index), L.ContentEnd);
+        const float Distance = std::fabs(LocalX - WidthOf(L.ContentStart, Index));
+        if (Distance < BestDistance) {
+            BestDistance = Distance;
+            Best = Index;
+        }
+    }
+    return Best;
+}
+
+Rect Label::CaretRectAt(std::size_t Index) {
+    const Rect                          Content = ContentRectFrom(ArrangedRect);
+    const std::vector<Render::TextLine> Lines = LinesFor(Content.W);
+    const std::size_t                   LineIndex = LineIndexOf(Lines, Index);
+    const Render::TextLine&             L = Lines[LineIndex];
+    const float                         LH = LineHeight();
+    return {Content.X + WidthOf(L.ContentStart, std::clamp(Index, L.ContentStart, L.ContentEnd)),
+            Content.Y + static_cast<float>(LineIndex) * LH, 0.0f, LH};
+}
+
+void Label::SetSelection(std::size_t Start, std::size_t End, Render::Color Color) {
+    SelectionStart = std::min(Start, Text.size());
+    SelectionEnd = std::clamp(End, SelectionStart, Text.size());
+    ColorSelection = Color;
+}
+
+void Label::ClearSelection() {
+    SelectionStart = 0;
+    SelectionEnd = 0;
 }
 
 Point Label::MeasureContent(Point AvailableContentSize) {
@@ -49,6 +122,23 @@ Point Label::MeasureContent(Point AvailableContentSize) {
 }
 
 void Label::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
+    if (SelectionEnd > SelectionStart && FontBackend) {
+        const std::vector<Render::TextLine> Lines = LinesFor(ContentRect.W);
+        const float                         LH = LineHeight();
+        const float Right = MaxWidthLogical && !Wrap ? ContentRect.X + *MaxWidthLogical : ContentRect.X + ContentRect.W;
+        for (std::size_t Index = 0; Index < Lines.size(); ++Index) {
+            const Render::TextLine& L = Lines[Index];
+            const std::size_t       From = std::max(L.ContentStart, SelectionStart);
+            const std::size_t       To = std::min(L.ContentEnd, SelectionEnd);
+            if (From >= To) {
+                continue;
+            }
+            const float X0 = ContentRect.X + WidthOf(L.ContentStart, From);
+            const float X1 = std::min(X0 + WidthOf(From, To), std::max(Right, X0));
+            Renderer.DrawFilledRect({X0, ContentRect.Y + static_cast<float>(Index) * LH, X1 - X0, LH}, ColorSelection);
+        }
+    }
+
     if (Wrap) {
         const std::vector<Render::TextLine>& WrappedLines = WrappedLinesFor(ContentRect.W);
         const float LH = WrapLineHeight;
@@ -68,18 +158,12 @@ void Label::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
     }
 
     if (!TruncateWithEllipsis) {
-        // `text-overflow: clip` -- draw the full string behind a clip rect
-        // rather than shortening it at all.
         Renderer.PushClipRect({ContentRect.X, ContentRect.Y, *MaxWidthLogical, ContentRect.H});
         Renderer.DrawText(Font, Text, {ContentRect.X, ContentRect.Y}, ColorText);
         Renderer.PopClipRect();
         return;
     }
 
-    // `text-overflow: ellipsis` -- shrink one character at a time until what's
-    // left fits, then swap the trailing one or two characters for "..". Same
-    // algorithm pharos-proto's own drawTruncatedText (ui/text_utils.cpp) used
-    // before this existed as a real Label capability.
     std::string ToDraw = Text;
     while (!ToDraw.empty() && Renderer.MeasureTextWidth(Font, ToDraw) > *MaxWidthLogical) {
         ToDraw.pop_back();

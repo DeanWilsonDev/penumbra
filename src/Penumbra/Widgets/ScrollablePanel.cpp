@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/ScrollablePanel.h"
 
+#include "Penumbra/Widgets/TextSelection.h"
+
 #include <algorithm>
 #include <utility>
 
@@ -127,11 +129,11 @@ bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Input) 
     const bool OverPanel = Input.IsPointerOver(ArrangedRect);
     PointerOver = OverPanel;
 
-    // Children see the pointer only while it's over the visible content, and only
-    // until one of them takes it; the rest still update, with it occluded.
-    // The scrollbar is drawn over the children, so it gets the pointer first.
     const Rect              Content       = ContentRectFrom(ArrangedRect);
     const bool              ScrollbarTook = UpdateScrollbar(Input, Content);
+    if (Selection) {
+        Selection->Update(*this, ScrollbarTook ? Rect{} : Content, Input);
+    }
     Platform::OccludedInput Occluded(Input);
     bool                    PointerTaken       = ScrollbarTook || !Input.IsPointerOver(Content);
     bool                    Consumed           = false;
@@ -200,6 +202,9 @@ void ScrollablePanel::Draw(Render::Renderer& Renderer) {
 
     const Rect Content = ContentRectFrom(ArrangedRect);
     Renderer.PushClipRect(Content);
+    if (Selection) {
+        Selection->DrawGaps(Renderer);
+    }
     for (auto& Child : Children) {
         if (!Child->GetIsVisible()) {
             continue;
