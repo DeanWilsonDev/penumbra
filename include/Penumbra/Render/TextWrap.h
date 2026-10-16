@@ -3,6 +3,7 @@
 #include "Penumbra/Render/IFontBackend.h"
 
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -18,14 +19,11 @@ struct TextLine {
     std::size_t ContentEnd{0};
 };
 
-// Greedy word-wrap, ported unchanged from TextArea's own former
-// RebuildLinesIfNeeded: breaks at the last space that fits within
-// WrapWidthLogical, falling back to a hard character break when a single word
-// alone is wider than WrapWidthLogical. An explicit '\n' in Text always starts
-// a new line. Always returns at least one line, even for empty Text. No
-// FontBackend, or WrapWidthLogical <= 0.0f, falls back to hard-newline-only
-// splitting (no width-based wrapping at all) -- "can't measure, don't guess."
+using MeasureTextRangeFn = std::function<float(std::size_t Start, std::size_t End)>;
+
 std::vector<TextLine> WrapText(IFontBackend* FontBackend, FontHandle Font, const std::string& Text,
                                 float WrapWidthLogical);
+
+std::vector<TextLine> WrapText(const std::string& Text, float WrapWidthLogical, const MeasureTextRangeFn& MeasureRange);
 
 } // namespace Penumbra::Render

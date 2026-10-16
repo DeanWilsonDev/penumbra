@@ -10,13 +10,71 @@ namespace {
 constexpr int LeftButton = 0;
 } // namespace
 
-float TextArea::LineHeight() const {
-    return FontBackend ? FontBackend->MeasureText(Font, "Ag").HeightLogical : 0.0f;
+void TextArea::SetSpans(std::vector<TextAreaSpan> NewSpans) {
+    std::stable_sort(NewSpans.begin(), NewSpans.end(),
+                     [](const TextAreaSpan& A, const TextAreaSpan& B) { return A.Start < B.Start; });
+    std::size_t PreviousEnd = 0;
+    for (TextAreaSpan& Span : NewSpans) {
+        Span.Start = std::min(std::max(Span.Start, PreviousEnd), Text.size());
+        Span.End = std::max(std::min(Span.End, Text.size()), Span.Start);
+        PreviousEnd = Span.End;
+    }
+    Spans = std::move(NewSpans);
+    LinesDirty = true;
 }
 
+template <typename Visitor>
+void TextArea::ForEachRun(std::size_t Start, std::size_t End, Visitor&& Visit) const {
+    std::size_t Cursor = Start;
+    auto It = std::upper_bound(Spans.begin(), Spans.end(), Start,
+                               [](std::size_t At, const TextAreaSpan& Span) { return At < Span.End; });
+    for (; It != Spans.end() && Cursor < End && It->Start < End; ++It) {
+        if (It->Start > Cursor) {
+            Visit(Run{Cursor, It->Start, Font, ColorText, {}});
+            Cursor = It->Start;
+        }
+        const std::size_t PieceEnd = std::min(It->End, End);
+        if (PieceEnd > Cursor) {
+            Visit(Run{Cursor, PieceEnd, It->Font.value_or(Font), It->ColorText.value_or(ColorText), It->ColorBackground});
+            Cursor = PieceEnd;
+        }
+    }
+    if (Cursor < End) {
+        Visit(Run{Cursor, End, Font, ColorText, {}});
+    }
+}
+
+float TextArea::MeasureRange(std::size_t Start, std::size_t End) const {
+    if (!FontBackend || End <= Start) {
+        return 0.0f;
+    }
+    const std::string_view View(Text);
+    float Width = 0.0f;
+    ForEachRun(Start, End, [&](const Run& Piece) {
+        Width += FontBackend->MeasureTextWidth(Piece.Font, View.substr(Piece.Start, Piece.End - Piece.Start));
+    });
+    return Width;
+}
+
+Render::TextMetrics TextArea::FontMetrics(Render::FontHandle Handle) const {
+    if (!FontBackend) {
+        return {0.0f, 0.0f, 0.0f};
+    }
+    for (const auto& [Cached, Metrics] : MetricsCache) {
+        if (Cached == Handle) {
+            return Metrics;
+        }
+    }
+    const Render::TextMetrics Metrics = FontBackend->MeasureText(Handle, "Ag");
+    MetricsCache.emplace_back(Handle, Metrics);
+    return Metrics;
+}
+
+float TextArea::DefaultLineHeight() const { return FontMetrics(Font).HeightLogical; }
+
+float TextArea::TotalHeight() const { return LineBoxes.back().Top + LineBoxes.back().Height; }
+
 float TextArea::WrapWidthFor(Rect ContentRect) const {
-    // Reserved unconditionally (not only once content actually overflows) so wrapping
-    // doesn't reflow out from under the caret the moment a scrollbar thumb appears.
     return ScrollbarWidthLogical > 0.0f ? std::max(0.0f, ContentRect.W - ScrollbarWidthLogical)
                                          : ContentRect.W;
 }
@@ -26,7 +84,31 @@ void TextArea::RebuildLinesIfNeeded(float WrapWidthLogical) {
         return;
     }
 
-    Lines = Render::WrapText(FontBackend, Font, Text, WrapWidthLogical);
+    Render::MeasureTextRangeFn Measure;
+    if (FontBackend) {
+        Measure = [this](std::size_t Start, std::size_t End) { return MeasureRange(Start, End); };
+    }
+    Lines = Render::WrapText(Text, WrapWidthLogical, Measure);
+
+    LineBoxes.clear();
+    LineBoxes.reserve(Lines.size());
+    float Top = 0.0f;
+    for (const Line& L : Lines) {
+        float Ascent = 0.0f;
+        float Descent = 0.0f;
+        const auto Include = [&](Render::FontHandle Handle) {
+            const Render::TextMetrics Metrics = FontMetrics(Handle);
+            Ascent = std::max(Ascent, Metrics.AscentLogical);
+            Descent = std::max(Descent, Metrics.HeightLogical - Metrics.AscentLogical);
+        };
+        if (L.ContentEnd > L.ContentStart) {
+            ForEachRun(L.ContentStart, L.ContentEnd, [&](const Run& Piece) { Include(Piece.Font); });
+        } else {
+            Include(Font);
+        }
+        LineBoxes.push_back({Top, Ascent + Descent, Ascent});
+        Top += Ascent + Descent;
+    }
 
     LinesWrapWidth = WrapWidthLogical;
     LinesDirty = false;
@@ -36,7 +118,7 @@ std::size_t TextArea::LineOwnershipEnd(std::size_t LineIndex) const {
     if (LineIndex + 1 < Lines.size()) {
         return Lines[LineIndex + 1].ContentStart;
     }
-    return Text.size() + 1; // the last line owns up through (and including) Text.size()
+    return Text.size() + 1;
 }
 
 std::size_t TextArea::LineIndexForCaret(std::size_t Index) const {
@@ -48,15 +130,18 @@ std::size_t TextArea::LineIndexForCaret(std::size_t Index) const {
     return Lines.size() - 1;
 }
 
+std::size_t TextArea::LineIndexAtY(float ContentY) const {
+    if (ContentY <= 0.0f) {
+        return 0;
+    }
+    const auto It = std::upper_bound(LineBoxes.begin(), LineBoxes.end(), ContentY,
+                                     [](float Y, const LineBox& Box) { return Y < Box.Top + Box.Height; });
+    return It == LineBoxes.end() ? LineBoxes.size() - 1 : static_cast<std::size_t>(It - LineBoxes.begin());
+}
+
 float TextArea::LineLocalX(const Line& L, std::size_t Index) const {
-    if (!FontBackend) {
-        return 0.0f;
-    }
     const std::size_t Clamped = std::min(std::max(Index, L.ContentStart), L.ContentEnd);
-    if (Clamped == L.ContentStart) {
-        return 0.0f;
-    }
-    return FontBackend->MeasureTextWidth(Font, std::string_view(Text).substr(L.ContentStart, Clamped - L.ContentStart));
+    return MeasureRange(L.ContentStart, Clamped);
 }
 
 std::size_t TextArea::IndexAtLineX(const Line& L, float LocalX) const {
@@ -67,7 +152,7 @@ std::size_t TextArea::IndexAtLineX(const Line& L, float LocalX) const {
     std::size_t Best = 0;
     float BestDistance = std::fabs(LocalX);
     for (std::size_t Offset = 1; Offset <= Length; ++Offset) {
-        const float X = FontBackend->MeasureTextWidth(Font, std::string_view(Text).substr(L.ContentStart, Offset));
+        const float X = MeasureRange(L.ContentStart, L.ContentStart + Offset);
         const float Distance = std::fabs(LocalX - X);
         if (Distance < BestDistance) {
             BestDistance = Distance;
@@ -78,19 +163,46 @@ std::size_t TextArea::IndexAtLineX(const Line& L, float LocalX) const {
 }
 
 std::size_t TextArea::IndexAtLocalPoint(float LocalX, float LocalY) const {
-    const float LH = LineHeight();
-    std::size_t LineIdx = 0;
-    if (LH > 0.0f) {
-        const float Y = LocalY + ScrollOffsetY;
-        LineIdx = Y > 0.0f ? static_cast<std::size_t>(std::floor(Y / LH)) : 0;
-    }
-    LineIdx = std::min(LineIdx, Lines.size() - 1);
+    const std::size_t LineIdx = std::min(LineIndexAtY(LocalY + ScrollOffsetY), Lines.size() - 1);
     return IndexAtLineX(Lines[LineIdx], LocalX);
+}
+
+void TextArea::InsertText(std::string_view Inserted) {
+    const std::size_t At = CaretIndex;
+    Text.insert(At, Inserted);
+    for (TextAreaSpan& Span : Spans) {
+        if (Span.Start >= At) {
+            Span.Start += Inserted.size();
+            Span.End += Inserted.size();
+        } else if (Span.End >= At) {
+            Span.End += Inserted.size();
+        }
+    }
+    CaretIndex = At + Inserted.size();
+    SelectionAnchor = CaretIndex;
+    DesiredCaretXLogical = -1.0f;
+    LinesDirty = true;
+}
+
+void TextArea::EraseText(std::size_t Start, std::size_t Length) {
+    Text.erase(Start, Length);
+    const auto Shift = [Start, Length](std::size_t Index) {
+        if (Index <= Start) {
+            return Index;
+        }
+        return Index >= Start + Length ? Index - Length : Start;
+    };
+    for (TextAreaSpan& Span : Spans) {
+        Span.Start = Shift(Span.Start);
+        Span.End = Shift(Span.End);
+    }
+    std::erase_if(Spans, [](const TextAreaSpan& Span) { return Span.Start >= Span.End; });
+    LinesDirty = true;
 }
 
 void TextArea::DeleteSelection() {
     const std::size_t Start = SelectionStart();
-    Text.erase(Start, SelectionEnd() - Start);
+    EraseText(Start, SelectionEnd() - Start);
     CaretIndex = Start;
     SelectionAnchor = Start;
 }
@@ -119,19 +231,17 @@ void TextArea::MoveCaretVertically(int LineDelta, bool Shift) {
 }
 
 void TextArea::ScrollCaretIntoView(float ViewportHeightLogical) {
-    const float LH = LineHeight();
-    if (LH <= 0.0f) {
+    if (DefaultLineHeight() <= 0.0f) {
         return;
     }
-    const std::size_t CurrentLine = LineIndexForCaret(CaretIndex);
-    const float LineTop = static_cast<float>(CurrentLine) * LH;
-    const float LineBottom = LineTop + LH;
-    if (LineTop < ScrollOffsetY) {
-        ScrollOffsetY = LineTop;
+    const LineBox& Box = LineBoxes[LineIndexForCaret(CaretIndex)];
+    const float LineBottom = Box.Top + Box.Height;
+    if (Box.Top < ScrollOffsetY) {
+        ScrollOffsetY = Box.Top;
     } else if (LineBottom > ScrollOffsetY + ViewportHeightLogical) {
         ScrollOffsetY = LineBottom - ViewportHeightLogical;
     }
-    const float MaxScroll = std::max(0.0f, static_cast<float>(Lines.size()) * LH - ViewportHeightLogical);
+    const float MaxScroll = std::max(0.0f, TotalHeight() - ViewportHeightLogical);
     ScrollOffsetY = std::min(std::max(ScrollOffsetY, 0.0f), MaxScroll);
 }
 
@@ -154,13 +264,13 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
         const std::size_t Index =
             IndexAtLocalPoint(Input.MousePosition.X - Content.X, Input.MousePosition.Y - Content.Y);
         CaretIndex = Index;
-        SelectionAnchor = Index; // fresh selection at the click point
+        SelectionAnchor = Index;
         DesiredCaretXLogical = -1.0f;
         Dragging = true;
     }
     if (Dragging && Down && IsFocused()) {
         CaretIndex = IndexAtLocalPoint(Input.MousePosition.X - Content.X, Input.MousePosition.Y - Content.Y);
-        DesiredCaretXLogical = -1.0f; // drag extends selection
+        DesiredCaretXLogical = -1.0f;
     }
     if (Released) {
         Dragging = false;
@@ -169,8 +279,7 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
     bool Consumed = false;
     WheelHandledThisFrame = false;
     if (Hovered && WheelStepLogical != 0.0f && Input.MouseWheelDelta != 0.0f) {
-        const float LH = LineHeight();
-        const float MaxScroll = std::max(0.0f, static_cast<float>(Lines.size()) * LH - Content.H);
+        const float MaxScroll = std::max(0.0f, TotalHeight() - Content.H);
         if (MaxScroll > 0.0f) {
             ScrollOffsetY = std::min(std::max(ScrollOffsetY - Input.MouseWheelDelta * WheelStepLogical, 0.0f), MaxScroll);
             Consumed = true;
@@ -186,21 +295,16 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
     const bool Shift    = Input.ModifierState.Shift;
     bool Changed = false;
 
-    // Typed text replaces any selection.
     if (!Input.TextInputThisFrame.empty()) {
         if (HasSelection()) {
             DeleteSelection();
         }
-        Text.insert(CaretIndex, Input.TextInputThisFrame);
-        CaretIndex += Input.TextInputThisFrame.size();
-        SelectionAnchor = CaretIndex;
-        DesiredCaretXLogical = -1.0f;
-        LinesDirty = true;
+        InsertText(Input.TextInputThisFrame);
         Changed = true;
     }
 
     for (const Platform::Key Key : Input.KeysPressedThisFrame) {
-        RebuildLinesIfNeeded(WrapWidth); // keep Lines current if an earlier key this frame edited Text
+        RebuildLinesIfNeeded(WrapWidth);
 
         if (Shortcut) {
             switch (Key) {
@@ -219,7 +323,6 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
                     Clipboard->SetClipboardText(Text.substr(SelectionStart(), SelectionEnd() - SelectionStart()));
                     DeleteSelection();
                     DesiredCaretXLogical = -1.0f;
-                    LinesDirty = true;
                     Changed = true;
                 }
                 break;
@@ -230,11 +333,7 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
                         if (HasSelection()) {
                             DeleteSelection();
                         }
-                        Text.insert(CaretIndex, Pasted);
-                        CaretIndex += Pasted.size();
-                        SelectionAnchor = CaretIndex;
-                        DesiredCaretXLogical = -1.0f;
-                        LinesDirty = true;
+                        InsertText(Pasted);
                         Changed = true;
                     }
                 }
@@ -251,35 +350,29 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
                 DeleteSelection();
                 Changed = true;
             } else if (CaretIndex > 0) {
-                Text.erase(CaretIndex - 1, 1);
+                EraseText(CaretIndex - 1, 1);
                 --CaretIndex;
                 Changed = true;
             }
             SelectionAnchor = CaretIndex;
             DesiredCaretXLogical = -1.0f;
-            LinesDirty = true;
             break;
         case Platform::Key::Delete:
             if (HasSelection()) {
                 DeleteSelection();
                 Changed = true;
             } else if (CaretIndex < Text.size()) {
-                Text.erase(CaretIndex, 1);
+                EraseText(CaretIndex, 1);
                 Changed = true;
             }
             SelectionAnchor = CaretIndex;
             DesiredCaretXLogical = -1.0f;
-            LinesDirty = true;
             break;
         case Platform::Key::Enter:
             if (HasSelection()) {
                 DeleteSelection();
             }
-            Text.insert(CaretIndex, 1, '\n');
-            ++CaretIndex;
-            SelectionAnchor = CaretIndex;
-            DesiredCaretXLogical = -1.0f;
-            LinesDirty = true;
+            InsertText("\n");
             Changed = true;
             break;
         case Platform::Key::Left:
@@ -333,13 +426,13 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
         }
     }
 
-    RebuildLinesIfNeeded(WrapWidth); // pick up an edit made by the last processed key
+    RebuildLinesIfNeeded(WrapWidth);
     ScrollCaretIntoView(Content.H);
 
     if (Changed && OnTextChanged) {
         OnTextChanged(Text);
     }
-    return true; // a focused field consumes input
+    return true;
 }
 
 void TextArea::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
@@ -348,8 +441,7 @@ void TextArea::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
 
     Renderer.PushClipRect(ContentRect);
 
-    const float LH = LineHeight();
-    if (LH <= 0.0f) {
+    if (DefaultLineHeight() <= 0.0f) {
         Renderer.PopClipRect();
         return;
     }
@@ -357,18 +449,37 @@ void TextArea::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
     const bool Selected = IsFocused() && HasSelection();
     const std::size_t SelStart = Selected ? SelectionStart() : 0;
     const std::size_t SelEnd   = Selected ? SelectionEnd() : 0;
+    const std::string_view View(Text);
+    const float ViewportBottom = ScrollOffsetY + ContentRect.H;
 
-    const std::size_t LastLineIndex = Lines.size() - 1;
-    std::size_t FirstVisible = ScrollOffsetY > 0.0f
-        ? static_cast<std::size_t>(std::floor(ScrollOffsetY / LH))
-        : 0;
-    std::size_t LastVisible = static_cast<std::size_t>(std::ceil((ScrollOffsetY + ContentRect.H) / LH));
-    FirstVisible = std::min(FirstVisible, LastLineIndex);
-    LastVisible  = std::min(LastVisible, LastLineIndex);
+    struct Piece {
+        Run   Source;
+        float X{0.0f};
+        float Width{0.0f};
+    };
+    std::vector<Piece> Pieces;
 
-    for (std::size_t I = FirstVisible; I <= LastVisible; ++I) {
+    for (std::size_t I = LineIndexAtY(ScrollOffsetY); I < Lines.size() && LineBoxes[I].Top < ViewportBottom; ++I) {
         const Line& L = Lines[I];
-        const float LineY = ContentRect.Y + static_cast<float>(I) * LH - ScrollOffsetY;
+        const LineBox& Box = LineBoxes[I];
+        const float LineY = ContentRect.Y + Box.Top - ScrollOffsetY;
+
+        Pieces.clear();
+        float X = ContentRect.X;
+        ForEachRun(L.ContentStart, L.ContentEnd, [&](const Run& Source) {
+            const float Width =
+                FontBackend->MeasureTextWidth(Source.Font, View.substr(Source.Start, Source.End - Source.Start));
+            Pieces.push_back({Source, X, Width});
+            X += Width;
+        });
+
+        for (const Piece& P : Pieces) {
+            if (P.Source.ColorBackground.A > 0) {
+                const Render::TextMetrics Metrics = FontMetrics(P.Source.Font);
+                Renderer.DrawFilledRect({P.X, LineY + Box.Ascent - Metrics.AscentLogical, P.Width, Metrics.HeightLogical},
+                                        P.Source.ColorBackground);
+            }
+        }
 
         if (Selected) {
             const std::size_t OwnershipEnd = LineOwnershipEnd(I);
@@ -381,30 +492,32 @@ void TextArea::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
                 const float X1 = FullLine
                     ? ContentRect.X + WrapWidth
                     : ContentRect.X + LineLocalX(L, std::min(OverlapEnd, L.ContentEnd));
-                Renderer.DrawFilledRect({X0, LineY, X1 - X0, LH}, ColorSelection);
+                Renderer.DrawFilledRect({X0, LineY, X1 - X0, Box.Height}, ColorSelection);
             }
         }
 
-        if (L.ContentEnd > L.ContentStart) {
-            Renderer.DrawText(Font, std::string_view(Text).substr(L.ContentStart, L.ContentEnd - L.ContentStart),
-                               {ContentRect.X, LineY}, ColorText);
+        for (const Piece& P : Pieces) {
+            const Render::TextMetrics Metrics = FontMetrics(P.Source.Font);
+            Renderer.DrawText(P.Source.Font, View.substr(P.Source.Start, P.Source.End - P.Source.Start),
+                              {P.X, LineY + Box.Ascent - Metrics.AscentLogical}, P.Source.ColorText);
         }
     }
 
     if (IsFocused()) {
         const std::size_t CaretLine = LineIndexForCaret(CaretIndex);
-        if (CaretLine >= FirstVisible && CaretLine <= LastVisible) {
-            const float CaretY = ContentRect.Y + static_cast<float>(CaretLine) * LH - ScrollOffsetY;
+        const LineBox& Box = LineBoxes[CaretLine];
+        if (Box.Top + Box.Height > ScrollOffsetY && Box.Top < ViewportBottom) {
+            const float CaretY = ContentRect.Y + Box.Top - ScrollOffsetY;
             const float CaretX = ContentRect.X + LineLocalX(Lines[CaretLine], CaretIndex);
-            Renderer.DrawFilledRect({CaretX, CaretY, CaretWidthLogical, LH}, ColorCaret);
+            Renderer.DrawFilledRect({CaretX, CaretY, CaretWidthLogical, Box.Height}, ColorCaret);
         }
     }
 
-    const float TotalHeight = static_cast<float>(Lines.size()) * LH;
-    if (ScrollbarWidthLogical > 0.0f && TotalHeight > ContentRect.H) {
-        const float MaxScroll     = TotalHeight - ContentRect.H;
-        const float ThumbHeight   = std::max(LH, ContentRect.H * (ContentRect.H / TotalHeight));
-        const float ThumbTravel   = ContentRect.H - ThumbHeight;
+    const float Total = TotalHeight();
+    if (ScrollbarWidthLogical > 0.0f && Total > ContentRect.H) {
+        const float MaxScroll   = Total - ContentRect.H;
+        const float ThumbHeight = std::max(DefaultLineHeight(), ContentRect.H * (ContentRect.H / Total));
+        const float ThumbTravel = ContentRect.H - ThumbHeight;
         const float ThumbY = ContentRect.Y + (MaxScroll > 0.0f ? (ScrollOffsetY / MaxScroll) * ThumbTravel : 0.0f);
         const float TrackX = ContentRect.X + ContentRect.W - ScrollbarWidthLogical;
         Renderer.DrawFilledRect({TrackX, ThumbY, ScrollbarWidthLogical, ThumbHeight}, ColorScrollbarThumb);

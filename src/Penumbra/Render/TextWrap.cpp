@@ -6,10 +6,20 @@ namespace Penumbra::Render {
 
 std::vector<TextLine> WrapText(IFontBackend* FontBackend, FontHandle Font, const std::string& Text,
                                 float WrapWidthLogical) {
+    if (!FontBackend) {
+        return WrapText(Text, WrapWidthLogical, {});
+    }
+    const std::string_view View(Text);
+    return WrapText(Text, WrapWidthLogical, [FontBackend, Font, View](std::size_t Start, std::size_t End) {
+        return FontBackend->MeasureTextWidth(Font, View.substr(Start, End - Start));
+    });
+}
+
+std::vector<TextLine> WrapText(const std::string& Text, float WrapWidthLogical, const MeasureTextRangeFn& MeasureRange) {
     std::vector<TextLine> Lines;
     const std::size_t N = Text.size();
 
-    if (!FontBackend || WrapWidthLogical <= 0.0f) {
+    if (!MeasureRange || WrapWidthLogical <= 0.0f) {
         std::size_t LineStart = 0;
         for (std::size_t Index = 0; Index <= N; ++Index) {
             if (Index == N || Text[Index] == '\n') {
@@ -18,11 +28,9 @@ std::vector<TextLine> WrapText(IFontBackend* FontBackend, FontHandle Font, const
             }
         }
     } else {
-        const std::string_view View(Text);
         std::size_t LineStart = 0;
         const auto Overflows = [&](std::size_t Cursor) {
-            return FontBackend->MeasureTextWidth(Font, View.substr(LineStart, Cursor + 1 - LineStart)) >
-                   WrapWidthLogical;
+            return MeasureRange(LineStart, Cursor + 1) > WrapWidthLogical;
         };
 
         while (true) {
