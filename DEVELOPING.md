@@ -25,7 +25,8 @@ path. The repository contains:
   Treat its contents as design context, not as files owned by this repository.
 
 `penumbra` is the core static library. `penumbra_icons` is the optional icon
-set. `penumbra_demo` is the runnable example.
+set. `penumbra_demo` is the runnable example; it builds only when Penumbra is
+the top-level project, unless a consumer sets `PENUMBRA_BUILD_DEMO=ON`.
 
 ## Architectural constraints
 

@@ -18,6 +18,10 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+# The demo builds by default only when Penumbra is the top-level project, so an
+# app fetching Penumbra doesn't also compile penumbra_demo.
+option(PENUMBRA_BUILD_DEMO "Build penumbra_demo" ${PROJECT_IS_TOP_LEVEL})
+
 # The expected path: SDL3 / SDL3_ttf / SDL3_image installed with CMake config packages.
 find_package(SDL3       CONFIG REQUIRED)
 find_package(SDL3_ttf   CONFIG REQUIRED)
@@ -77,16 +81,18 @@ target_link_libraries(penumbra PRIVATE SDL3_image::SDL3_image)
 
 add_subdirectory(icons)
 
-add_executable(penumbra_demo
-    demo/main.cpp
-    demo/DemoTheme.cpp
-    demo/DemoResolvers.cpp)
+if(PENUMBRA_BUILD_DEMO)
+    add_executable(penumbra_demo
+        demo/main.cpp
+        demo/DemoTheme.cpp
+        demo/DemoResolvers.cpp)
 
-target_link_libraries(penumbra_demo PRIVATE penumbra penumbra_icons)
-set_target_properties(penumbra_demo PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/demo")
+    target_link_libraries(penumbra_demo PRIVATE penumbra penumbra_icons)
+    set_target_properties(penumbra_demo PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/demo")
 
-# Absolute path to the demo's vendored assets, so the binary finds its font
-# regardless of the working directory it is launched from. A demo concern only.
-target_compile_definitions(penumbra_demo PRIVATE
-    DEMO_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/demo/assets")
+    # Absolute path to the demo's vendored assets, so the binary finds its font
+    # regardless of the working directory it is launched from. A demo concern only.
+    target_compile_definitions(penumbra_demo PRIVATE
+        DEMO_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/demo/assets")
+endif()
