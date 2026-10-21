@@ -74,6 +74,12 @@ void ScrollablePanel::Arrange(Rect FinalRectLogical) {
         ScrollOffsetY = Clamp(ScrollOffsetY, 0.0f, MaxScroll);
     }
 
+    // Sticky descendants stick to the viewport. A child of the panel can't leave the
+    // whole scrolled content, so it sticks for the full scroll range.
+    const ScrollportScope Port(Content);
+    const Rect            Scrolled{Content.X - ScrollOffsetX, Content.Y - ScrollOffsetY,
+                                   std::max(Content.W, ContentWidth), std::max(Content.H, ContentHeight)};
+
     // Lay children out as a vertical column, shifted up by the (vertical-mode) scroll
     // offset. Positions may fall outside the viewport; the clip in Draw hides them.
     float CursorY = Content.Y - ScrollOffsetY;
@@ -130,7 +136,7 @@ void ScrollablePanel::Arrange(Rect FinalRectLogical) {
         }
 
         const float ChildY = CursorY + Margin.Top;
-        Child->Arrange(OffsetInFlow(*Child, {ChildX, ChildY, ChildWidth, Desired.Y}, Content));
+        Child->Arrange(OffsetInFlow(*Child, {ChildX, ChildY, ChildWidth, Desired.Y}, Content, Scrolled));
 
         CursorY = ChildY + Desired.Y + Margin.Bottom;
         AnyVisible = true;

@@ -57,6 +57,8 @@ the top-level project, unless a consumer sets `PENUMBRA_BUILD_DEMO=ON`.
   rest their input through `DispatchToChild`. A container that also sets its
   children's rects takes `IsOutOfFlow` children out of its layout and places
   them with `ArrangeOutOfFlow`, inside a `ContainingBlockScope`, as `Box` does.
+  A scroll container also arranges its children inside a `ScrollportScope` of
+  its viewport, so `Sticky` descendants stick to it.
 - A key no focused widget used goes to the topmost widget with an
   `OnKeyPressed` handler (`Widgets/KeyDispatch.h`), so a widget that takes keys
   while focused marks each one it uses with `KeyDispatch::MarkUsed`.

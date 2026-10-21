@@ -46,8 +46,9 @@ enum class Justify { Start, Center, End, SpaceBetween };
 // positioned ancestor's padding box (or the window) for Absolute, and the window for
 // Fixed, unless an ancestor has a transform, which is then the containing block for
 // both. An ancestor's clip applies to an Absolute widget only when that ancestor is its
-// containing block or contains it, and never to a Fixed one. Sticky lays out as
-// Relative with no offset for now.
+// containing block or contains it, and never to a Fixed one. Sticky stays in layout
+// until its nearest ScrollablePanel (or the window) scrolls it past an offset, then
+// holds that far from the panel's edge until its parent's edge carries it away.
 enum class Position { Static, Relative, Absolute, Fixed, Sticky };
 
 // CSS's pointer-events. None makes a widget and its subtree let the pointer through to

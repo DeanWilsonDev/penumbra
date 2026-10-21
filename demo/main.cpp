@@ -43,6 +43,7 @@ constexpr int WindowLogicalHeight = 560;
 constexpr const char* FontFileName = "JetBrainsMonoNerdFontMono-Regular.ttf";
 
 constexpr int ExtraSettingRows = 16; // filler rows so the column overflows and scrolls
+constexpr int StickySectionRows = 8; // rows that scroll under the sticky section header
 
 constexpr std::size_t IconsPerRow = 7;
 
@@ -403,6 +404,29 @@ int main() {
             Card->AddChild(std::move(Floating));
             Card->AddChild(std::move(Modal));
             Root->AddChild(std::move(Card));
+        }
+
+        // position: sticky. The section's header holds at the top of the column while its
+        // rows scroll under it, then leaves with the section once its last row has gone.
+        {
+            auto Section = std::make_unique<Box>();
+            Section->Layout         = LayoutMode::VerticalStack;
+            Section->ChildGap       = Theme.SpacingSmall;
+            Section->CrossAlignment = CrossAlign::Stretch;
+
+            auto Header = MakeLabel("Sticky section header", Theme.ColorTextPrimary);
+            Header->Style.ColorBackground = Theme.ColorSurfaceRaised;
+            Header->Style.ColorBorder     = Theme.ColorBorderDefault;
+            Header->Style.BorderWidth     = Theme.BorderWidthDefault;
+            Header->Style.Padding         = {Theme.SpacingSmall, Theme.SpacingSmall, Theme.SpacingSmall,
+                                             Theme.SpacingSmall};
+            Header->Style.PositionMode    = Position::Sticky;
+            Header->Style.Top             = Length::Logical(0.0f);
+            Section->AddChild(std::move(Header));
+            for (int Index = 1; Index <= StickySectionRows; ++Index) {
+                Section->AddChild(MakeLabel("Row " + std::to_string(Index) + " under the header", Theme.ColorTextDisabled));
+            }
+            Root->AddChild(std::move(Section));
         }
 
         Root->AddChild(MakeSeparator());

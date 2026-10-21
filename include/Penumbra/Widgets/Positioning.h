@@ -4,6 +4,7 @@
 #include "Penumbra/Widgets/WidgetBase.h"
 
 #include <cstddef>
+#include <optional>
 
 namespace Penumbra::Widgets {
 
@@ -15,9 +16,16 @@ namespace Penumbra::Widgets {
 // with ArrangeOutOfFlow.
 bool IsOutOfFlow(const WidgetBase& Child);
 
-// InFlowRect moved by a Relative child's offsets, as CSS moves it after layout, with
-// percentages taken of ParentContent. Any other child's rect comes back unchanged.
-Rect OffsetInFlow(const WidgetBase& Child, Rect InFlowRect, Rect ParentContent);
+// InFlowRect moved after layout, as CSS moves it, for a Relative or Sticky child; any
+// other child's rect comes back unchanged.
+//
+// Relative moves by its offsets, percentages taken of ParentContent. Sticky stays put
+// until the innermost scrollport (see ScrollportScope) has scrolled it past an offset,
+// then holds at that distance from the scrollport's edge (percentages of the
+// scrollport), but never leaves StickyBlock, ParentContent unless given: a ScrollablePanel
+// passes its whole scrolled content, so a child of it sticks for the full scroll range.
+Rect OffsetInFlow(const WidgetBase& Child, Rect InFlowRect, Rect ParentContent,
+                  std::optional<Rect> StickyBlock = std::nullopt);
 
 // Measures and arranges an Absolute or Fixed Child against its containing block (see
 // ContainingBlockScope). StaticPosition is where its border box would have started in
@@ -40,6 +48,18 @@ public:
 
 private:
     std::size_t Pushed{0};
+};
+
+// Makes Scrollport, a scroll container's visible content box, where Sticky descendants
+// arranged while this lives stick to. Construct it in a scroll container's Arrange before
+// arranging its children; with none, the window is the scrollport.
+class ScrollportScope {
+public:
+    explicit ScrollportScope(Rect Scrollport);
+    ~ScrollportScope();
+
+    ScrollportScope(const ScrollportScope&)            = delete;
+    ScrollportScope& operator=(const ScrollportScope&) = delete;
 };
 
 } // namespace Penumbra::Widgets
