@@ -420,7 +420,7 @@ int main() {
             SetUpChart(*ProjectsWidget, Theme.ChartHeight * 0.7f);
             ProjectsWidget->Orientation = BarOrientation::Horizontal;
             ProjectsWidget->Stacked     = true;
-            ProjectsWidget->Labels      = {"Penumbra", "Iris", "Lustre", "Cairn"};
+            ProjectsWidget->Labels      = {"Penumbra", "Chaos", "Cosmos", "Cairn"};
             Projects                    = ProjectsWidget.get();
             Projects->OnHoverChanged    = [&ReportHover, Projects](int Index) {
                 if (Index < 0) {
