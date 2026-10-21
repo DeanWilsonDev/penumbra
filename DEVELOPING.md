@@ -54,9 +54,12 @@ the top-level project, unless a consumer sets `PENUMBRA_BUILD_DEMO=ON`.
   A stacking context paints and dispatches its layered descendants itself, in
   z order, so a container that draws or hands input to its own children skips
   any child for which `StackingContext::IsLayeredOut` is true, and hands the
-  rest `InputForChild`'s input. A container that also sets its children's
-  rects takes `IsOutOfFlow` children out of its layout and places them with
-  `ArrangeOutOfFlow`, inside a `ContainingBlockScope`, as `Box` does.
+  rest their input through `DispatchToChild`. A container that also sets its
+  children's rects takes `IsOutOfFlow` children out of its layout and places
+  them with `ArrangeOutOfFlow`, inside a `ContainingBlockScope`, as `Box` does.
+- A key no focused widget used goes to the topmost widget with an
+  `OnKeyPressed` handler (`Widgets/KeyDispatch.h`), so a widget that takes keys
+  while focused marks each one it uses with `KeyDispatch::MarkUsed`.
 - Keep the core library independent of `demo/` and application languages.
   Language and declarative-UI integrations belong in their backend repositories.
 - Public names use `PascalCase`, including methods and local variables. The

@@ -1,6 +1,7 @@
 #include "Penumbra/Widgets/Stacking.h"
 
 #include "Penumbra/Widgets/Box.h"
+#include "Penumbra/Widgets/KeyDispatch.h"
 
 #include <algorithm>
 #include <cassert>
@@ -195,10 +196,13 @@ bool StackingContext::Dispatch(const Entry& Layered, const Platform::InputState&
     Given.PointerPassThrough = Layered.PassThroughAbove.value_or(Input.PointerPassThrough);
     Given.PointerPassThrough = PassThroughFor(PointerEventsOf(*Layered.Widget), Given.PointerPassThrough).value_or(false);
 
-    const WidgetBase* Previous = Current;
-    Current                    = Layered.Widget;
-    bool Took                  = Layered.Widget->UpdateInteractionState(Given);
-    Current                    = Previous;
+    Platform::InputState        KeysInput;
+    const Platform::InputState& Handed   = KeyDispatch::ForChild(Given, KeysInput);
+    const WidgetBase*           Previous = Current;
+    Current                              = Layered.Widget;
+    bool Took                            = Layered.Widget->UpdateInteractionState(Handed);
+    Current                              = Previous;
+    KeyDispatch::AfterChild(*Layered.Widget, Handed);
 
     // Opaque over its whole rect, as CSS hit-tests a box, unless it lets the pointer
     // through: whatever is painted under it doesn't see the pointer there.

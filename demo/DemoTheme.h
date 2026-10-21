@@ -74,6 +74,11 @@ struct Theme {
     float BadgeOffset         = -4.0f; // pokes past the card's top-right corner
     float FloatingPanelWidth  = 240.0f;
     int   ZIndexFloatingPanel = 10;
+
+    // The modal the same card opens: over everything, including the fixed panel.
+    int                     ZIndexModal        = 20;
+    float                   ModalWidth         = 320.0f;
+    Penumbra::Render::Color ColorModalBackdrop = {0, 0, 0, 150};
 };
 
 } // namespace Demo

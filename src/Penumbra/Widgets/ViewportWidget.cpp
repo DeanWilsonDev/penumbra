@@ -1,5 +1,6 @@
 #include "Penumbra/Widgets/ViewportWidget.h"
 
+#include "Penumbra/Widgets/KeyDispatch.h"
 #include "Penumbra/Widgets/Stacking.h"
 
 #include <cmath>
@@ -47,6 +48,7 @@ bool ViewportWidget::UpdateInteractionState(const Platform::InputState& Given) {
     // Layered descendants first, then overlay children (toolbars, gizmo panels)
     // front-to-back. They still update when the pointer is elsewhere, or once one has
     // taken it, with the pointer occluded.
+    const KeyDispatch       Keys(*this, Input);
     StackingContext         Context(*this, StackingContext::Pass::Input);
     const bool              Over = Input.IsPointerOver(ArrangedRect);
     Platform::OccludedInput Occluded(Input);
@@ -57,9 +59,7 @@ bool ViewportWidget::UpdateInteractionState(const Platform::InputState& Given) {
             continue; // hidden, or its stacking context hands it input itself
         }
         const bool Occlude = !Over || ChildConsumed;
-        Platform::InputState ChildInput;
-        if ((*Iterator)->UpdateInteractionState(InputForChild(**Iterator, Occlude ? Occluded.Get() : Input, ChildInput)) &&
-            !Occlude) {
+        if (DispatchToChild(**Iterator, Occlude ? Occluded.Get() : Input) && !Occlude) {
             ChildConsumed = true;
         }
     }

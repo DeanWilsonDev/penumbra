@@ -52,6 +52,7 @@ add_library(penumbra STATIC
     src/Penumbra/Widgets/Label.cpp
     src/Penumbra/Widgets/LayoutPass.cpp
     src/Penumbra/Widgets/Length.cpp
+    src/Penumbra/Widgets/KeyDispatch.cpp
     src/Penumbra/Widgets/Positioning.cpp
     src/Penumbra/Widgets/Stacking.cpp
     src/Penumbra/Widgets/Checkbox.cpp

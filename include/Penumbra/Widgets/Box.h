@@ -97,6 +97,7 @@ public:
         Builder& onHover(std::function<void()> Handler);
         Builder& onFocus(std::function<void()> Handler);
         Builder& onChange(std::function<void()> Handler);
+        Builder& onKeyPressed(std::function<void(Platform::Key)> Handler);
 
         std::unique_ptr<Box> build();
 
@@ -181,10 +182,11 @@ private:
 const Platform::InputState& InputForPointerEvents(PointerEvents Mode, const Platform::InputState& Input,
                                                   Platform::InputState& Storage);
 
-// The input a container hands Child: Input with Child's own pointer-events applied, so
-// a widget that handles its input itself (a Button, a TextInput) honours its
-// BoxStyle's PointerEventsMode too. Returns Input itself when that's unchanged.
-const Platform::InputState& InputForChild(const WidgetBase& Child, const Platform::InputState& Input,
-                                          Platform::InputState& Storage);
+// Hands Child its input, the way every container should, returning what its
+// UpdateInteractionState did: Input with Child's own pointer-events applied, so a
+// widget that handles its input itself (a Button, a TextInput) honours its BoxStyle's
+// PointerEventsMode, and with KeyDispatch's keys (withheld under a full-window widget,
+// and Child noted as a key target).
+bool DispatchToChild(WidgetBase& Child, const Platform::InputState& Input);
 
 } // namespace Penumbra::Widgets

@@ -1,5 +1,6 @@
 #include "Penumbra/Widgets/ScrollablePanel.h"
 
+#include "Penumbra/Widgets/KeyDispatch.h"
 #include "Penumbra/Widgets/Positioning.h"
 #include "Penumbra/Widgets/Stacking.h"
 #include "Penumbra/Widgets/TextSelection.h"
@@ -167,6 +168,7 @@ bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Given) 
     // already taken, and the layered descendant's ancestors uncover it themselves.
     // Layered descendants clip their own input, so they get it unclipped by the panel:
     // a Fixed one can sit outside it.
+    const KeyDispatch       Keys(*this, Handed);
     StackingContext         Context(*this, StackingContext::Pass::Input);
     Platform::OccludedInput Occluded(Handed);
     const bool              LayeredTook = Context.DispatchAbove(ScrollbarTook ? Occluded.Get() : Handed);
@@ -177,9 +179,7 @@ bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Given) 
         if (!(*Iterator)->GetIsVisible() || StackingContext::IsLayeredOut(**Iterator)) {
             continue;
         }
-        Platform::InputState ChildInput;
-        if ((*Iterator)->UpdateInteractionState(InputForChild(**Iterator, PointerTaken ? Occluded.Get() : Handed, ChildInput)) &&
-            !PointerTaken) {
+        if (DispatchToChild(**Iterator, PointerTaken ? Occluded.Get() : Handed) && !PointerTaken) {
             PointerTaken       = true;
             Consumed           = true;
             ChildConsumedWheel = (*Iterator)->ConsumedWheelThisFrame();

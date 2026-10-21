@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/TextInput.h"
 
+#include "Penumbra/Widgets/KeyDispatch.h"
+
 #include "Penumbra/Render/Utf8.h"
 
 #include <cmath>
@@ -91,6 +93,17 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
     }
 
     for (const Platform::Key Key : Input.KeysPressedThisFrame) {
+        // A single-line field types and edits, but has no use for Escape, Tab, Enter, Up
+        // or Down, nor any shortcut but select-all, copy, cut and paste: those go on to
+        // whatever handles keys (KeyDispatch).
+        const bool Uses = Shortcut ? (Key == Platform::Key::A || Key == Platform::Key::C ||
+                                      Key == Platform::Key::X || Key == Platform::Key::V)
+                                   : (Key != Platform::Key::Escape && Key != Platform::Key::Tab &&
+                                      Key != Platform::Key::Enter && Key != Platform::Key::Up &&
+                                      Key != Platform::Key::Down);
+        if (Uses) {
+            KeyDispatch::MarkUsed(Key);
+        }
         if (Shortcut) {
             switch (Key) {
             case Platform::Key::A:

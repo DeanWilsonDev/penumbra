@@ -1,5 +1,6 @@
 #include "Penumbra/Widgets/SplitPanel.h"
 
+#include "Penumbra/Widgets/KeyDispatch.h"
 #include "Penumbra/Widgets/Positioning.h"
 #include "Penumbra/Widgets/Stacking.h"
 
@@ -105,6 +106,7 @@ bool SplitPanel::UpdateInteractionState(const Platform::InputState& Given) {
     const Platform::InputState& Input = InputForPointerEvents(Style.PointerEventsMode, Given, PointerEventsInput);
 
     // Reverse paint order: layered descendants first, over the handle and the panes.
+    const KeyDispatch           Keys(*this, Input);
     StackingContext             Context(*this, StackingContext::Pass::Input);
     Platform::OccludedInput     Occluded(Input);
     const bool                  LayeredTook = Context.DispatchAbove(Input);
@@ -139,9 +141,8 @@ bool SplitPanel::UpdateInteractionState(const Platform::InputState& Given) {
     // and First still updates, with the pointer occluded, when Second takes it.
     bool PaneConsumed = LayeredTook;
     for (WidgetBase* Pane : {Second.get(), First.get()}) {
-        Platform::InputState PaneInput;
         if (Pane && !StackingContext::IsLayeredOut(*Pane) &&
-            Pane->UpdateInteractionState(InputForChild(*Pane, PaneConsumed ? Occluded.Get() : Input, PaneInput))) {
+            DispatchToChild(*Pane, PaneConsumed ? Occluded.Get() : Input)) {
             PaneConsumed = true;
         }
     }

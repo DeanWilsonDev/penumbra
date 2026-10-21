@@ -81,6 +81,11 @@ public:
     std::function<void()> OnFocused  = nullptr;
     std::function<void()> OnChanged  = nullptr;
 
+    // Each key this frame that no focused widget used, when this is the topmost visible
+    // widget, in paint order, with a handler, and no full-window widget above it holds
+    // the keys back (see KeyDispatch.h). How a modal closes on Escape.
+    std::function<void(Platform::Key)> OnKeyPressed = nullptr;
+
     // Fires from ~WidgetBase() when set -- the generic "this widget is being torn
     // down" hook a plain Box handed out via BuildWidgetTree can opt into, mirroring
     // OnPressed/etc.'s "null by default, opt-in" convention. Lets a caller detect

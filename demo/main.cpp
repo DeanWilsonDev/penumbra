@@ -312,10 +312,13 @@ int main() {
 
         // Positioning, as in CSS. A relative card has an absolute badge poking past its
         // corner, which the column still clips when it scrolls, as the badge's
-        // containing block is inside it. The card's button shows a fixed, z-indexed
-        // panel that's a child of this card, deep in the scrolled column, yet sits in
-        // the window's corner over both panes, outside the column's clip, wherever the
-        // column is scrolled to.
+        // containing block is inside it. The card's first button shows a fixed,
+        // z-indexed panel that's a child of this card, deep in the scrolled column, yet
+        // sits in the window's corner over both panes, outside the column's clip,
+        // wherever the column is scrolled to. Its second opens a modal: a full-window
+        // fixed layer over everything, which closes on Escape (a key no focused field
+        // uses reaches the topmost widget with a key handler) or a click on its
+        // backdrop, and keeps typing away from a field focused behind it.
         {
             auto Card = std::make_unique<Box>();
             Card->Style                 = Demo::ResolvePanelStyle(Theme);
@@ -352,11 +355,53 @@ int main() {
             Floating->AddChild(MakeTextButton("Close", [FloatingPtr]() { FloatingPtr->SetIsVisible(false); }));
             Floating->SetIsVisible(false);
 
+            auto Modal = std::make_unique<Box>();
+            Modal->Style.PositionMode = Position::Fixed;
+            Modal->Style.Top = Modal->Style.Right = Modal->Style.Bottom = Modal->Style.Left = Length::Logical(0.0f);
+            Modal->Style.ZIndex        = Theme.ZIndexModal;
+            Modal->Layout              = LayoutMode::VerticalStack;
+            Modal->JustifyContentMode  = Justify::Center;
+            Modal->CrossAlignment      = CrossAlign::Center;
+            Box* ModalPtr              = Modal.get();
+            Modal->OnKeyPressed        = [ModalPtr](Penumbra::Platform::Key Key) {
+                if (Key == Penumbra::Platform::Key::Escape) {
+                    ModalPtr->SetIsVisible(false);
+                }
+            };
+
+            // The backdrop is positioned, so it paints over the layer's ordinary
+            // content; the panel is positioned too, and later, so it paints over the
+            // backdrop and takes the clicks on it.
+            auto Backdrop = std::make_unique<Box>();
+            Backdrop->Style.ColorBackground = Theme.ColorModalBackdrop;
+            Backdrop->Style.PositionMode    = Position::Absolute;
+            Backdrop->Style.Top = Backdrop->Style.Right = Backdrop->Style.Bottom = Backdrop->Style.Left =
+                Length::Logical(0.0f);
+            Backdrop->OnPressed = [ModalPtr]() { ModalPtr->SetIsVisible(false); };
+
+            auto Dialog = std::make_unique<Box>();
+            Dialog->Style              = Demo::ResolvePanelStyle(Theme);
+            Dialog->Style.PositionMode = Position::Relative;
+            Dialog->Style.Width        = Length::Logical(Theme.ModalWidth);
+            Dialog->Layout             = LayoutMode::VerticalStack;
+            Dialog->ChildGap           = Theme.SpacingSmall;
+            Dialog->CrossAlignment     = CrossAlign::Stretch;
+            Dialog->AddChild(MakeLabel("A modal, z-index " + std::to_string(Theme.ZIndexModal), Theme.ColorTextPrimary));
+            Dialog->AddChild(MakeLabel("Escape or a click outside", Theme.ColorTextDisabled));
+            Dialog->AddChild(MakeLabel("closes it.", Theme.ColorTextDisabled));
+            Dialog->AddChild(MakeTextButton("Close", [ModalPtr]() { ModalPtr->SetIsVisible(false); }));
+
+            Modal->AddChild(std::move(Backdrop));
+            Modal->AddChild(std::move(Dialog));
+            Modal->SetIsVisible(false);
+
             Card->AddChild(MakeLabel("Relative card, absolute badge", Theme.ColorTextPrimary));
             Card->AddChild(MakeLabel("Its button opens a fixed panel.", Theme.ColorTextDisabled));
             Card->AddChild(MakeTextButton("Show fixed panel", [FloatingPtr]() { FloatingPtr->SetIsVisible(true); }));
+            Card->AddChild(MakeTextButton("Open modal", [ModalPtr]() { ModalPtr->SetIsVisible(true); }));
             Card->AddChild(std::move(Badge));
             Card->AddChild(std::move(Floating));
+            Card->AddChild(std::move(Modal));
             Root->AddChild(std::move(Card));
         }
 

@@ -1,5 +1,6 @@
 #include "Penumbra/Widgets/Box.h"
 
+#include "Penumbra/Widgets/KeyDispatch.h"
 #include "Penumbra/Widgets/LayoutPass.h"
 #include "Penumbra/Widgets/Positioning.h"
 #include "Penumbra/Widgets/Stacking.h"
@@ -644,10 +645,16 @@ const Platform::InputState& InputForPointerEvents(PointerEvents Mode, const Plat
     return Storage;
 }
 
-const Platform::InputState& InputForChild(const WidgetBase& Child, const Platform::InputState& Input,
-                                          Platform::InputState& Storage) {
-    const BoxStyle* ChildStyle = Child.GetBoxStyle();
-    return ChildStyle ? InputForPointerEvents(ChildStyle->PointerEventsMode, Input, Storage) : Input;
+bool DispatchToChild(WidgetBase& Child, const Platform::InputState& Input) {
+    Platform::InputState        PointerEventsInput;
+    Platform::InputState        KeysInput;
+    const BoxStyle*             ChildStyle = Child.GetBoxStyle();
+    const Platform::InputState& WithPointerEvents =
+        ChildStyle ? InputForPointerEvents(ChildStyle->PointerEventsMode, Input, PointerEventsInput) : Input;
+    const Platform::InputState& Given = KeyDispatch::ForChild(WithPointerEvents, KeysInput);
+    const bool                  Took  = Child.UpdateInteractionState(Given);
+    KeyDispatch::AfterChild(Child, Given);
+    return Took;
 }
 
 bool Box::UpdateInteractionState(const Platform::InputState& Input) {
@@ -675,6 +682,7 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
 
     // Reverse paint order: the layered descendants over the ordinary children, the
     // children, then the layered descendants under them.
+    const KeyDispatch       Keys(*this, *Effective);
     StackingContext         Context(*this, StackingContext::Pass::Input);
     Platform::OccludedInput Occluded(*Effective);
     bool                    ChildConsumed = Context.DispatchAbove(*Effective);
@@ -682,9 +690,7 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
         if (!(*Iterator)->GetIsVisible() || StackingContext::IsLayeredOut(**Iterator)) {
             continue; // a hidden subtree can't consume input
         }
-        Platform::InputState ChildInput;
-        if ((*Iterator)->UpdateInteractionState(
-                InputForChild(**Iterator, ChildConsumed ? Occluded.Get() : *Effective, ChildInput))) {
+        if (DispatchToChild(**Iterator, ChildConsumed ? Occluded.Get() : *Effective)) {
             ChildConsumed = true;
         }
     }
@@ -916,6 +922,11 @@ Box::Builder& Box::Builder::onFocus(std::function<void()> Handler) {
 
 Box::Builder& Box::Builder::onChange(std::function<void()> Handler) {
     Owned->OnChanged = std::move(Handler);
+    return *this;
+}
+
+Box::Builder& Box::Builder::onKeyPressed(std::function<void(Platform::Key)> Handler) {
+    Owned->OnKeyPressed = std::move(Handler);
     return *this;
 }
 

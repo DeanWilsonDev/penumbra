@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/TextArea.h"
 
+#include "Penumbra/Widgets/KeyDispatch.h"
+
 #include "Penumbra/Render/Utf8.h"
 
 #include <algorithm>
@@ -306,6 +308,15 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
     }
 
     for (const Platform::Key Key : Input.KeysPressedThisFrame) {
+        // A multi-line field types, edits and moves, but has no use for Escape or Tab, nor
+        // any shortcut but select-all, copy, cut and paste: those go on to whatever
+        // handles keys (KeyDispatch).
+        const bool Uses = Shortcut ? (Key == Platform::Key::A || Key == Platform::Key::C ||
+                                      Key == Platform::Key::X || Key == Platform::Key::V)
+                                   : (Key != Platform::Key::Escape && Key != Platform::Key::Tab);
+        if (Uses) {
+            KeyDispatch::MarkUsed(Key);
+        }
         RebuildLinesIfNeeded(WrapWidth);
 
         if (Shortcut) {
