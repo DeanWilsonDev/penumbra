@@ -28,6 +28,8 @@ public:
 
     std::function<void(const std::string&)> OnTextChanged;
 
+    ~TextInput() override; // gives up focus, so a later widget at this address isn't focused
+
     bool UpdateInteractionState(const Platform::InputState&) override;
 
 protected:

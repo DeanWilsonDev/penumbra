@@ -253,6 +253,12 @@ Point TextArea::MeasureContent(Point /*AvailableContentSize*/) {
     return {PreferredWidthLogical, PreferredHeightLogical};
 }
 
+TextArea::~TextArea() {
+    if (IsFocused()) {
+        Focus->Focused = nullptr;
+    }
+}
+
 bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
     const bool Hovered  = Input.IsPointerOver(ArrangedRect);
     const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];

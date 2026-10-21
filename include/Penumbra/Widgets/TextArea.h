@@ -49,6 +49,8 @@ public:
     void                             SetSpans(std::vector<TextAreaSpan> NewSpans);
     const std::vector<TextAreaSpan>& GetSpans() const { return Spans; }
 
+    ~TextArea() override; // gives up focus, so a later widget at this address isn't focused
+
     bool UpdateInteractionState(const Platform::InputState&) override;
     bool ConsumedWheelThisFrame() const override { return WheelHandledThisFrame; }
 

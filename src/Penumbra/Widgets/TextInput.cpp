@@ -52,6 +52,12 @@ Point TextInput::MeasureContent(Point /*AvailableContentSize*/) {
     return {PreferredWidthLogical, LineHeight};
 }
 
+TextInput::~TextInput() {
+    if (IsFocused()) {
+        Focus->Focused = nullptr;
+    }
+}
+
 bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
     const bool Hovered  = Input.IsPointerOver(ArrangedRect);
     const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
