@@ -49,6 +49,14 @@ the top-level project, unless a consumer sets `PENUMBRA_BUILD_DEMO=ON`.
   start of a press with `InputState::IsPointerOver`, never a raw mouse test.
   Animations that must not stall advance in `Draw` on the `Renderer`'s frame
   clock instead.
+- Positioning and z-index follow CSS (`BoxStyle::PositionMode`, `ZIndex`,
+  `PointerEventsMode`; see `Widgets/Stacking.h` and `Widgets/Positioning.h`).
+  A stacking context paints and dispatches its layered descendants itself, in
+  z order, so a container that draws or hands input to its own children skips
+  any child for which `StackingContext::IsLayeredOut` is true, and hands the
+  rest `InputForChild`'s input. A container that also sets its children's
+  rects takes `IsOutOfFlow` children out of its layout and places them with
+  `ArrangeOutOfFlow`, inside a `ContainingBlockScope`, as `Box` does.
 - Keep the core library independent of `demo/` and application languages.
   Language and declarative-UI integrations belong in their backend repositories.
 - Public names use `PascalCase`, including methods and local variables. The

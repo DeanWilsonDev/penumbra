@@ -7,6 +7,7 @@
 #include <SDL3/SDL.h>
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -161,6 +162,12 @@ public:
     void PushClipRect(Rect RectLogical);
     void PopClipRect();
 
+    // Clips to RectLogical alone, ignoring the clips pushed before it, or clips nothing
+    // without a rect, until the matching PopClipRect. For content that, as in CSS, its
+    // ancestors don't clip: a position: fixed widget, or an absolute one painted outside
+    // a panel that isn't its containing block. Pushes after it intersect with it as usual.
+    void PushClipRectUnbounded(std::optional<Rect> RectLogical);
+
     // Blend-mode stack, scoped like the clip-rect stack above -- every push must be
     // matched by a pop. Nesting is not expected (SDL's blend mode is a single current
     // state, not a stack of composited layers), but a stack keeps the call symmetric
@@ -209,6 +216,10 @@ public:
 
 private:
     SDL_FRect ToPhysical(Rect RectLogical) const;
+
+    // Sets SDL's clip from the top of ClipStack, or turns it off when that's empty or
+    // clips nothing.
+    void ApplyClipStack();
     Point     ToPhysicalPoint(Point PointLogical) const;
 
     // Points in physical pixels, without consecutive repeats; when IsClosed, also
@@ -233,7 +244,9 @@ private:
     std::uint64_t         FrameIndex{0};
     float                 FrameDeltaSeconds{0.0f};
     std::uint64_t         LastBeginFrameTicksNs{0}; // for the one-argument BeginFrame
-    std::vector<SDL_Rect>      ClipStack;  // physical-pixel rects, already intersected
+    // Physical-pixel rects, already intersected; an empty entry clips nothing (pushed by
+    // PushClipRectUnbounded without a rect).
+    std::vector<std::optional<SDL_Rect>> ClipStack;
     std::vector<SDL_BlendMode> BlendStack; // resolved SDL blend modes -- PushBlendMode and
                                             // PushCustomBlendMode both push onto this one stack
 

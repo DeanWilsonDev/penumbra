@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/ScrollablePanel.h"
 
+#include "Penumbra/Widgets/Positioning.h"
+#include "Penumbra/Widgets/Stacking.h"
 #include "Penumbra/Widgets/TextSelection.h"
 
 #include <algorithm>
@@ -28,7 +30,7 @@ Point ScrollablePanel::Measure(Point AvailableSizeLogical) {
     bool  AnyVisible = false;
     for (std::size_t Index = 0; Index < Children.size(); ++Index) {
         WidgetBase* Child = Children[Index].get();
-        if (!Child->GetIsVisible()) {
+        if (!Child->GetIsVisible() || IsOutOfFlow(*Child)) {
             continue;
         }
         const EdgeInsets Margin = Child->GetMarginLogical();
@@ -55,6 +57,7 @@ Point ScrollablePanel::Measure(Point AvailableSizeLogical) {
 
 void ScrollablePanel::Arrange(Rect FinalRectLogical) {
     ArrangedRect = FinalRectLogical;
+    const ContainingBlockScope Block(*this, PaddingRectFrom(FinalRectLogical));
 
     const Rect Content = ContentRectFrom(FinalRectLogical);
     const bool IsHorizontal = (Direction == ScrollDirection::Horizontal);
@@ -77,6 +80,14 @@ void ScrollablePanel::Arrange(Rect FinalRectLogical) {
     bool  AnyVisible = false;
     for (std::size_t Index = 0; Index < Count; ++Index) {
         WidgetBase* Child = Children[Index].get();
+        if (IsOutOfFlow(*Child)) {
+            // Out of the column, against its containing block; where it would have
+            // stacked on an axis whose offsets are both auto, scrolled with the rest.
+            const EdgeInsets Margin = Child->GetMarginLogical();
+            const float      StartX = Content.X - (IsHorizontal ? ScrollOffsetX : 0.0f);
+            ArrangeOutOfFlow(*Child, {StartX + Margin.Left, (AnyVisible ? CursorY + ChildGap : CursorY) + Margin.Top});
+            continue;
+        }
         if (!Child->GetIsVisible()) {
             continue; // not arranged: an un-arranged widget keeps its last ArrangedRect --
                       // same contract Box::Arrange already gives its own children.
@@ -118,40 +129,70 @@ void ScrollablePanel::Arrange(Rect FinalRectLogical) {
         }
 
         const float ChildY = CursorY + Margin.Top;
-        Child->Arrange({ChildX, ChildY, ChildWidth, Desired.Y});
+        Child->Arrange(OffsetInFlow(*Child, {ChildX, ChildY, ChildWidth, Desired.Y}, Content));
 
         CursorY = ChildY + Desired.Y + Margin.Bottom;
         AnyVisible = true;
     }
 }
 
-bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Input) {
+bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Given) {
+    if (StackingContext::IsLayeredOut(*this)) {
+        return false; // its stacking context hands it input itself, in paint order
+    }
+    Platform::InputState        PointerEventsInput;
+    const Platform::InputState& Handed = InputForPointerEvents(Style.PointerEventsMode, Given, PointerEventsInput);
+
+    // A layered descendant that took the pointer, over this panel's own children, is
+    // still over the panel, as in CSS: the panel keeps its hover and its wheel.
+    Platform::InputState Uncovered;
+    const bool           Uncover = Handed.PointerOccluded && StackingContext::IsOnPointerPath(*this);
+    if (Uncover) {
+        Uncovered                 = Handed;
+        Uncovered.PointerOccluded = false;
+    }
+    const Platform::InputState& Input = Uncover ? Uncovered : Handed;
+
     const bool OverPanel = Input.IsPointerOver(ArrangedRect);
     PointerOver = OverPanel;
 
-    const Rect              Content       = ContentRectFrom(ArrangedRect);
-    const bool              ScrollbarTook = UpdateScrollbar(Input, Content);
+    // The scrollbar and a text selection don't start under a descendant that took the
+    // pointer, so they see it as handed down.
+    const Rect Content       = ContentRectFrom(ArrangedRect);
+    const bool ScrollbarTook = UpdateScrollbar(Handed, Content);
     if (Selection) {
-        Selection->Update(*this, ScrollbarTook ? Rect{} : Content, Input);
+        Selection->Update(*this, ScrollbarTook ? Rect{} : Content, Handed);
     }
-    Platform::OccludedInput Occluded(Input);
-    bool                    PointerTaken       = ScrollbarTook || !Input.IsPointerOver(Content);
-    bool                    Consumed           = false;
-    bool                    ChildConsumedWheel = false;
+    // Children get the input as handed down: with the pointer occluded when it's
+    // already taken, and the layered descendant's ancestors uncover it themselves.
+    // Layered descendants clip their own input, so they get it unclipped by the panel:
+    // a Fixed one can sit outside it.
+    StackingContext         Context(*this, StackingContext::Pass::Input);
+    Platform::OccludedInput Occluded(Handed);
+    const bool              LayeredTook = Context.DispatchAbove(ScrollbarTook ? Occluded.Get() : Handed);
+    bool                    PointerTaken       = ScrollbarTook || LayeredTook || !Input.IsPointerOver(Content);
+    bool                    Consumed           = Uncover || LayeredTook;
+    bool                    ChildConsumedWheel = Uncover && StackingContext::PointerTakerUsedWheel();
     for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
-        if (!(*Iterator)->GetIsVisible()) {
+        if (!(*Iterator)->GetIsVisible() || StackingContext::IsLayeredOut(**Iterator)) {
             continue;
         }
-        if ((*Iterator)->UpdateInteractionState(PointerTaken ? Occluded.Get() : Input) && !PointerTaken) {
+        Platform::InputState ChildInput;
+        if ((*Iterator)->UpdateInteractionState(InputForChild(**Iterator, PointerTaken ? Occluded.Get() : Handed, ChildInput)) &&
+            !PointerTaken) {
             PointerTaken       = true;
             Consumed           = true;
             ChildConsumedWheel = (*Iterator)->ConsumedWheelThisFrame();
         }
     }
+    if (Context.DispatchBelow(Handed, PointerTaken) && !PointerTaken) {
+        PointerTaken = true;
+        Consumed     = true;
+    }
 
     WheelHandledThisFrame = false;
     if (!OverPanel) {
-        return DraggingThumb;
+        return DraggingThumb || LayeredTook;
     }
     Consumed = Consumed || ScrollbarTook;
 
@@ -182,6 +223,9 @@ bool ScrollablePanel::UpdateInteractionState(const Platform::InputState& Input) 
 }
 
 void ScrollablePanel::Draw(Render::Renderer& Renderer) {
+    if (StackingContext::IsLayeredOut(*this)) {
+        return; // its stacking context paints it later, in z order
+    }
     AdvanceTransitions(Renderer);
     const float Opacity = DisplayedOpacity();
     if (Opacity <= 0.0f) {
@@ -191,6 +235,7 @@ void ScrollablePanel::Draw(Render::Renderer& Renderer) {
     if (Translucent) {
         Renderer.PushTransform(ArrangedRect, Transform{}, Opacity);
     }
+    StackingContext Context(*this, StackingContext::Pass::Paint);
 
     const Render::Color Background = DisplayedBackground();
     if (Background.A != 0) {
@@ -201,17 +246,20 @@ void ScrollablePanel::Draw(Render::Renderer& Renderer) {
     }
 
     const Rect Content = ContentRectFrom(ArrangedRect);
+    // Each layered descendant sets its own clip, so they're painted outside this one.
+    Context.PaintBelow(Renderer);
     Renderer.PushClipRect(Content);
     if (Selection) {
         Selection->DrawGaps(Renderer);
     }
     for (auto& Child : Children) {
-        if (!Child->GetIsVisible()) {
+        if (!Child->GetIsVisible() || StackingContext::IsLayeredOut(*Child)) {
             continue;
         }
         Child->Draw(Renderer);
     }
     Renderer.PopClipRect();
+    Context.PaintAbove(Renderer);
 
     DrawScrollbar(Renderer, Content);
     if (Translucent) {

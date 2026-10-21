@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/ViewportWidget.h"
 
+#include "Penumbra/Widgets/Stacking.h"
+
 #include <cmath>
 
 namespace Penumbra::Widgets {
@@ -35,20 +37,40 @@ void ViewportWidget::Arrange(Rect FinalRectLogical) {
     ContentSizeLogical = {Content.W, Content.H};
 }
 
-bool ViewportWidget::UpdateInteractionState(const Platform::InputState& Input) {
-    // Overlay children (toolbars, gizmo panels) get first refusal, front-to-back. They
-    // still update when the pointer is elsewhere, or once one has taken it, with the
-    // pointer occluded.
+bool ViewportWidget::UpdateInteractionState(const Platform::InputState& Given) {
+    if (StackingContext::IsLayeredOut(*this)) {
+        return false; // its stacking context hands it input itself, in paint order
+    }
+    Platform::InputState        PointerEventsInput;
+    const Platform::InputState& Input = InputForPointerEvents(Style.PointerEventsMode, Given, PointerEventsInput);
+
+    // Layered descendants first, then overlay children (toolbars, gizmo panels)
+    // front-to-back. They still update when the pointer is elsewhere, or once one has
+    // taken it, with the pointer occluded.
+    StackingContext         Context(*this, StackingContext::Pass::Input);
     const bool              Over = Input.IsPointerOver(ArrangedRect);
     Platform::OccludedInput Occluded(Input);
-    bool                    ChildConsumed = false;
+    const bool              LayeredTook   = Context.DispatchAbove(Input);
+    bool                    ChildConsumed = LayeredTook;
     for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
+        if (!(*Iterator)->GetIsVisible() || StackingContext::IsLayeredOut(**Iterator)) {
+            continue; // hidden, or its stacking context hands it input itself
+        }
         const bool Occlude = !Over || ChildConsumed;
-        if ((*Iterator)->UpdateInteractionState(Occlude ? Occluded.Get() : Input) && !Occlude) {
+        Platform::InputState ChildInput;
+        if ((*Iterator)->UpdateInteractionState(InputForChild(**Iterator, Occlude ? Occluded.Get() : Input, ChildInput)) &&
+            !Occlude) {
             ChildConsumed = true;
         }
     }
+    if (Context.DispatchBelow(Input, ChildConsumed)) {
+        ChildConsumed = true;
+    }
 
+    // A layered descendant can take the pointer outside the viewport's own rect.
+    if (LayeredTook) {
+        return true;
+    }
     // Outside the widget entirely → no consumption, input falls through (spec §7.1).
     if (!Over) {
         return false;

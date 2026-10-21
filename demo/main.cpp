@@ -310,6 +310,56 @@ int main() {
             Root->AddChild(std::move(Row));
         }
 
+        // Positioning, as in CSS. A relative card has an absolute badge poking past its
+        // corner, which the column still clips when it scrolls, as the badge's
+        // containing block is inside it. The card's button shows a fixed, z-indexed
+        // panel that's a child of this card, deep in the scrolled column, yet sits in
+        // the window's corner over both panes, outside the column's clip, wherever the
+        // column is scrolled to.
+        {
+            auto Card = std::make_unique<Box>();
+            Card->Style                 = Demo::ResolvePanelStyle(Theme);
+            Card->Style.Padding         = {Theme.SpacingMedium, Theme.SpacingMedium, Theme.SpacingMedium,
+                                           Theme.SpacingMedium};
+            Card->Style.PositionMode    = Position::Relative;
+            Card->Layout                = LayoutMode::VerticalStack;
+            Card->ChildGap              = Theme.SpacingSmall;
+
+            auto Badge = std::make_unique<Box>();
+            Badge->Style.ColorBackground = Theme.ColorAccent;
+            Badge->Style.BorderRadius    = Theme.BadgeSize / 2.0f;
+            Badge->Style.Width           = Length::Logical(Theme.BadgeSize);
+            Badge->Style.Height          = Length::Logical(Theme.BadgeSize);
+            Badge->Style.PositionMode    = Position::Absolute;
+            Badge->Style.Top             = Length::Logical(Theme.BadgeOffset);
+            Badge->Style.Right           = Length::Logical(Theme.BadgeOffset);
+
+            auto Floating = std::make_unique<Box>();
+            Floating->Style              = Demo::ResolvePanelStyle(Theme);
+            Floating->Style.PositionMode = Position::Fixed;
+            Floating->Style.Right        = Length::Logical(Theme.SpacingLarge);
+            Floating->Style.Bottom       = Length::Logical(Theme.SpacingLarge);
+            Floating->Style.Width        = Length::Logical(Theme.FloatingPanelWidth);
+            Floating->Style.ZIndex       = Theme.ZIndexFloatingPanel;
+            Floating->Layout             = LayoutMode::VerticalStack;
+            Floating->ChildGap           = Theme.SpacingSmall;
+            Floating->CrossAlignment     = CrossAlign::Stretch;
+            Box* FloatingPtr             = Floating.get();
+            Floating->AddChild(MakeLabel("Fixed, z-index " + std::to_string(Theme.ZIndexFloatingPanel),
+                                         Theme.ColorTextPrimary));
+            Floating->AddChild(MakeLabel("Over both panes; scroll", Theme.ColorTextDisabled));
+            Floating->AddChild(MakeLabel("the column under it.", Theme.ColorTextDisabled));
+            Floating->AddChild(MakeTextButton("Close", [FloatingPtr]() { FloatingPtr->SetIsVisible(false); }));
+            Floating->SetIsVisible(false);
+
+            Card->AddChild(MakeLabel("Relative card, absolute badge", Theme.ColorTextPrimary));
+            Card->AddChild(MakeLabel("Its button opens a fixed panel.", Theme.ColorTextDisabled));
+            Card->AddChild(MakeTextButton("Show fixed panel", [FloatingPtr]() { FloatingPtr->SetIsVisible(true); }));
+            Card->AddChild(std::move(Badge));
+            Card->AddChild(std::move(Floating));
+            Root->AddChild(std::move(Card));
+        }
+
         Root->AddChild(MakeSeparator());
 
         {
@@ -684,6 +734,7 @@ int main() {
             const Penumbra::Point WindowSize = Window.GetLogicalWindowSize();
             const Penumbra::Rect  FullRect{0.0f, 0.0f, WindowSize.X, WindowSize.Y};
 
+            SetLayoutViewportLogical(WindowSize); // vw/vh, and the window that fixed widgets sit in
             {
                 const LayoutPass Pass; // repeated measures within the layout reuse their results
                 Host->Measure({FullRect.W, FullRect.H});

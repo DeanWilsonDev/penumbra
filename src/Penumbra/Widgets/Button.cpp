@@ -1,5 +1,7 @@
 #include "Penumbra/Widgets/Button.h"
 
+#include "Penumbra/Widgets/Stacking.h"
+
 #include <cmath>
 
 namespace Penumbra::Widgets {
@@ -39,8 +41,13 @@ void Button::ApplyStyle(const ButtonStyle& InStyle) {
     Style = static_cast<const BoxStyle&>(InStyle);
 }
 
-bool Button::UpdateInteractionState(const Platform::InputState& Input) {
-    bool Consumed = false;
+bool Button::UpdateInteractionState(const Platform::InputState& Given) {
+    if (StackingContext::IsLayeredOut(*this)) {
+        return false; // its stacking context hands it input itself, in paint order
+    }
+    Platform::InputState        PointerEventsInput;
+    const Platform::InputState& Input = InputForPointerEvents(Style.PointerEventsMode, Given, PointerEventsInput);
+    bool                        Consumed = false;
 
     if (!IsEnabled) {
         CurrentState = InteractionState::Disabled;
@@ -52,7 +59,8 @@ bool Button::UpdateInteractionState(const Platform::InputState& Input) {
             MousePosition = InverseTransformPoint(MousePosition, Pivot, Style.Transform);
         }
 
-        const bool Hovered = !Input.PointerOccluded && PointInRect(MousePosition, ArrangedRect);
+        const bool Hovered =
+            !Input.PointerOccluded && !Input.PointerPassThrough && PointInRect(MousePosition, ArrangedRect);
         const bool Down     = Input.MouseButtonDown[LeftButton];
         const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
         const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];

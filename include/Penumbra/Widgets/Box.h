@@ -70,8 +70,10 @@ public:
     bool  UpdateInteractionState(const Platform::InputState&) override;
     void  Draw(Render::Renderer&) override;
 
-    EdgeInsets GetMarginLogical() const override { return Style.Margin; }
-    float      GetFlexGrow() const override; // eased, under a FlexGrow transition
+    EdgeInsets      GetMarginLogical() const override { return Style.Margin; }
+    float           GetFlexGrow() const override; // eased, under a FlexGrow transition
+    const BoxStyle* GetBoxStyle() const override { return &Style; }
+    bool            PaintsAsGroup() const override; // a transform, or an opacity below 1 as displayed
 
     InteractionState GetInteractionState() const { return CurrentState; }
 
@@ -110,6 +112,7 @@ protected:
 
     Point FrameSize() const;
     Rect  ContentRectFrom(Rect OuterRect) const;
+    Rect  PaddingRectFrom(Rect OuterRect) const; // inside the border: a containing block's area
     Point ConstrainAvailable(Point AvailableSizeLogical) const;
     Point ConstrainDesired(Point DesiredSizeLogical, Point AvailableSizeLogical) const;
 
@@ -171,5 +174,17 @@ private:
     float ConstrainLength(bool IsWidth, float Value, float AvailableLogical) const;
     Point MeasureUncached(Point AvailableSizeLogical);
 };
+
+// The input a Box's subtree takes, given what its parent handed it: Input, with
+// PointerPassThrough set or cleared by Mode, the way CSS inherits pointer-events.
+// Returns Input itself when that's unchanged, else Storage, filled in.
+const Platform::InputState& InputForPointerEvents(PointerEvents Mode, const Platform::InputState& Input,
+                                                  Platform::InputState& Storage);
+
+// The input a container hands Child: Input with Child's own pointer-events applied, so
+// a widget that handles its input itself (a Button, a TextInput) honours its
+// BoxStyle's PointerEventsMode too. Returns Input itself when that's unchanged.
+const Platform::InputState& InputForChild(const WidgetBase& Child, const Platform::InputState& Input,
+                                          Platform::InputState& Storage);
 
 } // namespace Penumbra::Widgets

@@ -67,6 +67,13 @@ struct Theme {
     float ProgressHeight         = 8.0f; // the Box-built progress bar under the charts
 
     float AnimColorSeconds   = 0.09f;  // easing time constant for hover/press colours
+
+    // Positioning: the badge on the card that shows it, and the fixed panel that card's
+    // button opens, which sits over both panes in the window's corner.
+    float BadgeSize           = 12.0f;
+    float BadgeOffset         = -4.0f; // pokes past the card's top-right corner
+    float FloatingPanelWidth  = 240.0f;
+    int   ZIndexFloatingPanel = 10;
 };
 
 } // namespace Demo

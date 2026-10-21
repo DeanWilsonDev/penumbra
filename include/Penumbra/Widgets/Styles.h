@@ -5,6 +5,7 @@
 #include "Penumbra/Render/Color.h"
 #include "Penumbra/Widgets/Length.h"
 
+#include <optional>
 #include <vector>
 
 namespace Penumbra::Widgets {
@@ -38,6 +39,21 @@ enum class CrossAlign { Start, Center, End, Stretch };
 // laid out at all). No SpaceAround/SpaceEvenly -- not requested by any real consumer;
 // This is intentionally not a full flexbox-equivalent distribution model.
 enum class Justify { Start, Center, End, SpaceBetween };
+
+// CSS's position. Static, the default, is ordinary layout. Relative stays in layout and
+// is moved by the offsets afterwards. Absolute and Fixed leave layout: their parent's
+// size ignores them, and they're placed against their containing block, the nearest
+// positioned ancestor's padding box (or the window) for Absolute, and the window for
+// Fixed, unless an ancestor has a transform, which is then the containing block for
+// both. An ancestor's clip applies to an Absolute widget only when that ancestor is its
+// containing block or contains it, and never to a Fixed one. Sticky lays out as
+// Relative with no offset for now.
+enum class Position { Static, Relative, Absolute, Fixed, Sticky };
+
+// CSS's pointer-events. None makes a widget and its subtree let the pointer through to
+// whatever is under them, so they hover nothing and start no press; a descendant set
+// to Auto takes the pointer again. Inherit, the default, does what the parent does.
+enum class PointerEvents { Inherit, Auto, None };
 
 // The BoxStyle values a Transition can ease.
 enum class TransitionProperty { Width, Height, FlexGrow, BackgroundColor, Opacity };
@@ -132,6 +148,27 @@ struct BoxStyle {
     // The values that ease when they change. Empty, every change shows at once. When
     // two entries name the same property, the later one wins, as in CSS.
     std::vector<Transition> Transitions;
+
+    // CSS's positioning, as Position describes. The offsets are unset (CSS's auto) by
+    // default and may be negative; a percentage of Top or Bottom is of the containing
+    // block's height, and of Left or Right of its width. Left wins over Right and Top
+    // over Bottom, except that an Absolute or Fixed widget with both of a pair set and
+    // no Width (or Height) of its own stretches between them.
+    Position              PositionMode{Position::Static};
+    std::optional<Length> Top;
+    std::optional<Length> Right;
+    std::optional<Length> Bottom;
+    std::optional<Length> Left;
+
+    // CSS's z-index, unset meaning auto. As in CSS, a widget with one paints, and takes
+    // the pointer, in that order among the other layered widgets of its stacking context
+    // (negative under ordinary content, 0 and auto in tree order above it, positive
+    // above those), and forms a stacking context of its own, so its descendants' z-index
+    // only orders them inside it. Applies to every widget, positioned or not, since every
+    // Penumbra container lays its children out the way a CSS flex container does.
+    std::optional<int> ZIndex;
+
+    PointerEvents PointerEventsMode{PointerEvents::Inherit};
 };
 
 // Per-widget styles extend BoxStyle so the box-model slots stay universal and free.

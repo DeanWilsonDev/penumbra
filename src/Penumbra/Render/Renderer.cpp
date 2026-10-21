@@ -1027,25 +1027,37 @@ void Renderer::PushClipRect(Rect RectLogical) {
                        static_cast<int>(std::lround(P.w)), static_cast<int>(std::lround(P.h))};
 
     SDL_Rect Effective = Requested;
-    if (!ClipStack.empty()) {
+    if (!ClipStack.empty() && ClipStack.back()) {
         // Intersect with the active clip so nested clips never exceed their parent.
-        if (!SDL_GetRectIntersection(&ClipStack.back(), &Requested, &Effective)) {
+        if (!SDL_GetRectIntersection(&*ClipStack.back(), &Requested, &Effective)) {
             Effective = {0, 0, 0, 0}; // disjoint → clip everything
         }
     }
 
     ClipStack.push_back(Effective);
-    SDL_SetRenderClipRect(SdlRenderer, &Effective);
+    ApplyClipStack();
+}
+
+void Renderer::PushClipRectUnbounded(std::optional<Rect> RectLogical) {
+    std::optional<SDL_Rect> Effective;
+    if (RectLogical) {
+        const SDL_FRect P = ToPhysical(*RectLogical);
+        Effective         = SDL_Rect{static_cast<int>(std::lround(P.x)), static_cast<int>(std::lround(P.y)),
+                                     static_cast<int>(std::lround(P.w)), static_cast<int>(std::lround(P.h))};
+    }
+    ClipStack.push_back(Effective);
+    ApplyClipStack();
 }
 
 void Renderer::PopClipRect() {
     assert(!ClipStack.empty() && "PopClipRect called with an empty clip stack");
     ClipStack.pop_back();
-    if (ClipStack.empty()) {
-        SDL_SetRenderClipRect(SdlRenderer, nullptr);
-    } else {
-        SDL_SetRenderClipRect(SdlRenderer, &ClipStack.back());
-    }
+    ApplyClipStack();
+}
+
+void Renderer::ApplyClipStack() {
+    const bool Clipped = !ClipStack.empty() && ClipStack.back();
+    SDL_SetRenderClipRect(SdlRenderer, Clipped ? &*ClipStack.back() : nullptr);
 }
 
 void Renderer::PushBlendMode(BlendMode Mode) {
@@ -1113,7 +1125,7 @@ void Renderer::PopTransform() {
 
     SDL_SetRenderTarget(SdlRenderer, Frame.PreviousTarget);
     OriginOffsetLogical = Frame.PreviousOriginOffsetLogical;
-    SDL_SetRenderClipRect(SdlRenderer, ClipStack.empty() ? nullptr : &ClipStack.back());
+    ApplyClipStack();
 
     // Destination size folds in Scale, destination position folds in Translate;
     // SDL_RenderTextureRotated's own angle/centre params handle Rotation around the

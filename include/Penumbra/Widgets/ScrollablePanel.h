@@ -32,6 +32,11 @@ public:
 
     bool ConsumedWheelThisFrame() const override { return WheelHandledThisFrame; }
 
+    // Its children are clipped to its content box, and only an opacity below 1 makes it
+    // composite as a group: it doesn't draw Style.Transform.
+    std::optional<Rect> GetChildClipRect() const override { return ContentRectFrom(ArrangedRect); }
+    bool                PaintsAsGroup() const override { return DisplayedOpacity() < 1.0f; }
+
 private:
     struct ScrollbarLayout {
         bool  Shown{false};

@@ -6,10 +6,14 @@
 #include "Penumbra/Widgets/Styles.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 
 namespace Penumbra::Widgets {
+
+class StackingContext;
 
 // Four states only — this is complete. If you think you need a fifth, you need a
 // different widget.
@@ -45,6 +49,20 @@ public:
 
     virtual EdgeInsets GetMarginLogical() const { return {0.0f, 0.0f, 0.0f, 0.0f}; }
     virtual float      GetFlexGrow() const { return 0.0f; }
+
+    // The box-model and positioning slots, for a widget that has them (every Box), so a
+    // container or a stacking context can read a child's position, offsets, z-index and
+    // pointer-events. Null, the default, is a static, auto widget.
+    virtual const BoxStyle* GetBoxStyle() const { return nullptr; }
+
+    // Whether this widget composites its whole subtree as one group (an opacity below 1
+    // or a transform), which makes it a stacking context, as in CSS.
+    virtual bool PaintsAsGroup() const { return false; }
+
+    // The rect this widget clips its children to, if it clips them (a ScrollablePanel's
+    // viewport). A stacking context clips a positioned descendant it paints later with
+    // the clips of the right ancestors (see Stacking.h).
+    virtual std::optional<Rect> GetChildClipRect() const { return std::nullopt; }
 
     // A read-only, uniform way to walk a widget's children regardless of how it
     // stores them internally (a generic vector, named slots, ...). Widgets with no
@@ -103,6 +121,16 @@ protected:
     Rect ArrangedRect{0.0f, 0.0f, 0.0f, 0.0f};
 
 private:
+    friend class StackingContext;
+
+    // The stacking context that paints, or dispatches input to, this widget itself this
+    // pass, rather than its parent in tree order (see Stacking.h), 0 when none does, and
+    // whether that context found it forms one of its own. Its own context forms from
+    // this, not from its style when it's painted, so the two agree even when an eased
+    // opacity crosses 1 in between.
+    std::uint64_t LayeredBy{0};
+    bool          LayeredAsContext{false};
+
     void NotifyShown() {
         OnShown();
         for (std::size_t Index = 0; Index < GetChildCount(); ++Index) {

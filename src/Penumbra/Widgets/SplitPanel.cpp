@@ -1,5 +1,8 @@
 #include "Penumbra/Widgets/SplitPanel.h"
 
+#include "Penumbra/Widgets/Positioning.h"
+#include "Penumbra/Widgets/Stacking.h"
+
 #include <algorithm>
 
 namespace Penumbra::Widgets {
@@ -45,6 +48,7 @@ Point SplitPanel::Measure(Point AvailableSizeLogical) {
 
 void SplitPanel::Arrange(Rect FinalRectLogical) {
     ArrangedRect = FinalRectLogical;
+    const ContainingBlockScope Block(*this, PaddingRectFrom(FinalRectLogical));
 
     const bool  Vertical   = (Axis == SplitAxis::Vertical);
     const float MainExtent = Vertical ? FinalRectLogical.H : FinalRectLogical.W;
@@ -93,8 +97,20 @@ void SplitPanel::Arrange(Rect FinalRectLogical) {
     }
 }
 
-bool SplitPanel::UpdateInteractionState(const Platform::InputState& Input) {
-    const bool Hovered  = Input.IsPointerOver(HandleRect);
+bool SplitPanel::UpdateInteractionState(const Platform::InputState& Given) {
+    if (StackingContext::IsLayeredOut(*this)) {
+        return false; // its stacking context hands it input itself, in paint order
+    }
+    Platform::InputState        PointerEventsInput;
+    const Platform::InputState& Input = InputForPointerEvents(Style.PointerEventsMode, Given, PointerEventsInput);
+
+    // Reverse paint order: layered descendants first, over the handle and the panes.
+    StackingContext             Context(*this, StackingContext::Pass::Input);
+    Platform::OccludedInput     Occluded(Input);
+    const bool                  LayeredTook = Context.DispatchAbove(Input);
+    const Platform::InputState& Unlayered   = LayeredTook ? Occluded.Get() : Input;
+
+    const bool Hovered  = Unlayered.IsPointerOver(HandleRect);
     const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
     const bool Down     = Input.MouseButtonDown[LeftButton];
     const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];
@@ -121,12 +137,16 @@ bool SplitPanel::UpdateInteractionState(const Platform::InputState& Input) {
 
     // Reverse order, same first-refusal rule as Box: Second is drawn on top of First,
     // and First still updates, with the pointer occluded, when Second takes it.
-    Platform::OccludedInput Occluded(Input);
-    bool                    PaneConsumed = false;
+    bool PaneConsumed = LayeredTook;
     for (WidgetBase* Pane : {Second.get(), First.get()}) {
-        if (Pane && Pane->UpdateInteractionState(PaneConsumed ? Occluded.Get() : Input)) {
+        Platform::InputState PaneInput;
+        if (Pane && !StackingContext::IsLayeredOut(*Pane) &&
+            Pane->UpdateInteractionState(InputForChild(*Pane, PaneConsumed ? Occluded.Get() : Input, PaneInput))) {
             PaneConsumed = true;
         }
+    }
+    if (Context.DispatchBelow(Input, PaneConsumed || Hovered)) {
+        PaneConsumed = true;
     }
 
     return PaneConsumed || Dragging || Hovered;
@@ -148,11 +168,15 @@ WidgetBase* SplitPanel::GetChildAt(std::size_t Index) const {
 }
 
 void SplitPanel::Draw(Render::Renderer& Renderer) {
-    if (First) {
-        First->Draw(Renderer);
+    if (StackingContext::IsLayeredOut(*this)) {
+        return; // its stacking context paints it later, in z order
     }
-    if (Second) {
-        Second->Draw(Renderer);
+    StackingContext Context(*this, StackingContext::Pass::Paint);
+    Context.PaintBelow(Renderer);
+    for (WidgetBase* Pane : {First.get(), Second.get()}) {
+        if (Pane && !StackingContext::IsLayeredOut(*Pane)) {
+            Pane->Draw(Renderer);
+        }
     }
 
     const Render::Color HandleColor =
@@ -160,6 +184,7 @@ void SplitPanel::Draw(Render::Renderer& Renderer) {
     if (HandleColor.A != 0) {
         Renderer.DrawFilledRect(HandleRect, HandleColor);
     }
+    Context.PaintAbove(Renderer);
 }
 
 } // namespace Penumbra::Widgets

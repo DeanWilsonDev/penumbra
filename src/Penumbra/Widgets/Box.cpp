@@ -1,6 +1,8 @@
 #include "Penumbra/Widgets/Box.h"
 
 #include "Penumbra/Widgets/LayoutPass.h"
+#include "Penumbra/Widgets/Positioning.h"
+#include "Penumbra/Widgets/Stacking.h"
 #include "Penumbra/Widgets/TextSelection.h"
 
 #include <algorithm>
@@ -11,6 +13,9 @@ namespace Penumbra::Widgets {
 
 namespace {
 float NonNegative(float Value) { return Value > 0.0f ? Value : 0.0f; }
+
+// Visible and in its parent's layout: not Absolute or Fixed.
+bool InFlow(const WidgetBase& Child) { return Child.GetIsVisible() && !IsOutOfFlow(Child); }
 
 constexpr int LeftButton = 0;
 
@@ -40,7 +45,7 @@ std::vector<float> GrowExtentsFor(const std::vector<std::unique_ptr<WidgetBase>>
                                   Point ContentSize, float ChildGap) {
     float TotalGrow = 0.0f;
     for (const auto& Child : Children) {
-        if (Child->GetIsVisible() && Child->GetFlexGrow() > 0.0f) {
+        if (InFlow(*Child) && Child->GetFlexGrow() > 0.0f) {
             TotalGrow += Child->GetFlexGrow();
         }
     }
@@ -51,7 +56,7 @@ std::vector<float> GrowExtentsFor(const std::vector<std::unique_ptr<WidgetBase>>
     float       FixedMain    = 0.0f;
     std::size_t VisibleCount = 0;
     for (const auto& Child : Children) {
-        if (!Child->GetIsVisible()) {
+        if (!InFlow(*Child)) {
             continue;
         }
         ++VisibleCount;
@@ -71,7 +76,7 @@ std::vector<float> GrowExtentsFor(const std::vector<std::unique_ptr<WidgetBase>>
     std::vector<float> Extents(Children.size(), -1.0f);
     for (std::size_t Index = 0; Index < Children.size(); ++Index) {
         const WidgetBase* Child = Children[Index].get();
-        if (Child->GetIsVisible() && Child->GetFlexGrow() > 0.0f) {
+        if (InFlow(*Child) && Child->GetFlexGrow() > 0.0f) {
             Extents[Index] = Remaining * Child->GetFlexGrow() / TotalGrow;
         }
     }
@@ -229,6 +234,11 @@ Rect Box::ContentRectFrom(Rect OuterRect) const {
             NonNegative(OuterRect.H - 2.0f * B - Style.Padding.Top - Style.Padding.Bottom)};
 }
 
+Rect Box::PaddingRectFrom(Rect OuterRect) const {
+    const float B = Style.BorderWidth;
+    return {OuterRect.X + B, OuterRect.Y + B, NonNegative(OuterRect.W - 2.0f * B), NonNegative(OuterRect.H - 2.0f * B)};
+}
+
 Point Box::Measure(Point AvailableSizeLogical) {
     const std::uint64_t Pass = LayoutPass::Current();
     if (Pass != 0) {
@@ -268,7 +278,7 @@ Point Box::MeasureUncached(Point AvailableSizeLogical) {
         bool LeadingSeen = false;
         for (std::size_t Index = 0; Index < Children.size(); ++Index) {
             WidgetBase* Child = Children[Index].get();
-            if (!Child->GetIsVisible()) {
+            if (!InFlow(*Child)) {
                 continue;
             }
             const EdgeInsets Margin     = Child->GetMarginLogical();
@@ -289,7 +299,7 @@ Point Box::MeasureUncached(Point AvailableSizeLogical) {
 
         for (std::size_t Index = 0; Index < Children.size(); ++Index) {
             WidgetBase* Child = Children[Index].get();
-            if (!Child->GetIsVisible()) {
+            if (!InFlow(*Child)) {
                 continue;
             }
             const EdgeInsets Margin = Child->GetMarginLogical();
@@ -360,6 +370,8 @@ float Box::GetFlexGrow() const {
     const EasedTrack<float>& Track = Eased->FlexGrow;
     return Lerp(Track.From, Track.Target, Track.Progress());
 }
+
+bool Box::PaintsAsGroup() const { return !Style.Transform.IsIdentity() || DisplayedOpacity() < 1.0f; }
 
 void Box::SyncLayoutTransitions() {
     if (Style.Transitions.empty()) {
@@ -454,11 +466,27 @@ void Box::OnShown() {
 void Box::Arrange(Rect FinalRectLogical) {
     ArrangedRect = FinalRectLogical;
 
-    if (Layout == LayoutMode::None) {
-        return; // children, if any, are not laid out (footgun accepted)
-    }
+    const ContainingBlockScope Block(*this, PaddingRectFrom(FinalRectLogical));
+    const Rect                 Content = ContentRectFrom(FinalRectLogical);
 
-    const Rect Content = ContentRectFrom(FinalRectLogical);
+    // An Absolute or Fixed child goes against its containing block. On an axis whose
+    // offsets are both auto it stays where it would have been in flow, its margin box
+    // starting at At, as CSS's static position does.
+    auto PlaceOutOfFlow = [](WidgetBase& Child, Point At) {
+        const EdgeInsets Margin = Child.GetMarginLogical();
+        ArrangeOutOfFlow(Child, {At.X + Margin.Left, At.Y + Margin.Top});
+    };
+
+    if (Layout == LayoutMode::None) {
+        // In-flow children, if any, are not laid out (footgun accepted); out-of-flow
+        // ones still are, against their containing block.
+        for (auto& Child : Children) {
+            if (IsOutOfFlow(*Child)) {
+                PlaceOutOfFlow(*Child, {Content.X, Content.Y});
+            }
+        }
+        return;
+    }
 
     // Places a child along the CROSS axis, returning its {position, extent}.
     auto PlaceCross = [&](float ContentStart, float ContentExtent, float ChildExtent,
@@ -494,6 +522,10 @@ void Box::Arrange(Rect FinalRectLogical) {
         bool LeadingSeen = false;
         for (std::size_t Index = 0; Index < Children.size(); ++Index) {
             WidgetBase* Child = Children[Index].get();
+            if (IsOutOfFlow(*Child)) {
+                PlaceOutOfFlow(*Child, {Content.X, LeadingSeen ? Content.Y + FillTop : Content.Y});
+                continue;
+            }
             if (!Child->GetIsVisible()) {
                 continue;
             }
@@ -506,7 +538,10 @@ void Box::Arrange(Rect FinalRectLogical) {
             const Point Desired = Child->Measure(ChildAvailable);
 
             auto [CrossPos, CrossExtent] = PlaceCross(Content.X, Content.W, Desired.X, Margin.Left, Margin.Right);
-            Child->Arrange({CrossPos, SlotTop + Margin.Top, CrossExtent, NonNegative(SlotHeight - Margin.Top - Margin.Bottom)});
+            Child->Arrange(OffsetInFlow(
+                *Child,
+                {CrossPos, SlotTop + Margin.Top, CrossExtent, NonNegative(SlotHeight - Margin.Top - Margin.Bottom)},
+                Content));
             LeadingSeen = true;
         }
         return;
@@ -524,7 +559,7 @@ void Box::Arrange(Rect FinalRectLogical) {
         std::size_t VisibleCount      = 0;
         for (std::size_t Index = 0; Index < Count; ++Index) {
             WidgetBase* Child = Children[Index].get();
-            if (!Child->GetIsVisible()) {
+            if (!InFlow(*Child)) {
                 continue;
             }
             const EdgeInsets Margin = Child->GetMarginLogical();
@@ -561,6 +596,11 @@ void Box::Arrange(Rect FinalRectLogical) {
 
     for (std::size_t Index = 0; Index < Count; ++Index) {
         WidgetBase* Child = Children[Index].get();
+        if (IsOutOfFlow(*Child)) {
+            const float Next = AnyVisible ? Cursor + ChildGap + ExtraGapPerGap : Cursor;
+            PlaceOutOfFlow(*Child, Vertical ? Point{Content.X, Next} : Point{Next, Content.Y});
+            continue;
+        }
         if (!Child->GetIsVisible()) {
             continue;
         }
@@ -578,14 +618,14 @@ void Box::Arrange(Rect FinalRectLogical) {
                 PlaceCross(Content.X, Content.W, Desired.X, Margin.Left, Margin.Right);
             const float Top = Cursor + Margin.Top;
             const float Height = GrowExtent >= 0.0f ? GrowExtent : Desired.Y;
-            Child->Arrange({CrossPos, Top, CrossExtent, Height});
+            Child->Arrange(OffsetInFlow(*Child, {CrossPos, Top, CrossExtent, Height}, Content));
             Cursor = Top + Height + Margin.Bottom;
         } else {
             auto [CrossPos, CrossExtent] =
                 PlaceCross(Content.Y, Content.H, Desired.Y, Margin.Top, Margin.Bottom);
             const float Left = Cursor + Margin.Left;
             const float Width = GrowExtent >= 0.0f ? GrowExtent : Desired.X;
-            Child->Arrange({Left, CrossPos, Width, CrossExtent});
+            Child->Arrange(OffsetInFlow(*Child, {Left, CrossPos, Width, CrossExtent}, Content));
             Cursor = Left + Width + Margin.Right;
         }
 
@@ -593,7 +633,28 @@ void Box::Arrange(Rect FinalRectLogical) {
     }
 }
 
+const Platform::InputState& InputForPointerEvents(PointerEvents Mode, const Platform::InputState& Input,
+                                                  Platform::InputState& Storage) {
+    const bool PassThrough = Mode == PointerEvents::None || (Mode == PointerEvents::Inherit && Input.PointerPassThrough);
+    if (PassThrough == Input.PointerPassThrough) {
+        return Input;
+    }
+    Storage                    = Input;
+    Storage.PointerPassThrough = PassThrough;
+    return Storage;
+}
+
+const Platform::InputState& InputForChild(const WidgetBase& Child, const Platform::InputState& Input,
+                                          Platform::InputState& Storage) {
+    const BoxStyle* ChildStyle = Child.GetBoxStyle();
+    return ChildStyle ? InputForPointerEvents(ChildStyle->PointerEventsMode, Input, Storage) : Input;
+}
+
 bool Box::UpdateInteractionState(const Platform::InputState& Input) {
+    if (StackingContext::IsLayeredOut(*this)) {
+        return false; // its stacking context hands it input itself, in paint order
+    }
+
     // Only pay for an InputState copy when this Box is actually transformed -- the
     // overwhelmingly common case is Style.Transform.IsIdentity(), where Input is
     // used (and passed to children) completely unchanged.
@@ -605,20 +666,41 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
         TransformedInput.MousePosition = InverseTransformPoint(Input.MousePosition, Pivot, Style.Transform);
         Effective = &TransformedInput;
     }
+    Platform::InputState PointerEventsInput;
+    Effective = &InputForPointerEvents(Style.PointerEventsMode, *Effective, PointerEventsInput);
 
     if (Selection) {
         Selection->Update(*this, ArrangedRect, *Effective);
     }
 
+    // Reverse paint order: the layered descendants over the ordinary children, the
+    // children, then the layered descendants under them.
+    StackingContext         Context(*this, StackingContext::Pass::Input);
     Platform::OccludedInput Occluded(*Effective);
-    bool                    ChildConsumed = false;
+    bool                    ChildConsumed = Context.DispatchAbove(*Effective);
     for (auto Iterator = Children.rbegin(); Iterator != Children.rend(); ++Iterator) {
-        if (!(*Iterator)->GetIsVisible()) {
+        if (!(*Iterator)->GetIsVisible() || StackingContext::IsLayeredOut(**Iterator)) {
             continue; // a hidden subtree can't consume input
         }
-        if ((*Iterator)->UpdateInteractionState(ChildConsumed ? Occluded.Get() : *Effective)) {
+        Platform::InputState ChildInput;
+        if ((*Iterator)->UpdateInteractionState(
+                InputForChild(**Iterator, ChildConsumed ? Occluded.Get() : *Effective, ChildInput))) {
             ChildConsumed = true;
         }
+    }
+    if (Context.DispatchBelow(*Effective, ChildConsumed)) {
+        ChildConsumed = true;
+    }
+
+    // A layered descendant that took the pointer is still over this Box, as a hovered
+    // element is over its ancestors in CSS: this Box keeps its hover, though the press
+    // is the descendant's.
+    Platform::InputState Uncovered;
+    if (Effective->PointerOccluded && StackingContext::IsOnPointerPath(*this)) {
+        Uncovered                 = *Effective;
+        Uncovered.PointerOccluded = false;
+        Effective                 = &Uncovered;
+        ChildConsumed             = true;
     }
 
     if (!IsEnabled) {
@@ -731,6 +813,9 @@ Render::Color Box::BorderForState() const {
 }
 
 void Box::Draw(Render::Renderer& Renderer) {
+    if (StackingContext::IsLayeredOut(*this)) {
+        return; // its stacking context paints it later, in z order
+    }
     AdvanceTransitions(Renderer);
     const float Opacity = DisplayedOpacity();
     if (Opacity <= 0.0f) {
@@ -746,6 +831,7 @@ void Box::Draw(Render::Renderer& Renderer) {
     if (Transformed) {
         Renderer.PushTransform(ArrangedRect, Style.Transform, Opacity);
     }
+    StackingContext Context(*this, StackingContext::Pass::Paint);
 
     // A shadow is drawn just before this Box's own fill, so it reads as sitting
     // behind it -- matching pharos-proto's GradientButton::Draw() order (shadow,
@@ -773,12 +859,16 @@ void Box::Draw(Render::Renderer& Renderer) {
         Selection->DrawGaps(Renderer);
     }
 
+    // CSS's paint order: layered descendants with a negative z-index, the ordinary
+    // children in tree order, then the other layered descendants.
+    Context.PaintBelow(Renderer);
     for (auto& Child : Children) {
-        if (!Child->GetIsVisible()) {
+        if (!Child->GetIsVisible() || StackingContext::IsLayeredOut(*Child)) {
             continue;
         }
         Child->Draw(Renderer);
     }
+    Context.PaintAbove(Renderer);
 
     if (Transformed) {
         Renderer.PopTransform();

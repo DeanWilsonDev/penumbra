@@ -58,11 +58,18 @@ struct InputState {
     // with the real MousePosition, and keys still reach whatever has focus.
     bool PointerOccluded{false};
 
-    // Whether the pointer is over Area and nothing above has taken it. Use this, not
-    // a raw MousePosition test, for hover and for starting a press.
+    // Set inside a subtree whose widgets let the pointer through (BoxStyle's
+    // PointerEventsMode None): like PointerOccluded, nothing there hovers or starts a
+    // press, but unlike it, a descendant set to Auto clears it again, and a widget the
+    // pointer passes through doesn't hide what's under it.
+    bool PointerPassThrough{false};
+
+    // Whether the pointer is over Area, nothing above has taken it, and this widget
+    // doesn't let it through. Use this, not a raw MousePosition test, for hover and for
+    // starting a press.
     bool IsPointerOver(Rect Area) const {
-        return !PointerOccluded && MousePosition.X >= Area.X && MousePosition.X < Area.X + Area.W &&
-               MousePosition.Y >= Area.Y && MousePosition.Y < Area.Y + Area.H;
+        return !PointerOccluded && !PointerPassThrough && MousePosition.X >= Area.X &&
+               MousePosition.X < Area.X + Area.W && MousePosition.Y >= Area.Y && MousePosition.Y < Area.Y + Area.H;
     }
 };
 
