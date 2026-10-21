@@ -1,7 +1,7 @@
 #include "Penumbra/Widgets/Dropdown.h"
 
 #include "Penumbra/Anim/Animation.h"
-#include "Penumbra/Widgets/OverlayHost.h"
+#include "Penumbra/Widgets/Stacking.h"
 
 #include <algorithm>
 #include <utility>
@@ -9,8 +9,6 @@
 namespace Penumbra::Widgets {
 
 struct DropdownState {
-    OverlayHost* Host{nullptr};
-    OverlayId Id{0};
     bool IsOpen{false};
     Anim::Tween WidthTween;
     Rect TriggerRect{};
@@ -71,13 +69,23 @@ protected:
     }
 };
 
+// Placed absolutely over the backdrop at PanelRect, which widens as it opens.
 class DropdownMenu final : public Box {
 public:
     std::shared_ptr<DropdownState> State;
 
+    void Place() {
+        const Rect Panel   = PanelRect(*State);
+        Style.PositionMode = Position::Absolute;
+        Style.Left         = Length::Logical(Panel.X);
+        Style.Top          = Length::Logical(Panel.Y);
+        Style.Width        = Length::Logical(Panel.W);
+        Style.Height       = Length::Logical(Panel.H);
+    }
+
     bool UpdateInteractionState(const Platform::InputState& Input) override {
         State->WidthTween.Update(Input.DeltaTimeSeconds);
-        State->Host->SetOverlayPlacement(State->Id, PanelRect(*State));
+        Place();
         return Box::UpdateInteractionState(Input);
     }
 };
@@ -94,8 +102,12 @@ void Dropdown::ApplyStyle(const DropdownStyle& StyleValue) {
 bool Dropdown::GetIsOpen() const { return State && State->IsOpen; }
 
 void Dropdown::Dismiss() {
-    if (State && State->IsOpen && State->Host) {
-        State->Host->DismissOverlay(State->Id);
+    // Hidden rather than destroyed: this can run from inside the menu's own input pass.
+    if (State) {
+        State->IsOpen = false;
+    }
+    if (Layer) {
+        Layer->SetIsVisible(false);
     }
 }
 
@@ -111,6 +123,9 @@ void Dropdown::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
 }
 
 bool Dropdown::UpdateInteractionState(const Platform::InputState& Input) {
+    if (StackingContext::IsLayeredOut(*this)) {
+        return false; // its stacking context hands it input itself, in paint order
+    }
     const bool Hovered = Input.IsPointerOver(ArrangedRect);
     if (Input.MouseButtonPressedThisFrame[0] && Hovered) PressedInside = true;
     if (Input.MouseButtonReleasedThisFrame[0]) {
@@ -121,10 +136,9 @@ bool Dropdown::UpdateInteractionState(const Platform::InputState& Input) {
 }
 
 void Dropdown::Open() {
-    if (!Host || Items.empty() || SelectedIndex >= Items.size() || GetIsOpen()) return;
+    if (Items.empty() || SelectedIndex >= Items.size() || GetIsOpen()) return;
 
     State = std::make_shared<DropdownState>();
-    State->Host = Host;
     State->IsOpen = true;
     State->TriggerRect = GetArrangedRect();
     State->RowHeight = DropdownVisualStyle.RowHeightLogical;
@@ -150,6 +164,7 @@ void Dropdown::Open() {
     Menu->Style = DropdownVisualStyle.Menu;
     Menu->Layout = LayoutMode::VerticalStack;
     Menu->CrossAlignment = CrossAlign::Stretch;
+    Menu->Place();
 
     auto AddRow = [&](std::size_t Index, bool Selected) {
         auto Row = std::make_unique<DropdownRow>();
@@ -163,13 +178,12 @@ void Dropdown::Open() {
         Row->AlwaysHighlighted = Selected;
         Row->Style = Selected ? DropdownVisualStyle.SelectedRow : DropdownVisualStyle.Row;
         Row->Style.Height = Length::Logical(DropdownVisualStyle.RowHeightLogical);
-        const std::shared_ptr<DropdownState> SharedState = State;
-        Row->OnReleased = [this, SharedState, Index]() {
+        Row->OnReleased = [this, Index]() {
             if (Index != SelectedIndex) {
                 SelectedIndex = Index;
                 if (OnSelectionChanged) OnSelectionChanged(Index);
             }
-            SharedState->Host->DismissOverlay(SharedState->Id);
+            Dismiss();
         };
         Menu->AddChild(std::move(Row));
     };
@@ -179,9 +193,27 @@ void Dropdown::Open() {
         if (Index != SelectedIndex) AddRow(Index, false);
     }
 
-    const std::shared_ptr<DropdownState> SharedState = State;
-    Menu->OnDestroyed = [SharedState]() { SharedState->IsOpen = false; };
-    State->Id = Host->ShowOverlay(std::move(Menu), PanelRect(*State));
+    // The backdrop: Fixed over the whole window, transparent, so a press outside the
+    // menu closes it rather than reaching what's under it, and keys stay off whatever is
+    // focused under it, apart from Escape, which closes it. Built once, then refilled.
+    if (!Layer) {
+        auto Backdrop = std::make_unique<Box>();
+        Backdrop->Style.PositionMode = Position::Fixed;
+        Backdrop->Style.Top = Backdrop->Style.Right = Backdrop->Style.Bottom = Backdrop->Style.Left =
+            Length::Logical(0.0f);
+        Backdrop->OnPressed    = [this]() { Dismiss(); };
+        Backdrop->OnKeyPressed = [this](Platform::Key Key) {
+            if (Key == Platform::Key::Escape) {
+                Dismiss();
+            }
+        };
+        Layer = Backdrop.get();
+        AddChild(std::move(Backdrop));
+    }
+    Layer->Style.ZIndex = DropdownVisualStyle.MenuZIndex;
+    Layer->ClearChildren();
+    Layer->AddChild(std::move(Menu));
+    Layer->SetIsVisible(true);
 }
 
 } // namespace Penumbra::Widgets

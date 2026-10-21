@@ -16,7 +16,6 @@
 #include "Penumbra/Widgets/LayoutPass.h"
 #include "Penumbra/Widgets/LineChart.h"
 #include "Penumbra/Widgets/NumericDrag.h"
-#include "Penumbra/Widgets/OverlayHost.h"
 #include "Penumbra/Widgets/ScrollablePanel.h"
 #include "Penumbra/Widgets/SplitPanel.h"
 #include "Penumbra/Widgets/TextArea.h"
@@ -295,138 +294,59 @@ int main() {
             Root->AddChild(std::move(Wave));
         }
 
-        // Dropdown menu, proving OverlayHost: the button is a normal child deep in
-        // Root's tree, but the menu it opens paints above the whole SplitPanel and
-        // gets first refusal on input, anchored to the button's own arranged rect.
-        Button* MenuButton = nullptr;
-        Label*  MenuStatusLabel = nullptr;
+        // A menu, built from positioned boxes: the button is a normal child deep in the
+        // scrolled column, but the menu it opens is a Fixed, z-indexed, transparent
+        // backdrop over the whole window, with the panel placed absolutely under the
+        // button. A press on the backdrop or Escape closes it, as does picking an option.
+        Label* MenuStatusLabel = nullptr;
         {
             auto Row = MakeRow();
             auto MenuBtn = MakeTextButton("Show menu", nullptr);
-            MenuButton = MenuBtn.get();
+            Button* MenuButton = MenuBtn.get();
             Row->AddChild(std::move(MenuBtn));
             auto MenuStatus = MakeLabel("", Theme.ColorTextDisabled);
             MenuStatusLabel = MenuStatus.get();
             Row->AddChild(std::move(MenuStatus));
-            Root->AddChild(std::move(Row));
-        }
 
-        // Positioning, as in CSS. A relative card has an absolute badge poking past its
-        // corner, which the column still clips when it scrolls, as the badge's
-        // containing block is inside it. The card's first button shows a fixed,
-        // z-indexed panel that's a child of this card, deep in the scrolled column, yet
-        // sits in the window's corner over both panes, outside the column's clip,
-        // wherever the column is scrolled to. Its second opens a modal: a full-window
-        // fixed layer over everything, which closes on Escape (a key no focused field
-        // uses reaches the topmost widget with a key handler) or a click on its
-        // backdrop, and keeps typing away from a field focused behind it.
-        {
-            auto Card = std::make_unique<Box>();
-            Card->Style                 = Demo::ResolvePanelStyle(Theme);
-            Card->Style.Padding         = {Theme.SpacingMedium, Theme.SpacingMedium, Theme.SpacingMedium,
-                                           Theme.SpacingMedium};
-            Card->Style.PositionMode    = Position::Relative;
-            Card->Layout                = LayoutMode::VerticalStack;
-            Card->ChildGap              = Theme.SpacingSmall;
-
-            auto Badge = std::make_unique<Box>();
-            Badge->Style.ColorBackground = Theme.ColorAccent;
-            Badge->Style.BorderRadius    = Theme.BadgeSize / 2.0f;
-            Badge->Style.Width           = Length::Logical(Theme.BadgeSize);
-            Badge->Style.Height          = Length::Logical(Theme.BadgeSize);
-            Badge->Style.PositionMode    = Position::Absolute;
-            Badge->Style.Top             = Length::Logical(Theme.BadgeOffset);
-            Badge->Style.Right           = Length::Logical(Theme.BadgeOffset);
-
-            auto Floating = std::make_unique<Box>();
-            Floating->Style              = Demo::ResolvePanelStyle(Theme);
-            Floating->Style.PositionMode = Position::Fixed;
-            Floating->Style.Right        = Length::Logical(Theme.SpacingLarge);
-            Floating->Style.Bottom       = Length::Logical(Theme.SpacingLarge);
-            Floating->Style.Width        = Length::Logical(Theme.FloatingPanelWidth);
-            Floating->Style.ZIndex       = Theme.ZIndexFloatingPanel;
-            Floating->Layout             = LayoutMode::VerticalStack;
-            Floating->ChildGap           = Theme.SpacingSmall;
-            Floating->CrossAlignment     = CrossAlign::Stretch;
-            Box* FloatingPtr             = Floating.get();
-            Floating->AddChild(MakeLabel("Fixed, z-index " + std::to_string(Theme.ZIndexFloatingPanel),
-                                         Theme.ColorTextPrimary));
-            Floating->AddChild(MakeLabel("Over both panes; scroll", Theme.ColorTextDisabled));
-            Floating->AddChild(MakeLabel("the column under it.", Theme.ColorTextDisabled));
-            Floating->AddChild(MakeTextButton("Close", [FloatingPtr]() { FloatingPtr->SetIsVisible(false); }));
-            Floating->SetIsVisible(false);
-
-            auto Modal = std::make_unique<Box>();
-            Modal->Style.PositionMode = Position::Fixed;
-            Modal->Style.Top = Modal->Style.Right = Modal->Style.Bottom = Modal->Style.Left = Length::Logical(0.0f);
-            Modal->Style.ZIndex        = Theme.ZIndexModal;
-            Modal->Layout              = LayoutMode::VerticalStack;
-            Modal->JustifyContentMode  = Justify::Center;
-            Modal->CrossAlignment      = CrossAlign::Center;
-            Box* ModalPtr              = Modal.get();
-            Modal->OnKeyPressed        = [ModalPtr](Penumbra::Platform::Key Key) {
+            auto Layer = std::make_unique<Box>();
+            Layer->Style.PositionMode = Position::Fixed;
+            Layer->Style.Top = Layer->Style.Right = Layer->Style.Bottom = Layer->Style.Left = Length::Logical(0.0f);
+            Layer->Style.ZIndex = Theme.ZIndexMenu;
+            Box* LayerPtr       = Layer.get();
+            Layer->OnPressed    = [LayerPtr]() { LayerPtr->SetIsVisible(false); };
+            Layer->OnKeyPressed = [LayerPtr](Penumbra::Platform::Key Key) {
                 if (Key == Penumbra::Platform::Key::Escape) {
-                    ModalPtr->SetIsVisible(false);
+                    LayerPtr->SetIsVisible(false);
                 }
             };
 
-            // The backdrop is positioned, so it paints over the layer's ordinary
-            // content; the panel is positioned too, and later, so it paints over the
-            // backdrop and takes the clicks on it.
-            auto Backdrop = std::make_unique<Box>();
-            Backdrop->Style.ColorBackground = Theme.ColorModalBackdrop;
-            Backdrop->Style.PositionMode    = Position::Absolute;
-            Backdrop->Style.Top = Backdrop->Style.Right = Backdrop->Style.Bottom = Backdrop->Style.Left =
-                Length::Logical(0.0f);
-            Backdrop->OnPressed = [ModalPtr]() { ModalPtr->SetIsVisible(false); };
-
-            auto Dialog = std::make_unique<Box>();
-            Dialog->Style              = Demo::ResolvePanelStyle(Theme);
-            Dialog->Style.PositionMode = Position::Relative;
-            Dialog->Style.Width        = Length::Logical(Theme.ModalWidth);
-            Dialog->Layout             = LayoutMode::VerticalStack;
-            Dialog->ChildGap           = Theme.SpacingSmall;
-            Dialog->CrossAlignment     = CrossAlign::Stretch;
-            Dialog->AddChild(MakeLabel("A modal, z-index " + std::to_string(Theme.ZIndexModal), Theme.ColorTextPrimary));
-            Dialog->AddChild(MakeLabel("Escape or a click outside", Theme.ColorTextDisabled));
-            Dialog->AddChild(MakeLabel("closes it.", Theme.ColorTextDisabled));
-            Dialog->AddChild(MakeTextButton("Close", [ModalPtr]() { ModalPtr->SetIsVisible(false); }));
-
-            Modal->AddChild(std::move(Backdrop));
-            Modal->AddChild(std::move(Dialog));
-            Modal->SetIsVisible(false);
-
-            Card->AddChild(MakeLabel("Relative card, absolute badge", Theme.ColorTextPrimary));
-            Card->AddChild(MakeLabel("Its button opens a fixed panel.", Theme.ColorTextDisabled));
-            Card->AddChild(MakeTextButton("Show fixed panel", [FloatingPtr]() { FloatingPtr->SetIsVisible(true); }));
-            Card->AddChild(MakeTextButton("Open modal", [ModalPtr]() { ModalPtr->SetIsVisible(true); }));
-            Card->AddChild(std::move(Badge));
-            Card->AddChild(std::move(Floating));
-            Card->AddChild(std::move(Modal));
-            Root->AddChild(std::move(Card));
-        }
-
-        // position: sticky. The section's header holds at the top of the column while its
-        // rows scroll under it, then leaves with the section once its last row has gone.
-        {
-            auto Section = std::make_unique<Box>();
-            Section->Layout         = LayoutMode::VerticalStack;
-            Section->ChildGap       = Theme.SpacingSmall;
-            Section->CrossAlignment = CrossAlign::Stretch;
-
-            auto Header = MakeLabel("Sticky section header", Theme.ColorTextPrimary);
-            Header->Style.ColorBackground = Theme.ColorSurfaceRaised;
-            Header->Style.ColorBorder     = Theme.ColorBorderDefault;
-            Header->Style.BorderWidth     = Theme.BorderWidthDefault;
-            Header->Style.Padding         = {Theme.SpacingSmall, Theme.SpacingSmall, Theme.SpacingSmall,
-                                             Theme.SpacingSmall};
-            Header->Style.PositionMode    = Position::Sticky;
-            Header->Style.Top             = Length::Logical(0.0f);
-            Section->AddChild(std::move(Header));
-            for (int Index = 1; Index <= StickySectionRows; ++Index) {
-                Section->AddChild(MakeLabel("Row " + std::to_string(Index) + " under the header", Theme.ColorTextDisabled));
+            auto Menu = std::make_unique<Box>();
+            Menu->Style              = Demo::ResolvePanelStyle(Theme);
+            Menu->Style.Margin       = {0.0f, 0.0f, 0.0f, 0.0f};
+            Menu->Style.PositionMode = Position::Absolute;
+            Menu->Style.Width        = Length::Logical(Theme.MenuWidth);
+            Menu->Layout             = LayoutMode::VerticalStack;
+            Menu->ChildGap           = Theme.SpacingSmall;
+            Menu->CrossAlignment     = CrossAlign::Stretch;
+            Box* MenuPtr             = Menu.get();
+            for (const std::string Text : {"Option A", "Option B"}) {
+                Menu->AddChild(MakeTextButton(Text, [LayerPtr, Text, MenuStatusLabel]() {
+                    MenuStatusLabel->Text = "picked: " + Text;
+                    LayerPtr->SetIsVisible(false);
+                }));
             }
-            Root->AddChild(std::move(Section));
+            Layer->AddChild(std::move(Menu));
+            Layer->SetIsVisible(false);
+            Row->AddChild(std::move(Layer));
+
+            // Anchored just under the button, wherever the column has scrolled it to.
+            MenuButton->OnClicked = [MenuButton, MenuPtr, LayerPtr, &Theme]() {
+                const Penumbra::Rect Anchor = MenuButton->GetArrangedRect();
+                MenuPtr->Style.Left         = Length::Logical(Anchor.X);
+                MenuPtr->Style.Top          = Length::Logical(Anchor.Y + Anchor.H + Theme.SpacingSmall);
+                LayerPtr->SetIsVisible(true);
+            };
+            Root->AddChild(std::move(Row));
         }
 
         Root->AddChild(MakeSeparator());
@@ -727,39 +647,6 @@ int main() {
         Split->SetFirst(std::move(Root));
         Split->SetSecond(std::move(ScenePane));
 
-        // OverlayHost wraps the whole app tree so the dropdown menu below can paint
-        // above it and claim input first, however deep the button that opens it is.
-        auto Host = std::make_unique<OverlayHost>();
-        OverlayHost* HostPtr = Host.get();
-        Host->SetRoot(std::move(Split));
-
-        MenuButton->OnClicked = [HostPtr, MenuButton, MenuStatusLabel, &Theme, &MakeTextButton]() {
-            auto Menu = std::make_unique<Box>();
-            Menu->Style          = Demo::ResolvePanelStyle(Theme);
-            Menu->Style.Margin   = {0.0f, 0.0f, 0.0f, 0.0f};
-            Menu->Layout         = LayoutMode::VerticalStack;
-            Menu->ChildGap       = Theme.SpacingSmall;
-            Menu->CrossAlignment = CrossAlign::Stretch;
-
-            auto AddOption = [&](const std::string& Text) {
-                Menu->AddChild(MakeTextButton(Text, [HostPtr, MenuStatusLabel, Text]() {
-                    MenuStatusLabel->Text = "picked: " + Text;
-                    HostPtr->DismissAll();
-                }));
-            };
-            AddOption("Option A");
-            AddOption("Option B");
-
-            // Sized to its own content, anchored just below the button that opened it.
-            constexpr float MenuWidth = 180.0f;
-            const Penumbra::Point Desired = Menu->Measure({MenuWidth, 1000.0f});
-            const Penumbra::Rect  Anchor  = MenuButton->GetArrangedRect();
-            const Penumbra::Rect  Placement{Anchor.X, Anchor.Y + Anchor.H + 4.0f, MenuWidth,
-                                            Desired.Y};
-
-            HostPtr->ShowOverlay(std::move(Menu), Placement);
-        };
-
         bool TextInputActive = false;
 
         Penumbra::Platform::InputState Input;
@@ -806,14 +693,14 @@ int main() {
             SetLayoutViewportLogical(WindowSize); // vw/vh, and the window that fixed widgets sit in
             {
                 const LayoutPass Pass; // repeated measures within the layout reuse their results
-                Host->Measure({FullRect.W, FullRect.H});
-                Host->Arrange(FullRect);
+                Split->Measure({FullRect.W, FullRect.H});
+                Split->Arrange(FullRect);
             }
 
             if (Input.MouseButtonPressedThisFrame[0]) {
                 Focus.Focused = nullptr;
             }
-            Host->UpdateInteractionState(Input);
+            Split->UpdateInteractionState(Input);
 
             const bool WantTextInput = (Focus.Focused != nullptr);
             if (WantTextInput != TextInputActive) {
@@ -822,7 +709,7 @@ int main() {
             }
 
             Renderer.BeginFrame(Theme.ColorBackgroundPrimary, Input.DeltaTimeSeconds);
-            Host->Draw(Renderer);
+            Split->Draw(Renderer);
             Renderer.EndFrameAndPresent();
         }
     }

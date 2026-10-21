@@ -196,6 +196,10 @@ struct DropdownStyle : BoxStyle {
     float         LeadingVisualGapLogical{0.0f};
     float         MinimumOpenWidthLogical{0.0f};
     float         OpenTransitionSeconds{0.0f};
+
+    // The open menu's z-index. It's Fixed, over a transparent full-window backdrop, so
+    // it paints and takes the pointer over everything with a lower one. Unset is auto.
+    std::optional<int> MenuZIndex;
 };
 
 // The slots DonutChart, BarChart and LineChart share. Every value is the consumer's;

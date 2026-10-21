@@ -10,7 +10,6 @@
 
 namespace Penumbra::Widgets {
 
-class OverlayHost;
 struct DropdownState;
 
 struct DropdownItem {
@@ -18,13 +17,15 @@ struct DropdownItem {
     std::function<void(Render::Renderer&, Rect, Render::Color)> DrawLeadingVisual;
 };
 
-// An icon-sized select trigger whose list is presented through the application's
-// existing OverlayHost. The host must outlive the Dropdown.
+// An icon-sized select trigger. Its list opens as ordinary positioned boxes: a Fixed,
+// full-window, transparent backdrop at DropdownStyle::MenuZIndex, with the menu placed
+// absolutely over it at the trigger's right edge. A press on the backdrop or Escape
+// closes it, as does choosing a row, and while it's open the backdrop keeps the pointer
+// and keys from everything under it.
 class Dropdown : public Box {
 public:
     ~Dropdown() override;
 
-    OverlayHost*          Host{nullptr};
     Render::IFontBackend* FontBackend{nullptr};
     Render::FontHandle    Font{0};
     std::vector<DropdownItem> Items;
@@ -47,6 +48,7 @@ private:
     DropdownStyle                  DropdownVisualStyle{};
     std::shared_ptr<DropdownState> State;
     bool                           PressedInside{false};
+    Box*                           Layer{nullptr}; // the backdrop and menu, a child; hidden while closed
 };
 
 } // namespace Penumbra::Widgets

@@ -75,6 +75,10 @@ struct Theme {
     float FloatingPanelWidth  = 240.0f;
     int   ZIndexFloatingPanel = 10;
 
+    // The settings column's menu: a fixed backdrop and panel over everything.
+    int   ZIndexMenu = 30;
+    float MenuWidth  = 180.0f;
+
     // The modal the same card opens: over everything, including the fixed panel.
     int                     ZIndexModal        = 20;
     float                   ModalWidth         = 320.0f;

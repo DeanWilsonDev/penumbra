@@ -64,7 +64,8 @@ public:
     // Whether Widget lies between the active context's root and the layered widget that
     // took the pointer this pass. Such a widget still sees the pointer over itself, as
     // an ancestor of a hovered element does in CSS, so it keeps its own hover and its
-    // wheel scrolling; the press belongs to the descendant.
+    // wheel scrolling; the press belongs to the descendant. Not when that widget is
+    // Fixed: it sits outside its ancestors' boxes, so they don't scroll under it.
     static bool IsOnPointerPath(const WidgetBase& Widget);
 
     // Whether the layered widget that took the pointer this pass used the wheel itself.

@@ -210,7 +210,9 @@ bool StackingContext::Dispatch(const Entry& Layered, const Platform::InputState&
         Took = true;
     }
 
-    if (Took && !Given.PointerOccluded && PointerPath.empty()) {
+    // Its ancestors keep their hover and wheel, unless it's Fixed: that sits outside
+    // every ancestor's box, so a panel behind an open menu doesn't scroll under it.
+    if (Took && !Given.PointerOccluded && PointerPath.empty() && PositionOf(*Layered.Widget) != Position::Fixed) {
         PointerPath    = Layered.Ancestors;
         TakerUsedWheel = Layered.Widget->ConsumedWheelThisFrame();
     }
