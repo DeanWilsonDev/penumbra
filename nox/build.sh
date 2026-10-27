@@ -33,6 +33,7 @@ library_sources=(
     Penumbra/Widgets/NumericDrag.nox
     Penumbra/Widgets/Chevron.nox
     Penumbra/Widgets/OverlayHost.nox
+    Penumbra/Widgets/Dropdown.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox

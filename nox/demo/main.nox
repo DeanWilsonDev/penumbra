@@ -32,6 +32,8 @@ OverlayHost :: import OverlayHost;
 FocusState :: import FocusState;
 Key :: import Key;
 RecordingClipboard :: import RecordingClipboard;
+Dropdown :: import Dropdown;
+DropdownStyle :: import DropdownStyle;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -891,6 +893,77 @@ ShowOverlays :: () -> void {
     print(host->HasOverlays());
 }
 
+PointerAtPoint :: (x: f32, y: f32, pressed: bool, down: bool, released: bool) -> InputState {
+    input~ InputState = PointerAt(x, pressed, down, released);
+    input.mousePosition = Point { x: x, y: y };
+    return input;
+}
+
+DropdownFrame :: (dropdown: Dropdown~*, stacking: StackingTracker~*, layout: LayoutContext~*, label: string, input: InputState) -> void {
+    print(label);
+    print(dropdown->UpdateInteractionState(input, stacking));
+    dropdown->Measure(Point { x: 200.0f, y: 100.0f });
+    dropdown->Arrange(Rect { x: 100.0f, y: 10.0f, width: 80.0f, height: 20.0f }, layout);
+    print(dropdown->GetIsOpen());
+}
+
+DropdownClick :: (dropdown: Dropdown~*, stacking: StackingTracker~*, layout: LayoutContext~*, label: string, x: f32, y: f32) -> void {
+    DropdownFrame(dropdown, stacking, layout, label, PointerAtPoint(x, y, true, true, false));
+    DropdownFrame(dropdown, stacking, layout, "release", PointerAtPoint(x, y, false, false, true));
+}
+
+ShowDropdown :: (font: IFontBackend*) -> void {
+    print("dropdown");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    layout->viewportLogical = Point { x: 200.0f, y: 100.0f };
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    dropdown: Dropdown*! = new Dropdown(font);
+    defer delete dropdown;
+    visualStyle~ DropdownStyle = DropdownStyle { };
+    visualStyle.trigger.padding = Insets:::All(2.0f);
+    visualStyle.trigger.width = Lengths:::Logical(80.0f);
+    visualStyle.trigger.height = Lengths:::Logical(20.0f);
+    visualStyle.colorText = Color { red: 200, green: 200, blue: 200, alpha: 255 };
+    visualStyle.colorTextHighlighted = Color { red: 255, green: 255, blue: 255, alpha: 255 };
+    visualStyle.rowHeightLogical = 20.0f;
+    visualStyle.leadingVisualGapLogical = 4.0f;
+    visualStyle.triggerChevronWidthLogical = 12.0f;
+    visualStyle.triggerChevronThicknessLogical = 1.0f;
+    visualStyle.menuZIndex = 10;
+    dropdown->className = "dropdown";
+    dropdown->ApplyStyle(visualStyle);
+    dropdown->AddItem("Alpha");
+    dropdown->AddItem("Beta");
+    dropdown->AddItem("A very long label");
+    dropdown->onSelectionChanged = new (index: usize) -> void {
+        print("selection changed");
+        print(index);
+    };
+    dropdown->Measure(Point { x: 200.0f, y: 100.0f });
+    dropdown->Arrange(Rect { x: 100.0f, y: 10.0f, width: 80.0f, height: 20.0f }, layout);
+    dropdown->Draw(renderer, stacking);
+
+    DropdownClick(dropdown, stacking, layout, "click the trigger", 110.0f, 20.0f);
+    PrintTree(dropdown, 0);
+    DropdownClick(dropdown, stacking, layout, "click the long row", 60.0f, 60.0f);
+    print(dropdown->selectedIndex);
+    dropdown->Draw(renderer, stacking);
+
+    DropdownClick(dropdown, stacking, layout, "reopen", 110.0f, 20.0f);
+    DropdownClick(dropdown, stacking, layout, "click the backdrop", 10.0f, 90.0f);
+    print(dropdown->selectedIndex);
+
+    DropdownClick(dropdown, stacking, layout, "reopen", 110.0f, 20.0f);
+    escapeKeys: Key[1] = [Key:::Escape];
+    escaping~ InputState = PointerAtPoint(10.0f, 90.0f, false, false, false);
+    escaping.keysPressedThisFrame = escapeKeys.borrow();
+    DropdownFrame(dropdown, stacking, layout, "escape", escaping);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -924,5 +997,6 @@ main :: () -> i32 {
     ShowSplitPanel();
     ShowSmallWidgets(font);
     ShowOverlays();
+    ShowDropdown(font);
     return 0;
 }
