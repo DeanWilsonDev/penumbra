@@ -12,8 +12,10 @@ Box :: import Box;
 Label :: import Label;
 FixedAdvanceFont :: import FixedAdvanceFont;
 RecordingRenderer :: import RecordingRenderer;
+LayoutContext :: import LayoutContext;
 InputState :: import InputState;
 InteractionState :: import InteractionState;
+Position :: import Position;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -167,7 +169,9 @@ SimulateInput :: () -> void {
     toolbar: Box*! = BuildToolbar();
     defer delete toolbar;
     toolbar->Measure(Point { x: 400.0f, y: 100.0f });
-    toolbar->Arrange(Rect { x: 0.0f, y: 0.0f, width: 400.0f, height: 32.0f });
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    toolbar->Arrange(Rect { x: 0.0f, y: 0.0f, width: 400.0f, height: 32.0f }, layout);
     RunFrame(toolbar, "frame outside", 300.0f, 200.0f, false, false, false);
     RunFrame(toolbar, "frame over toolbar", 300.0f, 10.0f, false, false, false);
     RunFrame(toolbar, "frame over button", 20.0f, 10.0f, false, false, false);
@@ -185,6 +189,73 @@ SimulateInput :: () -> void {
     toolbar->Draw(renderer);
 }
 
+MakeSizedBox :: (name: string, width: f32, height: f32) -> Box*! {
+    box: Box*! = MakeBox(name, LayoutMode:::None);
+    box->style.width = Lengths:::Logical(width);
+    box->style.height = Lengths:::Logical(height);
+    return box!;
+}
+
+BuildPositionedPanel :: () -> Box*! {
+    panel: Box*! = MakeBox("panel", LayoutMode:::VerticalStack);
+    panel->style.positionMode = Position:::Relative;
+    panel->style.padding = Insets:::All(10.0f);
+    panel->style.borderWidth = 2.0f;
+    panel->childGap = 4.0f;
+
+    panel->AddChild(MakeSizedBox("static", 100.0f, 50.0f));
+
+    relative: Box*! = MakeSizedBox("relative", 100.0f, 20.0f);
+    relative->style.positionMode = Position:::Relative;
+    relative->style.top = Lengths:::Logical(5.0f);
+    relative->style.left = Lengths:::Percent(10.0f);
+    panel->AddChild(relative!);
+
+    corner: Box*! = MakeSizedBox("absolute corner", 40.0f, 20.0f);
+    corner->style.positionMode = Position:::Absolute;
+    corner->style.top = Lengths:::Logical(8.0f);
+    corner->style.right = Lengths:::Logical(8.0f);
+    panel->AddChild(corner!);
+
+    strip: Box*! = MakeBox("absolute strip", LayoutMode:::None);
+    strip->style.height = Lengths:::Logical(10.0f);
+    strip->style.positionMode = Position:::Absolute;
+    strip->style.left = Lengths:::Logical(0.0f);
+    strip->style.right = Lengths:::Logical(0.0f);
+    strip->style.bottom = Lengths:::Logical(0.0f);
+    panel->AddChild(strip!);
+
+    floating: Box*! = MakeSizedBox("absolute static", 30.0f, 30.0f);
+    floating->style.positionMode = Position:::Absolute;
+    panel->AddChild(floating!);
+
+    badge: Box*! = MakeSizedBox("fixed badge", 24.0f, 12.0f);
+    badge->style.positionMode = Position:::Fixed;
+    badge->style.bottom = Lengths:::Logical(4.0f);
+    badge->style.right = Lengths:::Logical(4.0f);
+    panel->AddChild(badge!);
+
+    sticky: Box*! = MakeSizedBox("sticky", 100.0f, 16.0f);
+    sticky->style.positionMode = Position:::Sticky;
+    sticky->style.top = Lengths:::Logical(0.0f);
+    panel->AddChild(sticky!);
+    return panel!;
+}
+
+ShowPositioning :: () -> void {
+    print("positioning");
+    panel: Box*! = BuildPositionedPanel();
+    defer delete panel;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    layout->viewportLogical = Point { x: 640.0f, y: 360.0f };
+    desired: Point = panel->Measure(Point { x: 300.0f, y: 200.0f });
+    print(desired.x);
+    print(desired.y);
+    panel->Arrange(Rect { x: 20.0f, y: -120.0f, width: 300.0f, height: 200.0f }, layout);
+    PrintTree(panel, 0);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -195,7 +266,10 @@ main :: () -> i32 {
     desired: Point = window->Measure(viewport);
     print(desired.x);
     print(desired.y);
-    window->Arrange(Rect { x: 0.0f, y: 0.0f, width: viewport.x, height: viewport.y });
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    layout->viewportLogical = viewport;
+    window->Arrange(Rect { x: 0.0f, y: 0.0f, width: viewport.x, height: viewport.y }, layout);
     PrintTree(window, 0);
 
     renderer: RecordingRenderer*! = new RecordingRenderer();
@@ -204,5 +278,6 @@ main :: () -> i32 {
     print(renderer->commandCount);
 
     SimulateInput();
+    ShowPositioning();
     return 0;
 }

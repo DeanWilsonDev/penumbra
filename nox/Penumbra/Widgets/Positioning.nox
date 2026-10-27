@@ -1,0 +1,127 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+EdgeInsets :: import EdgeInsets;
+Length :: import Length;
+Position :: import Position;
+Placement :: import Placement;
+WidgetBase :: import WidgetBase;
+LayoutContext :: import LayoutContext;
+
+Positioning :: namespace {
+    IsOutOfFlow :: (child: WidgetBase*) -> bool {
+        mode: Position = child->GetPlacement().positionMode;
+        return child->GetIsVisible() && (mode == Position:::Absolute || mode == Position:::Fixed);
+    }
+
+    InFlow :: (child: WidgetBase*) -> bool {
+        return child->GetIsVisible() && !Positioning:::IsOutOfFlow(child);
+    }
+
+    ResolveOffset :: (offset: Length?, basisLogical: f32) -> f32? {
+        if length := offset {
+            return length.Resolve(basisLogical);
+        }
+        return null;
+    }
+
+    StickAlong :: (position: f32, extent: f32, portStart: f32, portExtent: f32, blockStart: f32, blockEnd: f32, lead: f32?, trail: f32?) -> f32 {
+        inFlow: f32 = position;
+        result~ f32 = position;
+        if trailing := trail {
+            limit: f32 = portStart + portExtent - trailing - extent;
+            if result > limit {
+                result = Numbers:::Smaller(inFlow, Numbers:::Larger(limit, blockStart));
+            }
+        }
+        if leading := lead {
+            limit: f32 = portStart + leading;
+            if result < limit {
+                result = Numbers:::Larger(inFlow, Numbers:::Smaller(limit, blockEnd - extent));
+            }
+        }
+        return result;
+    }
+
+    OffsetInFlow :: (child: WidgetBase*, inFlowRect: Rect, parentContent: Rect, layout: LayoutContext*) -> Rect {
+        placement: Placement = child->GetPlacement();
+        placed~ Rect = inFlowRect;
+        if placement.positionMode == Position:::Sticky {
+            port: Rect = layout->InnermostScrollport();
+            margin: EdgeInsets = child->GetMarginLogical();
+            placed.y = Positioning:::StickAlong(placed.y, placed.height, port.y, port.height,
+                parentContent.y + margin.top, parentContent.y + parentContent.height - margin.bottom,
+                Positioning:::ResolveOffset(placement.top, port.height), Positioning:::ResolveOffset(placement.bottom, port.height));
+            placed.x = Positioning:::StickAlong(placed.x, placed.width, port.x, port.width,
+                parentContent.x + margin.left, parentContent.x + parentContent.width - margin.right,
+                Positioning:::ResolveOffset(placement.left, port.width), Positioning:::ResolveOffset(placement.right, port.width));
+            return placed;
+        }
+        if placement.positionMode != Position:::Relative {
+            return placed;
+        }
+        if left := Positioning:::ResolveOffset(placement.left, parentContent.width) {
+            placed.x = placed.x + left;
+        }
+        else if right := Positioning:::ResolveOffset(placement.right, parentContent.width) {
+            placed.x = placed.x - right;
+        }
+        if top := Positioning:::ResolveOffset(placement.top, parentContent.height) {
+            placed.y = placed.y + top;
+        }
+        else if bottom := Positioning:::ResolveOffset(placement.bottom, parentContent.height) {
+            placed.y = placed.y - bottom;
+        }
+        return placed;
+    }
+
+    ArrangeOutOfFlow :: (child: WidgetBase~*, staticPosition: Point, layout: LayoutContext~*) -> void {
+        placement: Placement = child->GetPlacement();
+        block: Rect = layout->ContainingBlockFor(placement.positionMode == Position:::Fixed);
+        margin: EdgeInsets = child->GetMarginLogical();
+
+        left: f32? = Positioning:::ResolveOffset(placement.left, block.width);
+        right: f32? = Positioning:::ResolveOffset(placement.right, block.width);
+        top: f32? = Positioning:::ResolveOffset(placement.top, block.height);
+        bottom: f32? = Positioning:::ResolveOffset(placement.bottom, block.height);
+
+        stretchX: bool = left != null && right != null && !placement.hasWidth;
+        stretchY: bool = top != null && bottom != null && !placement.hasHeight;
+        spaceX: f32 = Numbers:::NonNegative(block.width - margin.Horizontal());
+        spaceY: f32 = Numbers:::NonNegative(block.height - margin.Vertical());
+        availableX~ f32 = Numbers:::NonNegative(spaceX - (left ?? 0.0f) - (right ?? 0.0f));
+        if placement.hasWidth && !stretchX {
+            availableX = spaceX;
+        }
+        availableY~ f32 = Numbers:::NonNegative(spaceY - (top ?? 0.0f) - (bottom ?? 0.0f));
+        if placement.hasHeight && !stretchY {
+            availableY = spaceY;
+        }
+
+        desired: Point = child->Measure(Point { x: availableX, y: availableY });
+        width~ f32 = desired.x;
+        if stretchX {
+            width = availableX;
+        }
+        height~ f32 = desired.y;
+        if stretchY {
+            height = availableY;
+        }
+
+        x~ f32 = staticPosition.x;
+        if leftOffset := left {
+            x = block.x + leftOffset + margin.left;
+        }
+        else if rightOffset := right {
+            x = block.x + block.width - rightOffset - margin.right - width;
+        }
+        y~ f32 = staticPosition.y;
+        if topOffset := top {
+            y = block.y + topOffset + margin.top;
+        }
+        else if bottomOffset := bottom {
+            y = block.y + block.height - bottomOffset - margin.bottom - height;
+        }
+        child->Arrange(Rect { x: x, y: y, width: width, height: height }, layout);
+    }
+}

@@ -250,3 +250,54 @@ fill
 30
 255
 button destroyed
+positioning
+124
+118
+0
+panel
+2e+01
+-1.2e+02
+3e+02
+2e+02
+1
+static
+32
+-108
+1e+02
+5e+01
+1
+relative
+59.6
+-49
+1e+02
+2e+01
+1
+absolute corner
+2.7e+02
+-1.1e+02
+4e+01
+2e+01
+1
+absolute strip
+22
+68
+296
+1e+01
+1
+absolute static
+32
+-3e+01
+3e+01
+3e+01
+1
+fixed badge
+612
+344
+24
+12
+1
+sticky
+32
+0
+1e+02
+16

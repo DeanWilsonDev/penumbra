@@ -3,6 +3,8 @@ Rect :: import Rect;
 EdgeInsets :: import EdgeInsets;
 IRenderer :: import IRenderer;
 InputState :: import InputState;
+Placement :: import Placement;
+LayoutContext :: import LayoutContext;
 
 InteractionState :: enum {
     Default,
@@ -36,12 +38,16 @@ public:
     }
 
     Measure~ (availableSizeLogical: Point) -> Point : 0;
-    Arrange~ (finalRectLogical: Rect) -> void : 0;
+    Arrange~ (finalRectLogical: Rect, layout: LayoutContext~*) -> void : 0;
     Draw~ (renderer: IRenderer~*) -> void : 0;
     UpdateInteractionState~ (input: InputState) -> bool : 0;
 
     virtual GetMarginLogical :: () -> EdgeInsets {
         return EdgeInsets { };
+    }
+
+    virtual GetPlacement :: () -> Placement {
+        return Placement { };
     }
 
     virtual GetFlexGrow :: () -> f32 {
