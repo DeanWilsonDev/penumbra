@@ -2829,3 +2829,30 @@ pinned
 pointer where the target was laid out
 true
 false
+key events
+a release reaches the widget listening for events
+listener event
+a
+false
+false
+false
+presses stop at the topmost press listener
+presser key
+Enter
+presser key
+Enter
+presses without events become down events
+lone key
+ 
+lone key
+\
+lone event
+ 
+true
+false
+true
+lone event
+\
+true
+false
+true
