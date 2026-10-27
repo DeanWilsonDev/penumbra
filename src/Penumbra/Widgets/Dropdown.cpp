@@ -111,7 +111,21 @@ void Dropdown::Dismiss() {
     }
 }
 
+bool Dropdown::DrawsSelectedLabel() const {
+    return FontBackend != nullptr && !Items.empty() && SelectedIndex < Items.size() &&
+           !Items[SelectedIndex].DrawLeadingVisual;
+}
+
 Point Dropdown::MeasureContent(Point) {
+    if (DrawsSelectedLabel()) {
+        float LabelWidth = 0.0f;
+        for (const DropdownItem& Item : Items) {
+            LabelWidth = std::max(LabelWidth, FontBackend->MeasureTextWidth(Font, Item.Label));
+        }
+        const float TextHeight = FontBackend->MeasureText(Font, "Ag").HeightLogical;
+        return {LabelWidth + DropdownVisualStyle.LeadingVisualGapLogical + TriggerChevronWidthLogical,
+                std::max(TextHeight, DropdownVisualStyle.TriggerContentSizeLogical)};
+    }
     return {DropdownVisualStyle.TriggerContentSizeLogical, DropdownVisualStyle.TriggerContentSizeLogical};
 }
 
@@ -119,7 +133,28 @@ void Dropdown::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
     if (Items.empty() || SelectedIndex >= Items.size()) return;
     if (Items[SelectedIndex].DrawLeadingVisual) {
         Items[SelectedIndex].DrawLeadingVisual(Renderer, ContentRect, DropdownVisualStyle.ColorTextHighlighted);
+        return;
     }
+    if (!DrawsSelectedLabel()) return;
+    const float TextHeight = FontBackend->MeasureText(Font, "Ag").HeightLogical;
+    const float MaxWidth = std::max(0.0f, ContentRect.W - TriggerChevronWidthLogical);
+    std::string Text = Items[SelectedIndex].Label;
+    while (!Text.empty() && Renderer.MeasureTextWidth(Font, Text) > MaxWidth) {
+        Text.pop_back();
+    }
+    if (Text.size() >= 2 && Text != Items[SelectedIndex].Label) {
+        Text[Text.size() - 1] = '.';
+        if (Text.size() >= 3) Text[Text.size() - 2] = '.';
+    }
+    const Point TextOrigin{ContentRect.X, ContentRect.Y + (ContentRect.H - TextHeight) * 0.5f};
+    Renderer.DrawText(Font, Text, TextOrigin, DropdownVisualStyle.ColorText);
+    const float ChevronSize = std::min(TriggerChevronWidthLogical * 0.5f, ContentRect.H * 0.5f);
+    const float ChevronX = ContentRect.X + ContentRect.W - TriggerChevronWidthLogical + (TriggerChevronWidthLogical - ChevronSize) * 0.5f;
+    const float ChevronY = ContentRect.Y + (ContentRect.H - ChevronSize * 0.5f) * 0.5f;
+    Renderer.DrawLine({ChevronX, ChevronY}, {ChevronX + ChevronSize * 0.5f, ChevronY + ChevronSize * 0.5f},
+                      DropdownVisualStyle.ColorText, 1.0f);
+    Renderer.DrawLine({ChevronX + ChevronSize * 0.5f, ChevronY + ChevronSize * 0.5f}, {ChevronX + ChevronSize, ChevronY},
+                      DropdownVisualStyle.ColorText, 1.0f);
 }
 
 bool Dropdown::UpdateInteractionState(const Platform::InputState& Input) {
