@@ -23,6 +23,16 @@ RecordingRenderer :: class {
 public:
     commandCount~ i32 = 0;
     printsDetail~ bool = true;
+    frameIndex~ u64 = 0;
+    frameDeltaSeconds~ f32 = 0.0f;
+
+    GetFrameIndex :: () -> u64 {
+        return this->frameIndex;
+    }
+
+    GetFrameDeltaSeconds :: () -> f32 {
+        return this->frameDeltaSeconds;
+    }
 
     FillRect~: (rect: Rect, color: Color) -> void {
         this->commandCount = this->commandCount + 1;

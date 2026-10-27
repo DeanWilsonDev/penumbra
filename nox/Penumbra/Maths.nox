@@ -3,6 +3,11 @@ CMath :: foreign "m" {
     cosf :: (value: f32) -> f32;
     sinf :: (value: f32) -> f32;
     lroundf :: (value: f32) -> i64;
+    floorf :: (value: f32) -> f32;
+    ceilf :: (value: f32) -> f32;
+    log10f :: (value: f32) -> f32;
+    powf :: (base: f32, exponent: f32) -> f32;
+    fabsf :: (value: f32) -> f32;
 }
 
 Maths :: namespace {
@@ -28,6 +33,40 @@ Maths :: namespace {
         unsafe {
             return CMath:::lroundf(value);
         }
+    }
+
+    Floor :: (value: f32) -> f32 {
+        unsafe {
+            return CMath:::floorf(value);
+        }
+    }
+
+    Ceil :: (value: f32) -> f32 {
+        unsafe {
+            return CMath:::ceilf(value);
+        }
+    }
+
+    Log10 :: (value: f32) -> f32 {
+        unsafe {
+            return CMath:::log10f(value);
+        }
+    }
+
+    Power :: (base: f32, exponent: f32) -> f32 {
+        unsafe {
+            return CMath:::powf(base, exponent);
+        }
+    }
+
+    Absolute :: (value: f32) -> f32 {
+        unsafe {
+            return CMath:::fabsf(value);
+        }
+    }
+
+    IsFinite :: (value: f32) -> bool {
+        return value - value == 0.0f;
     }
 
     Clamp :: (value: f32, lowest: f32, highest: f32) -> f32 {

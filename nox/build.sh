@@ -36,6 +36,8 @@ library_sources=(
     Penumbra/Widgets/Dropdown.nox
     Penumbra/Widgets/InlineContainer.nox
     Penumbra/Widgets/IconWidget.nox
+    Penumbra/Widgets/Chart.nox
+    Penumbra/Widgets/BarChart.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox

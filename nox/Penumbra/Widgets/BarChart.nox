@@ -1,0 +1,171 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Maths :: import Maths;
+IRenderer :: import IRenderer;
+ChartStyle :: import ChartStyle;
+ValueExtent :: import ValueExtent;
+AxisChartBase :: import AxisChartBase;
+
+BarOrientation :: enum {
+    Vertical,
+    Horizontal
+}
+
+BarChart :: class : AxisChartBase {
+public:
+    orientation~ BarOrientation = BarOrientation:::Vertical;
+    stacked~ bool = false;
+
+protected:
+    DataExtent :: () -> ValueExtent override {
+        if !this->stacked {
+            return AxisChartBase:::DataExtent();
+        }
+        extent~ ValueExtent = ValueExtent { };
+        category~ usize = 0;
+        while category < this->CategoryCount() {
+            up~ f32 = 0.0f;
+            down~ f32 = 0.0f;
+            for one in this->series {
+                value~ f32 = 0.0f;
+                if category < one->values.length() {
+                    value = one->values[category];
+                }
+                if value >= 0.0f {
+                    up = up + value;
+                }
+                else {
+                    down = down + value;
+                }
+            }
+            extent.high = Numbers:::Larger(extent.high, up);
+            extent.low = Numbers:::Smaller(extent.low, down);
+            category = category + 1;
+        }
+        return extent;
+    }
+
+    CategoryCentre :: (category: usize) -> f32 override {
+        return this->BandStart(category) + this->BandLength() * 0.5f;
+    }
+
+    DrawChart~: (renderer: IRenderer~*, contentRect: Rect, snap: bool, deltaSeconds: f32, appearProgress: f32) -> void override {
+        look: ChartStyle = this->chartVisualStyle;
+        horizontal: bool = this->orientation == BarOrientation:::Horizontal;
+        this->LayoutAxes(contentRect, horizontal, 0.0f, snap, deltaSeconds);
+        this->DrawGrid(renderer);
+
+        categories: usize = this->CategoryCount();
+        band: f32 = this->BandLength();
+        plot: Rect = this->plotRect;
+
+        hovered: i32 = this->GetHoveredIndex();
+        if hovered >= 0 && usize(hovered) < categories && look.colorHover.alpha != 0 {
+            start~ f32 = plot.y + plot.height;
+            end~ f32 = plot.y;
+            if horizontal {
+                start = plot.x;
+                end = plot.x + plot.width;
+            }
+            renderer->FillRect(this->BandRect(usize(hovered), 0.0f, band, start, end), look.colorHover);
+        }
+
+        group: f32 = band * (1.0f - Maths:::Clamp(look.barGapFraction, 0.0f, 1.0f));
+        groupLead: f32 = (band - group) * 0.5f;
+        thickness~ f32 = group;
+        if !this->stacked && this->series.length() > 0 {
+            thickness = group / f32(this->series.length());
+        }
+        base: f32 = this->BaselineValue();
+
+        renderer->PushClipRect(plot);
+        category~ usize = 0;
+        while category < categories {
+            up~ f32 = 0.0f;
+            down~ f32 = 0.0f;
+            seriesIndex~ usize = 0;
+            while seriesIndex < this->series.length() {
+                value: f32 = this->DisplayedValue(seriesIndex, category);
+                from~ f32 = base;
+                to~ f32 = value;
+                if this->stacked {
+                    if value >= 0.0f {
+                        from = up;
+                        to = up + value;
+                        up = to;
+                    }
+                    else {
+                        from = down;
+                        to = down + value;
+                        down = to;
+                    }
+                }
+                offset~ f32 = groupLead;
+                if !this->stacked {
+                    offset = groupLead + thickness * f32(seriesIndex);
+                }
+                start: f32 = this->ValuePosition(this->AppearValue(from, appearProgress));
+                end: f32 = this->ValuePosition(this->AppearValue(to, appearProgress));
+                renderer->FillRect(this->BandRect(category, offset, thickness, start, end), this->series[seriesIndex]->seriesColor);
+                seriesIndex = seriesIndex + 1;
+            }
+            category = category + 1;
+        }
+        renderer->PopClipRect();
+
+        this->DrawBaseline(renderer);
+        this->DrawCategoryLabels(renderer, band);
+    }
+
+    HitTest :: (mouseLogical: Point) -> i32 override {
+        categories: usize = this->CategoryCount();
+        band: f32 = this->BandLength();
+        plot: Rect = this->plotRect;
+        inside: bool = mouseLogical.x >= plot.x && mouseLogical.x < plot.x + plot.width &&
+            mouseLogical.y >= plot.y && mouseLogical.y < plot.y + plot.height;
+        if categories == 0 || band <= 0.0f || !inside {
+            return -1;
+        }
+        along~ f32 = mouseLogical.x - plot.x;
+        if this->orientation == BarOrientation:::Horizontal {
+            along = mouseLogical.y - plot.y;
+        }
+        index: usize = usize(Numbers:::Larger(0.0f, Maths:::Floor(along / band)));
+        if index > categories - 1 {
+            return i32(categories - 1);
+        }
+        return i32(index);
+    }
+
+private:
+    BandLength :: () -> f32 {
+        categories: usize = this->CategoryCount();
+        if categories == 0 {
+            return 0.0f;
+        }
+        length~ f32 = this->plotRect.width;
+        if this->orientation == BarOrientation:::Horizontal {
+            length = this->plotRect.height;
+        }
+        return length / f32(categories);
+    }
+
+    BandStart :: (category: usize) -> f32 {
+        origin~ f32 = this->plotRect.x;
+        if this->orientation == BarOrientation:::Horizontal {
+            origin = this->plotRect.y;
+        }
+        return origin + this->BandLength() * f32(category);
+    }
+
+    BandRect :: (category: usize, offset: f32, thickness: f32, from: f32, to: f32) -> Rect {
+        low: f32 = Numbers:::Smaller(from, to);
+        size: f32 = Maths:::Absolute(to - from);
+        at: f32 = this->BandStart(category) + offset;
+        if this->orientation == BarOrientation:::Horizontal {
+            return Rect { x: low, y: at, width: size, height: thickness };
+        }
+        return Rect { x: at, y: low, width: thickness, height: size };
+    }
+}

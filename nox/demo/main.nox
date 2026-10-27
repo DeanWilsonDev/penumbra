@@ -37,6 +37,10 @@ DropdownStyle :: import DropdownStyle;
 InlineContainer :: import InlineContainer;
 IconWidget :: import IconWidget;
 RecordingIconBackend :: import RecordingIconBackend;
+ChartStyle :: import ChartStyle;
+ChartSeries :: import ChartSeries;
+BarChart :: import BarChart;
+BarOrientation :: import BarOrientation;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -1033,6 +1037,78 @@ ShowIcon :: () -> void {
     IconFrame(icon, stacking, renderer, "disabled", PointerAtPoint(5.0f, 5.0f, false, false, false));
 }
 
+ChartLook :: (tickSpacing: f32, labelGap: f32) -> ChartStyle {
+    look~ ChartStyle = ChartStyle { };
+    look.colorAxis = Color { red: 1, green: 0, blue: 0, alpha: 255 };
+    look.colorGridLine = Color { red: 2, green: 0, blue: 0, alpha: 255 };
+    look.colorLabel = Color { red: 3, green: 0, blue: 0, alpha: 255 };
+    look.colorHover = Color { red: 4, green: 0, blue: 0, alpha: 255 };
+    look.axisThicknessLogical = 1.0f;
+    look.gridLineThicknessLogical = 1.0f;
+    look.tickSpacingLogical = tickSpacing;
+    look.labelGapLogical = labelGap;
+    look.barGapFraction = 0.2f;
+    return look;
+}
+
+ShowBarCharts :: (font: IFontBackend*) -> void {
+    print("bar charts");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+
+    week: BarChart*! = new BarChart();
+    defer delete week;
+    week->className = "week";
+    week->fontBackend = font;
+    week->fontSizeLogical = 10.0f;
+    week->preferredWidthLogical = 200.0f;
+    week->preferredHeightLogical = 120.0f;
+    week->ApplyStyle(ChartLook(30.0f, 4.0f));
+    week->AddLabel("Mon");
+    week->AddLabel("Tue");
+    week->AddLabel("Wed");
+    visits: ChartSeries~* = week->AddSeries("visits", Color { red: 200, green: 0, blue: 0, alpha: 255 });
+    visits->values.push(4.0f);
+    visits->values.push(10.0f);
+    visits->values.push(6.0f);
+    week->onHoverChanged = new (index: i32) -> void {
+        print("hovered category");
+        print(index);
+    };
+    desired: Point = week->Measure(Point { x: 400.0f, y: 400.0f });
+    print(desired.x);
+    print(desired.y);
+    week->Arrange(Rect { x: 0.0f, y: 0.0f, width: desired.x, height: desired.y }, layout);
+    week->Draw(renderer, stacking);
+    print(week->UpdateInteractionState(PointerAtPoint(110.0f, 60.0f, false, false, false), stacking));
+    week->Draw(renderer, stacking);
+
+    split: BarChart*! = new BarChart();
+    defer delete split;
+    split->className = "split";
+    split->fontBackend = font;
+    split->fontSizeLogical = 10.0f;
+    split->preferredWidthLogical = 120.0f;
+    split->preferredHeightLogical = 60.0f;
+    split->ApplyStyle(ChartLook(20.0f, 2.0f));
+    split->orientation = BarOrientation:::Horizontal;
+    split->stacked = true;
+    split->AddLabel("A");
+    split->AddLabel("Bee");
+    gains: ChartSeries~* = split->AddSeries("gains", Color { red: 10, green: 0, blue: 0, alpha: 255 });
+    gains->values.push(3.0f);
+    gains->values.push(-2.0f);
+    more: ChartSeries~* = split->AddSeries("more", Color { red: 20, green: 0, blue: 0, alpha: 255 });
+    more->values.push(2.0f);
+    more->values.push(4.0f);
+    split->Arrange(Rect { x: 0.0f, y: 0.0f, width: 120.0f, height: 60.0f }, layout);
+    split->Draw(renderer, stacking);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1069,5 +1145,6 @@ main :: () -> i32 {
     ShowDropdown(font);
     ShowInlineFlow();
     ShowIcon();
+    ShowBarCharts(font);
     return 0;
 }
