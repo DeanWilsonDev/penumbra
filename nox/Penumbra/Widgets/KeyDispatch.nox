@@ -2,6 +2,7 @@ Point :: import Point;
 Rect :: import Rect;
 InputState :: import InputState;
 Key :: import Key;
+KeyEvent :: import KeyEvent;
 WidgetBase :: import WidgetBase;
 
 KeyDispatch :: class {
@@ -10,7 +11,9 @@ public:
 
     !KeyDispatch~: () {
         delete this->presses;
+        delete this->events;
         delete this->used;
+        delete this->usedForEvents;
     }
 
     Begin~: (root: WidgetBase~*, input: InputState) -> bool {
@@ -22,9 +25,18 @@ public:
         this->target = null;
         this->withheld = false;
         this->presses.clear();
+        this->events.clear();
         this->used.clear();
         for key in input.keysPressedThisFrame {
             this->presses.push(key);
+        }
+        for event in input.keyEvents {
+            this->events.push(event);
+        }
+        if this->events.length() == 0 {
+            for key in input.keysPressedThisFrame {
+                this->events.push(KeyEvent { code: key, down: true, repeat: false, modifierState: input.modifierState });
+            }
         }
         return true;
     }
@@ -37,7 +49,7 @@ public:
         chosen~ WidgetBase~*? = this->target;
         if chosen == null && !this->withheld {
             if passRoot := this->root {
-                if passRoot->onKeyPressed != null {
+                if passRoot->onKeyPressed != null || passRoot->onKeyEvent != null {
                     chosen = passRoot;
                 }
             }
@@ -45,12 +57,24 @@ public:
         this->root = null;
         this->target = null;
         guard receiver := chosen;
-        for key in this->presses {
-            if this->TakeUsed(key) {
-                continue;
-            }
-            if handler := receiver->onKeyPressed {
+        this->usedForEvents.clear();
+        for key in this->used {
+            this->usedForEvents.push(key);
+        }
+        if handler := receiver->onKeyPressed {
+            for key in this->presses {
+                if this->TakeUsed(key) {
+                    continue;
+                }
                 handler(key);
+            }
+        }
+        if handler := receiver->onKeyEvent {
+            for event in this->events {
+                if event.down && this->TakeUsedForEvents(event.code) {
+                    continue;
+                }
+                handler(event);
             }
         }
     }
@@ -62,11 +86,12 @@ public:
     }
 
     ForChild :: (input: InputState) -> InputState {
-        if !this->withheld || (input.keysPressedThisFrame.length() == 0 && input.textInputThisFrame.length() == 0) {
+        if !this->withheld || (input.keysPressedThisFrame.length() == 0 && input.keyEvents.length() == 0 && input.textInputThisFrame.length() == 0) {
             return input;
         }
         stripped~ InputState = input;
         stripped.keysPressedThisFrame = [];
+        stripped.keyEvents = [];
         stripped.textInputThisFrame = "";
         return stripped;
     }
@@ -75,7 +100,9 @@ public:
         if !this->open {
             return;
         }
-        if this->target == null && child->onKeyPressed != null && given.keysPressedThisFrame.length() > 0 {
+        hasPresses: bool = given.keysPressedThisFrame.length() > 0;
+        hasEvents: bool = hasPresses || given.keyEvents.length() > 0;
+        if this->target == null && ((child->onKeyPressed != null && hasPresses) || (child->onKeyEvent != null && hasEvents)) {
             this->target = child;
         }
         if !given.pointerPassThrough && this->CoversWindow(child->GetArrangedRect()) {
@@ -89,7 +116,21 @@ private:
     target~ WidgetBase~*? = null;
     withheld~ bool = false;
     presses~ Array<Key>! = [];
+    events~ Array<KeyEvent>! = [];
     used~ Array<Key>! = [];
+    usedForEvents~ Array<Key>! = [];
+
+    TakeUsedForEvents~: (key: Key) -> bool {
+        index~ usize = 0;
+        while index < this->usedForEvents.length() {
+            if this->usedForEvents[index] == key {
+                this->usedForEvents.remove(index);
+                return true;
+            }
+            index = index + 1;
+        }
+        return false;
+    }
 
     TakeUsed~: (key: Key) -> bool {
         index~ usize = 0;
@@ -112,3 +153,4 @@ private:
             && area.y + area.height >= this->viewportLogical.y - slack;
     }
 }
+

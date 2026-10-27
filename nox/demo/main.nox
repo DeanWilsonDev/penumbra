@@ -38,6 +38,9 @@ ChevronDirection :: import ChevronDirection;
 OverlayHost :: import OverlayHost;
 FocusState :: import FocusState;
 Key :: import Key;
+KeyEvent :: import KeyEvent;
+Keys :: import Keys;
+Modifiers :: import Modifiers;
 TransitionSpec :: import TransitionSpec;
 BoxStyle :: import BoxStyle;
 RecordingClipboard :: import RecordingClipboard;
@@ -1756,6 +1759,63 @@ ShowTransformGroups :: () -> void {
     print(targetView->GetInteractionState() == InteractionState:::Hovered);
 }
 
+PrintKeyEvent :: (receiver: string, event: KeyEvent) -> void {
+    print(receiver);
+    print(Keys:::Name(event.code));
+    print(event.down);
+    print(event.repeat);
+    print(event.modifierState.shift);
+}
+
+ShowKeyEvents :: () -> void {
+    print("key events");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+
+    root: Box*! = MakeBox("root", LayoutMode:::VerticalStack);
+    defer delete root;
+    root->onKeyEvent = new (event: KeyEvent) -> void { PrintKeyEvent("root event", event); };
+    listener: Box*! = MakeSizedBox("listener", 40.0f, 20.0f);
+    listener->onKeyEvent = new (event: KeyEvent) -> void { PrintKeyEvent("listener event", event); };
+    root->AddChild(listener!);
+    presser: Box*! = MakeSizedBox("presser", 40.0f, 20.0f);
+    presser->onKeyPressed = new (key: Key) -> void {
+        print("presser key");
+        print(Keys:::Name(key));
+    };
+    root->AddChild(presser!);
+    root->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    root->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: 100.0f }, layout);
+
+    released~ InputState = PointerAt(300.0f, false, false, false);
+    releaseEvents: KeyEvent[1] = [KeyEvent { code: Key:::A, down: false }];
+    released.keyEvents = releaseEvents.borrow();
+    KeyFrame(root, stacking, "a release reaches the widget listening for events", released);
+
+    pressed~ InputState = PointerAt(300.0f, false, false, false);
+    pressedKeys: Key[2] = [Key:::Enter, Key:::Enter];
+    pressed.keysPressedThisFrame = pressedKeys.borrow();
+    pressEvents: KeyEvent[2] = [KeyEvent { code: Key:::Enter }, KeyEvent { code: Key:::Enter, repeat: true }];
+    pressed.keyEvents = pressEvents.borrow();
+    KeyFrame(root, stacking, "presses stop at the topmost press listener", pressed);
+
+    lone: Box*! = MakeBox("lone", LayoutMode:::None);
+    defer delete lone;
+    lone->onKeyPressed = new (key: Key) -> void {
+        print("lone key");
+        print(Keys:::Name(key));
+    };
+    lone->onKeyEvent = new (event: KeyEvent) -> void { PrintKeyEvent("lone event", event); };
+    lone->Arrange(Rect { x: 0.0f, y: 0.0f, width: 10.0f, height: 10.0f }, layout);
+    synthesized~ InputState = PointerAt(300.0f, false, false, false);
+    synthesizedKeys: Key[2] = [Key:::Space, Key:::Backslash];
+    synthesized.keysPressedThisFrame = synthesizedKeys.borrow();
+    synthesized.modifierState = Modifiers { shift: true };
+    KeyFrame(lone, stacking, "presses without events become down events", synthesized);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1803,5 +1863,6 @@ main :: () -> i32 {
     ShowViewportUnitsAndMemo();
     ShowLayeredWheel();
     ShowTransformGroups();
+    ShowKeyEvents();
     return 0;
 }

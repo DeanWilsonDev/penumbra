@@ -5,6 +5,7 @@ EdgeInsets :: import EdgeInsets;
 IRenderer :: import IRenderer;
 InputState :: import InputState;
 Key :: import Key;
+KeyEvent :: import KeyEvent;
 Placement :: import Placement;
 LayoutContext :: import LayoutContext;
 StackingTracker :: import StackingTracker;
@@ -39,6 +40,7 @@ public:
     onChanged~ (() -> void)!? = null;
     onDestroyed~ (() -> void)!? = null;
     onKeyPressed~ ((key: Key) -> void)!? = null;
+    onKeyEvent~ ((event: KeyEvent) -> void)!? = null;
 
     !WidgetBase~: () {
         if handler := this->onDestroyed {
@@ -52,6 +54,7 @@ public:
         delete this->onChanged;
         delete this->onDestroyed;
         delete this->onKeyPressed;
+        delete this->onKeyEvent;
     }
 
     Measure~ (availableSizeLogical: Point, layout: LayoutContext~*) -> Point : 0;
