@@ -47,6 +47,24 @@ Justify :: enum {
     SpaceBetween
 }
 
+Position :: enum {
+    Static,
+    Relative,
+    Absolute,
+    Fixed,
+    Sticky
+}
+
+Placement :: struct {
+    positionMode~ Position = Position:::Static;
+    top~ Length? = null;
+    right~ Length? = null;
+    bottom~ Length? = null;
+    left~ Length? = null;
+    hasWidth~ bool = false;
+    hasHeight~ bool = false;
+}
+
 BoxStyle :: struct {
     colorBackground~ Color = Color { };
     colorBorder~ Color = Color { };
@@ -65,6 +83,23 @@ BoxStyle :: struct {
     maxWidth~ Length = Length { };
     flexGrow~ f32 = 0.0f;
     opacity~ f32 = 1.0f;
+    positionMode~ Position = Position:::Static;
+    top~ Length? = null;
+    right~ Length? = null;
+    bottom~ Length? = null;
+    left~ Length? = null;
+
+    PlacementOf :: () -> Placement {
+        return Placement {
+            positionMode: positionMode,
+            top: top,
+            right: right,
+            bottom: bottom,
+            left: left,
+            hasWidth: width.IsSet(),
+            hasHeight: height.IsSet()
+        };
+    }
 
     HasInteractionColors :: () -> bool {
         return colorBackgroundHovered.IsVisible() || colorBackgroundPressed.IsVisible()

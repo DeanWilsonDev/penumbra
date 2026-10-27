@@ -1,0 +1,83 @@
+Point :: import Point;
+Rect :: import Rect;
+Placement :: import Placement;
+Position :: import Position;
+
+ContainingBlock :: struct {
+    paddingBox~ Rect = Rect { };
+    forFixed~ bool = false;
+}
+
+LayoutContext :: class {
+public:
+    viewportLogical~ Point = Point { };
+
+    !LayoutContext~: () {
+        delete this->blocks;
+        delete this->scrollports;
+    }
+
+    EnterBlock~: (placement: Placement, paddingBox: Rect) -> usize {
+        pushed~ usize = 0;
+        if this->blocks.length() == 0 {
+            initial~ Rect = paddingBox;
+            if this->HasViewport() {
+                initial = this->ViewportRect();
+            }
+            this->blocks.push(ContainingBlock { paddingBox: initial, forFixed: true });
+            pushed = pushed + 1;
+        }
+        if placement.positionMode != Position:::Static {
+            this->blocks.push(ContainingBlock { paddingBox: paddingBox, forFixed: false });
+            pushed = pushed + 1;
+        }
+        return pushed;
+    }
+
+    LeaveBlocks~: (count: usize) -> void {
+        remaining~ usize = count;
+        while remaining > 0 {
+            this->blocks.pop();
+            remaining = remaining - 1;
+        }
+    }
+
+    ContainingBlockFor :: (fixed: bool) -> Rect {
+        index~ usize = this->blocks.length();
+        while index > 0 {
+            index = index - 1;
+            block: ContainingBlock = this->blocks[index];
+            if !fixed || block.forFixed {
+                return block.paddingBox;
+            }
+        }
+        return this->ViewportRect();
+    }
+
+    EnterScrollport~: (scrollport: Rect) -> void {
+        this->scrollports.push(scrollport);
+    }
+
+    LeaveScrollport~: () -> void {
+        this->scrollports.pop();
+    }
+
+    InnermostScrollport :: () -> Rect {
+        if this->scrollports.length() == 0 {
+            return this->ViewportRect();
+        }
+        return this->scrollports[this->scrollports.length() - 1];
+    }
+
+private:
+    blocks~ Array<ContainingBlock>! = [];
+    scrollports~ Array<Rect>! = [];
+
+    HasViewport :: () -> bool {
+        return this->viewportLogical.x > 0.0f && this->viewportLogical.y > 0.0f;
+    }
+
+    ViewportRect :: () -> Rect {
+        return Rect { x: 0.0f, y: 0.0f, width: this->viewportLogical.x, height: this->viewportLogical.y };
+    }
+}

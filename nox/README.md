@@ -20,7 +20,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   every widget's arranged rect, then draws through a recording renderer. Its output was checked
   by hand against the C++ layout rules. It then runs eleven frames of simulated mouse input over a
   toolbar holding a button and a disabled box, printing each frame's callbacks and interaction
-  states. It also runs clean under ASan and UBSan.
+  states. Last it arranges a positioned panel with relative, absolute, fixed and sticky children.
+  It also runs clean under ASan and UBSan.
 
 ## What's ported
 
@@ -34,6 +35,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/Styles.h` | `Penumbra/Widgets/Styles.nox` (`EdgeInsets`, the layout enums, the layout half of `BoxStyle` and its hovered, pressed and disabled colours) |
 | `Widgets/WidgetBase.h` | `Penumbra/Widgets/WidgetBase.nox` (abstract class, with the seven callbacks as `(() -> void)!?` fields) |
 | `Widgets/Box.h/.cpp` | `Penumbra/Widgets/Box.nox`: children as `Array<WidgetBase*!>!`, the None, vertical, horizontal and fixed-leading layouts, flex grow, cross alignment, justify, width, height, min-width and max-width, drawing the background, border and children in their interaction-state colours, and `UpdateInteractionState` (children in reverse order, occluded input after one consumes it, hover, press, release and disabled) |
+| `Widgets/Positioning.h/.cpp` | `Penumbra/Widgets/Positioning.nox` and `LayoutContext.nox`: relative, absolute, fixed and sticky positioning, with the containing-block and scrollport stacks held by a `LayoutContext` passed to `Arrange` |
 | `Widgets/Label.h/.cpp` | `Penumbra/Widgets/Label.nox`, measured through `IFontBackend` |
 
 ## Not ported yet
@@ -41,7 +43,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 - The SDL platform layer, the SDL renderer and the SDL_ttf font backend. These need foreign
   calls into C, which the prototype doesn't have yet.
 - Keyboard input, text input and key dispatch, pointer-events modes, and focus.
-- Positioning, stacking contexts, clipping and the scroll containers.
+- Stacking contexts and z-index, clipping, pointer-events modes and the scroll containers.
+- Transforms as containing blocks (Penumbra's `Transform` style isn't ported yet).
 - Transitions, animation, the layout-pass measure memo, and viewport units.
 - Every widget beyond `Box` and `Label`.
 
@@ -49,8 +52,10 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 
 The Nox board's Penumbra card tracks this list:
 
-- **No file-level mutable state.** Penumbra keeps the layout viewport and the current layout pass
-  in globals, so viewport units and the measure memo are left out for now.
+- **No file-level mutable state.** Penumbra keeps the layout viewport, the current layout pass and
+  the containing-block stack in globals. The port passes a `LayoutContext` to `Arrange` instead,
+  which holds the viewport and the block and scrollport stacks. Viewport units and the measure
+  memo would need it passed to `Measure` too, so they're still left out.
 - **No static members.** `Length::Logical(…)` became the namespace function
   `Lengths:::Logical(…)`.
 - **`print` takes one value, and strings don't concatenate yet.** The recording renderer prints one

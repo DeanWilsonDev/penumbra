@@ -13,7 +13,9 @@ library_sources=(
     Penumbra/Platform/InputState.nox
     Penumbra/Widgets/Length.nox
     Penumbra/Widgets/Styles.nox
+    Penumbra/Widgets/LayoutContext.nox
     Penumbra/Widgets/WidgetBase.nox
+    Penumbra/Widgets/Positioning.nox
     Penumbra/Widgets/Box.nox
     Penumbra/Widgets/Label.nox
 )

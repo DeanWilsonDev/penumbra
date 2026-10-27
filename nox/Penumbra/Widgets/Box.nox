@@ -14,6 +14,9 @@ WidgetBase :: import WidgetBase;
 InteractionState :: import InteractionState;
 InputState :: import InputState;
 MouseButton :: import MouseButton;
+Placement :: import Placement;
+LayoutContext :: import LayoutContext;
+Positioning :: import Positioning;
 
 CrossPlacement :: struct {
     position~ f32 = 0.0f;
@@ -53,6 +56,10 @@ public:
         return this->style.margin;
     }
 
+    GetPlacement :: () -> Placement override {
+        return this->style.PlacementOf();
+    }
+
     GetFlexGrow :: () -> f32 override {
         return this->style.flexGrow;
     }
@@ -86,17 +93,24 @@ public:
         return this->ConstrainDesired(Point { x: contentDesired.x + frame.x, y: contentDesired.y + frame.y }, availableSizeLogical);
     }
 
-    Arrange~: (finalRectLogical: Rect) -> void override {
+    Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
         this->arrangedRect = finalRectLogical;
+        pushedBlocks: usize = layout->EnterBlock(this->style.PlacementOf(), this->PaddingRectFrom(finalRectLogical));
         content: Rect = this->ContentRectFrom(finalRectLogical);
         if this->layout == LayoutMode:::None {
-            return;
+            for child in this->children {
+                if Positioning:::IsOutOfFlow(child) {
+                    this->PlaceOutOfFlow(child, Point { x: content.x, y: content.y }, layout);
+                }
+            }
         }
-        if this->layout == LayoutMode:::FixedLeadingStack {
-            this->ArrangeFixedLeading(content);
-            return;
+        else if this->layout == LayoutMode:::FixedLeadingStack {
+            this->ArrangeFixedLeading(content, layout);
         }
-        this->ArrangeStack(content);
+        else {
+            this->ArrangeStack(content, layout);
+        }
+        layout->LeaveBlocks(pushedBlocks);
     }
 
     UpdateInteractionState~: (input: InputState) -> bool override {
@@ -233,6 +247,16 @@ protected:
         };
     }
 
+    PaddingRectFrom :: (outerRect: Rect) -> Rect {
+        border: f32 = this->style.borderWidth;
+        return Rect {
+            x: outerRect.x + border,
+            y: outerRect.y + border,
+            width: Numbers:::NonNegative(outerRect.width - 2.0f * border),
+            height: Numbers:::NonNegative(outerRect.height - 2.0f * border)
+        };
+    }
+
     ContentRectFrom :: (outerRect: Rect) -> Rect {
         border: f32 = this->style.borderWidth;
         return Rect {
@@ -327,7 +351,7 @@ private:
         extents~ Array<f32>! = [];
         totalGrow~ f32 = 0.0f;
         for child in this->children {
-            if child->GetIsVisible() && child->GetFlexGrow() > 0.0f {
+            if Positioning:::InFlow(child) && child->GetFlexGrow() > 0.0f {
                 totalGrow = totalGrow + child->GetFlexGrow();
             }
         }
@@ -337,7 +361,7 @@ private:
         fixedMain~ f32 = 0.0f;
         visibleCount~ usize = 0;
         for child in this->children {
-            if !child->GetIsVisible() {
+            if !Positioning:::InFlow(child) {
                 continue;
             }
             visibleCount = visibleCount + 1;
@@ -358,7 +382,7 @@ private:
         }
         remaining: f32 = Numbers:::NonNegative(this->MainOf(vertical, contentSize) - fixedMain - gaps);
         for child in this->children {
-            if child->GetIsVisible() && child->GetFlexGrow() > 0.0f {
+            if Positioning:::InFlow(child) && child->GetFlexGrow() > 0.0f {
                 extents.push(remaining * child->GetFlexGrow() / totalGrow);
             }
             else {
@@ -380,7 +404,7 @@ private:
         fillHeight: f32 = Numbers:::NonNegative(contentAvailable.y - leadingExtent - this->childGap);
         leadingSeen~ bool = false;
         for child in this->children {
-            if !child->GetIsVisible() {
+            if !Positioning:::InFlow(child) {
                 continue;
             }
             margin: EdgeInsets = child->GetMarginLogical();
@@ -407,7 +431,7 @@ private:
         for child in this->children {
             childIndex: usize = index;
             index = index + 1;
-            if !child->GetIsVisible() {
+            if !Positioning:::InFlow(child) {
                 continue;
             }
             margin: EdgeInsets = child->GetMarginLogical();
@@ -435,12 +459,25 @@ private:
         };
     }
 
-    ArrangeFixedLeading~: (content: Rect) -> void {
+    PlaceOutOfFlow :: (child: WidgetBase~*, at: Point, layout: LayoutContext~*) -> void {
+        margin: EdgeInsets = child->GetMarginLogical();
+        Positioning:::ArrangeOutOfFlow(child, Point { x: at.x + margin.left, y: at.y + margin.top }, layout);
+    }
+
+    ArrangeFixedLeading~: (content: Rect, layout: LayoutContext~*) -> void {
         leadingExtent: f32 = Numbers:::Smaller(Numbers:::NonNegative(this->leadingExtentLogical), content.height);
         fillTop: f32 = Numbers:::Smaller(content.height, leadingExtent + this->childGap);
         fillHeight: f32 = Numbers:::NonNegative(content.height - fillTop);
         leadingSeen~ bool = false;
         for child in this->children {
+            if Positioning:::IsOutOfFlow(child) {
+                staticTop~ f32 = content.y;
+                if leadingSeen {
+                    staticTop = content.y + fillTop;
+                }
+                this->PlaceOutOfFlow(child, Point { x: content.x, y: staticTop }, layout);
+                continue;
+            }
             if !child->GetIsVisible() {
                 continue;
             }
@@ -456,17 +493,17 @@ private:
                 y: Numbers:::NonNegative(slotHeight - margin.Vertical())
             });
             cross: CrossPlacement = this->PlaceCross(content.x, content.width, desired.x, margin.left, margin.right);
-            child->Arrange(Rect {
+            child->Arrange(Positioning:::OffsetInFlow(child, Rect {
                 x: cross.position,
                 y: slotTop + margin.top,
                 width: cross.extent,
                 height: Numbers:::NonNegative(slotHeight - margin.Vertical())
-            });
+            }, content, layout), layout);
             leadingSeen = true;
         }
     }
 
-    ArrangeStack~: (content: Rect) -> void {
+    ArrangeStack~: (content: Rect, layout: LayoutContext~*) -> void {
         vertical: bool = this->layout == LayoutMode:::VerticalStack;
         contentSize: Point = Point { x: content.width, y: content.height };
         growExtents~ Array<f32>! = this->GrowExtents(vertical, contentSize);
@@ -477,7 +514,7 @@ private:
             totalChildrenMain~ f32 = 0.0f;
             visibleCount~ usize = 0;
             for child in this->children {
-                if !child->GetIsVisible() {
+                if !Positioning:::InFlow(child) {
                     continue;
                 }
                 margin: EdgeInsets = child->GetMarginLogical();
@@ -517,6 +554,18 @@ private:
         for child in this->children {
             childIndex: usize = index;
             index = index + 1;
+            if Positioning:::IsOutOfFlow(child) {
+                next~ f32 = cursor;
+                if anyVisible {
+                    next = cursor + this->childGap + extraGapPerGap;
+                }
+                at~ Point = Point { x: next, y: content.y };
+                if vertical {
+                    at = Point { x: content.x, y: next };
+                }
+                this->PlaceOutOfFlow(child, at, layout);
+                continue;
+            }
             if !child->GetIsVisible() {
                 continue;
             }
@@ -533,7 +582,7 @@ private:
                 if growExtent >= 0.0f {
                     height = growExtent;
                 }
-                child->Arrange(Rect { x: cross.position, y: top, width: cross.extent, height: height });
+                child->Arrange(Positioning:::OffsetInFlow(child, Rect { x: cross.position, y: top, width: cross.extent, height: height }, content, layout), layout);
                 cursor = top + height + margin.bottom;
             }
             else {
@@ -543,7 +592,7 @@ private:
                 if growExtent >= 0.0f {
                     width = growExtent;
                 }
-                child->Arrange(Rect { x: left, y: cross.position, width: width, height: cross.extent });
+                child->Arrange(Positioning:::OffsetInFlow(child, Rect { x: left, y: cross.position, width: width, height: cross.extent }, content, layout), layout);
                 cursor = left + width + margin.right;
             }
             anyVisible = true;
