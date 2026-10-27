@@ -45,6 +45,7 @@ public:
     std::string           Text;
 
     std::function<void(const std::string&)> OnTextChanged;
+    std::function<void()>                   OnFocusLost; // the frame after focus moved elsewhere
 
     void                             SetSpans(std::vector<TextAreaSpan> NewSpans);
     const std::vector<TextAreaSpan>& GetSpans() const { return Spans; }
@@ -76,6 +77,7 @@ private:
     };
 
     bool IsFocused() const { return Focus != nullptr && Focus->Focused == this; }
+    bool WasFocused{false};
 
     bool        HasSelection() const { return SelectionAnchor != CaretIndex; }
     std::size_t SelectionStart() const { return std::min(SelectionAnchor, CaretIndex); }

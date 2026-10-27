@@ -189,10 +189,12 @@ void Dropdown::Open() {
             LabelWidth = std::max(LabelWidth, FontBackend->MeasureTextWidth(Font, Item.Label));
         }
     }
-    const BoxStyle& RowStyle = DropdownVisualStyle.Row;
-    const float RowFrame = RowStyle.Padding.Left + RowStyle.Padding.Right + 2.0f * RowStyle.BorderWidth;
+    const BoxStyle& RowStyle  = DropdownVisualStyle.Row;
+    const BoxStyle& MenuStyle = DropdownVisualStyle.Menu;
+    const float RowFrame  = RowStyle.Padding.Left + RowStyle.Padding.Right + 2.0f * RowStyle.BorderWidth;
+    const float MenuFrame = MenuStyle.Padding.Left + MenuStyle.Padding.Right + 2.0f * MenuStyle.BorderWidth;
     State->OpenWidth = std::max(DropdownVisualStyle.MinimumOpenWidthLogical,
-                                RowFrame + DropdownVisualStyle.LeadingVisualSizeLogical +
+                                MenuFrame + RowFrame + DropdownVisualStyle.LeadingVisualSizeLogical +
                                     DropdownVisualStyle.LeadingVisualGapLogical + LabelWidth);
 
     auto Menu = std::make_unique<DropdownMenu>();

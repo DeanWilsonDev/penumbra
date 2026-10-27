@@ -27,6 +27,7 @@ public:
     std::string           Text;
 
     std::function<void(const std::string&)> OnTextChanged;
+    std::function<void()>                   OnFocusLost; // the frame after focus moved elsewhere
 
     ~TextInput() override; // gives up focus, so a later widget at this address isn't focused
 
@@ -38,6 +39,7 @@ protected:
 
 private:
     bool IsFocused() const { return Focus != nullptr && Focus->Focused == this; }
+    bool WasFocused{false};
 
     bool        HasSelection() const { return SelectionAnchor != CaretIndex; }
     std::size_t SelectionStart() const { return std::min(SelectionAnchor, CaretIndex); }
