@@ -671,3 +671,161 @@ fill
 140
 140
 255
+text input
+108
+24
+0
+field
+0
+0
+108
+24
+type before focus
+true
+
+click to focus
+true
+
+type
+text changed
+true
+héllo
+left twice
+true
+héllo
+backspace
+text changed
+true
+hélo
+left then delete a two-byte letter
+text changed
+true
+hlo
+shift end
+true
+hlo
+clip
+4
+4
+100
+16
+fill
+12
+4
+16
+16
+40
+80
+160
+255
+text
+hlo
+4
+4
+16
+fill
+28
+4
+1
+16
+255
+255
+255
+255
+unclip
+copy
+clipboard set
+lo
+true
+hlo
+end
+true
+hlo
+paste
+clipboard get
+text changed
+true
+hlolo
+press at the start
+true
+hlolo
+drag
+true
+hlolo
+release
+true
+hlolo
+clip
+4
+4
+100
+16
+fill
+4
+4
+16
+16
+40
+80
+160
+255
+text
+hlolo
+4
+4
+16
+fill
+20
+4
+1
+16
+255
+255
+255
+255
+unclip
+select all and cut
+clipboard set
+hlolo
+text changed
+true
+
+type again
+text changed
+true
+ok
+clip
+4
+4
+100
+16
+text
+ok
+4
+4
+16
+fill
+20
+4
+1
+16
+255
+255
+255
+255
+unclip
+focus moves away
+focus lost
+true
+ok
+clip
+4
+4
+100
+16
+text
+ok
+4
+4
+16
+unclip

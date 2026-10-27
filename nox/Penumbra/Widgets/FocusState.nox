@@ -1,0 +1,5 @@
+WidgetBase :: import WidgetBase;
+
+FocusState :: struct {
+    focused~ WidgetBase*? = null;
+}

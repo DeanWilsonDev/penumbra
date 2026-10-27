@@ -1,0 +1,4 @@
+IClipboard :: interface {
+    SetClipboardText~ (text: string) -> void : 0;
+    GetClipboardText : () -> string! : 0;
+}

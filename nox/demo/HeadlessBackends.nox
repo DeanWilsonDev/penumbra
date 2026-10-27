@@ -3,6 +3,7 @@ Rect :: import Rect;
 Color :: import Color;
 IRenderer :: import IRenderer;
 IFontBackend :: import IFontBackend;
+IClipboard :: import IClipboard;
 
 FixedAdvanceFont :: class {
     implements:
@@ -85,5 +86,29 @@ private:
         print(color.green);
         print(color.blue);
         print(color.alpha);
+    }
+}
+
+RecordingClipboard :: class {
+    implements:
+        IClipboard;
+public:
+    contents~ string! = "";
+
+    !RecordingClipboard~: () {
+        delete this->contents;
+    }
+
+    SetClipboardText~: (text: string) -> void {
+        print("clipboard set");
+        print(text);
+        copied: string! = text.copy();
+        delete this->contents;
+        this->contents = copied!;
+    }
+
+    GetClipboardText :: () -> string! {
+        print("clipboard get");
+        return this->contents.copy();
     }
 }

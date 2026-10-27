@@ -25,7 +25,9 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   positioning, a child clip rect and pointer-events none. Last it drives a `Button` whose background
   eases between state colours, a rotated `Button` hit-tested through its transform, and a `Checkbox`
   toggled by two clicks. Then it scrolls a `ScrollablePanel` of five rows by the wheel and by
-  dragging its scrollbar thumb.
+  dragging its scrollbar thumb. Last it focuses a `TextInput`, types UTF-8 text, moves and deletes
+  by code point, selects with shift and by dragging, and copies, pastes and cuts through a recording
+  clipboard.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -34,7 +36,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | --- | --- |
 | `Geometry.h` | `Penumbra/Geometry.nox` (`Point`, `Rect`, `Transform`, plus `Numbers` helpers) |
 | `Render/Color.h` | `Penumbra/Render/Color.nox` |
-| `Platform/InputState.h` | `Penumbra/Platform/InputState.nox` (mouse, wheel, modifiers, occlusion; no keys or text yet) |
+| `Platform/InputState.h` | `Penumbra/Platform/InputState.nox` (mouse, wheel, modifiers, occlusion, the `Key` enum, typed text and keys pressed this frame) |
 | `Render/Renderer.h`, `Render/IFontBackend.h` | `Penumbra/Render/Renderer.nox`, as the `IRenderer` and `IFontBackend` interfaces |
 | `Widgets/Length.h` | `Penumbra/Widgets/Length.nox` (logical and percent units) |
 | `Widgets/Styles.h` | `Penumbra/Widgets/Styles.nox` (`EdgeInsets`, the layout enums, the layout half of `BoxStyle` and its hovered, pressed and disabled colours) |
@@ -47,13 +49,18 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Anim/Animation.h` | `Penumbra/Anim/Animation.nox`: `Approach`, `LerpColor`, the cubic and back easings, `Easing`, `AnimatedColor`, `Tween` and `TweenedValues` |
 | `Widgets/Button.h/.cpp` | `Penumbra/Widgets/Button.nox`: click on release inside, an eased state background (Box's `BackgroundForState` is virtual for it), and hit testing through `BoxStyle.transform` |
 | `Widgets/ScrollablePanel.h/.cpp` | `Penumbra/Widgets/ScrollablePanel.nox`: vertical and horizontal scrolling by wheel, the scrollbar track and thumb drag, the scrollport for sticky children, and the child clip. `Positioning:::OffsetInFlow` gained the C++'s optional sticky block |
+| `Platform/IClipboard.h` | `Penumbra/Platform/Clipboard.nox`, the `IClipboard` interface; `GetClipboardText` returns an owned `string!` |
+| `Render/Utf8.h` | `Penumbra/Render/Utf8.nox`: `PreviousCodePoint` and `NextCodePoint` over `byteAt` |
+| `Widgets/FocusState.h` | `Penumbra/Widgets/FocusState.nox` |
+| `Widgets/TextInput.h/.cpp` | `Penumbra/Widgets/TextInput.nox`: focus on click, typed text, caret and shift selection by code point, drag selection, backspace and delete, select all, copy, cut and paste, `onTextChanged` and `onFocusLost`. The text is an owned `string!` rebuilt from two substrings and the insertion on each edit |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
 
 - The SDL platform layer, the SDL renderer and the SDL_ttf font backend. Foreign calls exist now,
   but only over bools, integers and floats: SDL needs opaque handles, raw pointers and C strings.
-- Keyboard input, text input and key dispatch, pointer-events modes, and focus.
+- Key dispatch: a focused `TextInput` doesn't mark the keys it used (`KeyDispatch::MarkUsed`), and
+  nothing routes the keys it leaves to other handlers. `KeyEvent` and `KeyName` aren't ported.
 - Groups painted through a transform or opacity (`PaintsAsGroup`), and text selection inside a
   `ScrollablePanel`.
 - `StackingContext::PointerTakerUsedWheel`: a layered descendant that took the wheel doesn't yet
@@ -62,7 +69,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `BoxStyle.transform` so far.
 - Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
 - `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
-- Every widget beyond `Box`, `Label`, `Button`, `Checkbox` and `ScrollablePanel`.
+- Every widget beyond `Box`, `Label`, `Button`, `Checkbox`, `ScrollablePanel` and `TextInput`.
 
 ## Language friction found so far
 
@@ -74,8 +81,16 @@ The Nox board's Penumbra card tracks this list:
   memo would need it passed to `Measure` too, so they're still left out.
 - **No static members.** `Length::Logical(…)` became the namespace function
   `Lengths:::Logical(…)`.
-- **`print` takes one value, and strings don't concatenate yet.** The recording renderer prints one
-  value per line. Floats printed whole numbers in exponent form (`6.4e+02`) until nox #34 fixed it.
+- **`print` takes one value.** The recording renderer prints one value per line. Floats printed
+  whole numbers in exponent form (`6.4e+02`) until nox #34 fixed it.
+- **Text needed owned strings.** `TextInput` edits its text, so the prototype gained `string!`
+  (concatenation, template strings, `copy`, nox #35) and `substring` and `byteAt` (nox #36). There's
+  no in-place insert or erase: each edit builds a new string from two substrings and the insertion,
+  deletes the old one and moves the new one in.
+- **Pointer identity.** `focusState->focused == this` compares a `WidgetBase*` with a `TextInput*`;
+  `==` across a class hierarchy arrived in nox #37.
+- **No `\u{…}` escapes.** An unknown escape keeps the character after the backslash, as Nyx's lexer
+  does, so the demo writes `é` literally.
 - **No tuples.** `PlaceCross` returns a small `CrossPlacement` struct instead.
 - **Callbacks can't borrow application state.** A callback is an owned closure,
   `(() -> void)!?`, and an owned closure may only copy or own what it captures (NOX0456). The
@@ -92,4 +107,5 @@ The Nox board's Penumbra card tracks this list:
   `unsafe` block inside a small safe function.
 - **Prototype features added for this port:** foreign C calls inside `unsafe` blocks, interfaces, arrays of owners
   (`Array<WidgetBase*!>!` with `freeAll()`), struct constructions and fixed array literals as
-  field defaults, optional owned callables, arrays of borrows and arrays of structs holding borrows.
+  field defaults, optional owned callables, arrays of borrows and arrays of structs holding borrows,
+  owned strings with substrings, and pointer identity across a class hierarchy.
