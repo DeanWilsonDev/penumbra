@@ -1,9 +1,15 @@
 # Repository instructions
 
-Read and follow [`DEVELOPING.md`](DEVELOPING.md) before changing this
-repository. It is the tool-neutral source of truth for architecture, style,
-build commands, validation, and repository conventions.
+This branch (`nox-proto`) is Penumbra written in Nox, with no C++. The C++ library and its
+`DEVELOPING.md` live on the `proto` branch; read them there when porting a piece of it.
 
-Keep shared guidance in `DEVELOPING.md`. Add instructions here only when they
-specifically concern coding-agent behavior and apply regardless of agent
-vendor.
+- The Nox sources are under `src/`, one top-level class or namespace per name, and `src/Demo/` is
+  the headless demo. `nox.json` names them as one project.
+- Build with the Nox prototype compiler (`DeanWilsonDev/nox-systems-language`, branch `proto`):
+  `nox build` or `nox run` from anywhere in the checkout.
+- Check every change with `tests/check-demo.sh` and `tests/check-demo.sh --checked`. Only record a
+  new `tests/demo-expected.txt` after checking the changed values by hand.
+- Something Nox is missing or gets wrong goes on the Nox board as a `[proto] ` card and is fixed in
+  the compiler, not worked around here. Note the friction in `README.md`.
+- Name things for what they hold or do, write no code comments, and keep documents in Markdown.
+- Pull requests from `claude/...` branches target `nox-proto`.

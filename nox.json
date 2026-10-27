@@ -1,0 +1,6 @@
+{
+  "name": "penumbra-demo",
+  "sources": ["src"],
+  "main": "src/Demo/main.nox",
+  "output": "build/penumbra-demo"
+}
