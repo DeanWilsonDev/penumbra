@@ -18,6 +18,10 @@ InlineContainer :: class : Box {
 public:
     lineGapLogical~ f32 = 0.0f;
 
+    StartsTextParagraph :: () -> bool override {
+        return true;
+    }
+
     Measure~: (availableSizeLogical: Point) -> Point override {
         frame: Point = this->FrameSize();
         contentAvailable: Point = Point {

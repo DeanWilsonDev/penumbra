@@ -1,4 +1,5 @@
 Point :: import Point;
+Color :: import Color;
 Rect :: import Rect;
 EdgeInsets :: import EdgeInsets;
 IRenderer :: import IRenderer;
@@ -7,6 +8,16 @@ Key :: import Key;
 Placement :: import Placement;
 LayoutContext :: import LayoutContext;
 StackingTracker :: import StackingTracker;
+
+ISelectableText :: interface {
+    SelectableLength : () -> usize : 0;
+    SelectableRange : (start: usize, end: usize) -> string! : 0;
+    SelectableRect : () -> Rect : 0;
+    IndexAtPoint~ (pointLogical: Point) -> usize : 0;
+    CaretRectAt~ (index: usize) -> Rect : 0;
+    SetSelection~ (start: usize, end: usize, color: Color) -> void : 0;
+    ClearSelection~ () -> void : 0;
+}
 
 InteractionState :: enum {
     Default,
@@ -78,6 +89,18 @@ public:
 
     virtual ConsumedWheelThisFrame :: () -> bool {
         return false;
+    }
+
+    virtual AsSelectableText~: () -> ISelectableText~*? {
+        return null;
+    }
+
+    virtual StartsTextParagraph :: () -> bool {
+        return false;
+    }
+
+    virtual TakesPointerFromTextSelection :: () -> bool {
+        return this->onPressed != null || this->onReleased != null || this->onChanged != null;
     }
 
     SetIsEnabled~: (enabled: bool) -> void {

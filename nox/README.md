@@ -64,6 +64,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Render/TextWrap.h/.cpp` | `Penumbra/Render/TextWrap.nox`: `TextWrap:::Wrap` over an `ITextRangeMeasure` (the C++ range-measure callback, as an interface) and `TextWrap:::WithFont` |
 | `Render/Utf8.h` | `Penumbra/Render/Utf8.nox`: `PreviousCodePoint` and `NextCodePoint` over `byteAt` |
 | `Widgets/FocusState.h` | `Penumbra/Widgets/FocusState.nox` |
+| `Widgets/TextSelection.h/.cpp` | `Penumbra/Widgets/TextSelection.nox`, enabled with `Box::EnableTextSelection` and run by `Box` and `ScrollablePanel`: drag selection across every visible `Label` under the box, Escape, select all and copy, with gaps filled between labels on one line and paragraphs joined by spaces. With no `dynamic_cast`, `WidgetBase` asks virtually: `AsSelectableText` (a `Label` answers itself as an `ISelectableText`), `StartsTextParagraph` (`InlineContainer`) and `TakesPointerFromTextSelection` (`TextArea`, `TextInput`, `Checkbox` and anything with press, release or change callbacks). The label walk is an explicit stack, and paragraphs are numbered rather than compared by pointer |
 | `Widgets/TextArea.h/.cpp` | `Penumbra/Widgets/TextArea.nox`: wrapped multi-line editing with per-span font size, text colour and background (`TextAreaSpan`, with `fontSizeLogical` in place of a font handle and no class name), line boxes sized by each line's tallest run, vertical caret movement that keeps its column, Home and End per line, Enter, wheel scrolling, the caret kept in view and a scrollbar thumb. It implements `ITextRangeMeasure` so `TextWrap:::Wrap` measures through its spans. `ForEachRun`'s visitor became `RunsIn`, which returns the runs, and there's no font metrics cache |
 | `Widgets/TextInput.h/.cpp` | `Penumbra/Widgets/TextInput.nox`: focus on click, typed text, caret and shift selection by code point, drag selection, backspace and delete, select all, copy, cut and paste, `onTextChanged` and `onFocusLost`. The text is an owned `string!` rebuilt from two substrings and the insertion on each edit |
 | `Widgets/KeyDispatch.h/.cpp` | `Penumbra/Widgets/KeyDispatch.nox`: the outermost `Box` or `ScrollablePanel` opens a pass, a focused `TextInput` marks the keys it used, the first child with `onKeyPressed` that saw keys (or the root) gets the rest, and a child covering the window withholds keys and text from everything after it. The `StackingTracker` owns the `KeyDispatch` the C++ keeps in a global, with the viewport it needs |
@@ -85,8 +86,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   opaque handles, C strings and out-parameters of C-layout structs (nox #38, #39); SDL still needs
   callbacks and a way to read its `SDL_Event` union as one of its member structs.
 - `KeyEvent`, `OnKeyEvent` and `KeyName`: keys reach handlers only as `onKeyPressed`.
-- Groups painted through a transform or opacity (`PaintsAsGroup`), and text selection inside a
-  `ScrollablePanel`.
+- Groups painted through a transform or opacity (`PaintsAsGroup`).
 - `StackingContext::PointerTakerUsedWheel`: a layered descendant that took the wheel doesn't yet
   stop its scrolling ancestor from using it too.
 - Transforms as containing blocks, and drawing through a transform: only `Button`'s hit test reads

@@ -9,8 +9,11 @@ Utf8 :: import Utf8;
 TextLine :: import TextLine;
 TextWrap :: import TextWrap;
 Box :: import Box;
+ISelectableText :: import ISelectableText;
 
 Label :: class : Box {
+    implements:
+        ISelectableText;
 public:
     text~ string! = "";
     fontSizeLogical~ f32 = 16.0f;
@@ -110,6 +113,22 @@ public:
     ClearSelection~: () -> void {
         this->selectionStart = 0;
         this->selectionEnd = 0;
+    }
+
+    SelectableLength :: () -> usize {
+        return this->text.length();
+    }
+
+    SelectableRange :: (start: usize, end: usize) -> string! {
+        return this->text.substring(start, end - start).copy();
+    }
+
+    SelectableRect :: () -> Rect {
+        return this->arrangedRect;
+    }
+
+    AsSelectableText~: () -> ISelectableText~*? override {
+        return this;
     }
 
 protected:

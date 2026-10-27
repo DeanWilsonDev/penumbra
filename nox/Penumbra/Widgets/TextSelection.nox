@@ -1,0 +1,397 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+IRenderer :: import IRenderer;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+Key :: import Key;
+IClipboard :: import IClipboard;
+FocusState :: import FocusState;
+WidgetBase :: import WidgetBase;
+ISelectableText :: import ISelectableText;
+
+TextSelectionPosition :: struct {
+    label~ usize = 0;
+    index~ usize = 0;
+}
+
+TextSelectionEntry :: struct {
+    target: ISelectableText~*;
+    paragraph: usize;
+}
+
+TextSelectionVisit :: struct {
+    widget: WidgetBase~*;
+    paragraph: usize;
+}
+
+TextSelection :: class {
+public:
+    focus~ FocusState~*? = null;
+    clipboard~ IClipboard~*? = null;
+    colorSelection~ Color = Color { red: 110, green: 142, blue: 255, alpha: 85 };
+
+    !TextSelection~: () {
+        delete this->gaps;
+    }
+
+    Update~: (scope: WidgetBase~*, region: Rect, input: InputState) -> void {
+        left: usize = MouseButton:::Left();
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        down: bool = input.mouseButtonDown[left];
+
+        if pressed {
+            this->anchored = false;
+            this->dragging = false;
+            if input.IsPointerOver(region) && !TextSelectionInteractiveAt(scope, input.mousePosition) {
+                labels: Array<TextSelectionEntry>! = TextSelectionCollect(scope);
+                this->anchor = TextSelectionPositionAt(labels, input.mousePosition);
+                delete labels;
+                this->caret = this->anchor;
+                this->anchored = true;
+                this->dragging = true;
+                if focusState := this->focus {
+                    focusState->focused = scope;
+                }
+            }
+        }
+        else if this->dragging && down {
+            labels: Array<TextSelectionEntry>! = TextSelectionCollect(scope);
+            this->caret = TextSelectionPositionAt(labels, input.mousePosition);
+            delete labels;
+        }
+        if !down {
+            this->dragging = false;
+        }
+
+        if this->ScopeHasFocus(scope) {
+            for key in input.keysPressedThisFrame {
+                if key == Key:::Escape {
+                    this->anchored = false;
+                }
+                else if input.modifierState.shortcut && key == Key:::A {
+                    this->SelectAll(scope);
+                }
+                else if input.modifierState.shortcut && key == Key:::C && this->HasSelection() {
+                    if board := this->clipboard {
+                        labels: Array<TextSelectionEntry>! = TextSelectionCollect(scope);
+                        copied: string! = this->TextOf(labels);
+                        board->SetClipboardText(copied);
+                        delete copied;
+                        delete labels;
+                    }
+                }
+            }
+        }
+
+        if this->HasSelection() || this->painted {
+            labels: Array<TextSelectionEntry>! = TextSelectionCollect(scope);
+            this->Paint(labels);
+            delete labels;
+        }
+    }
+
+    HasSelection :: () -> bool {
+        return this->anchored && (this->anchor.label != this->caret.label || this->anchor.index != this->caret.index);
+    }
+
+    SelectedText :: (scope: WidgetBase~*) -> string! {
+        labels: Array<TextSelectionEntry>! = TextSelectionCollect(scope);
+        defer delete labels;
+        return this->TextOf(labels);
+    }
+
+    SelectAll~: (scope: WidgetBase~*) -> void {
+        labels: Array<TextSelectionEntry>! = TextSelectionCollect(scope);
+        defer delete labels;
+        this->anchored = labels.length() > 0;
+        if this->anchored {
+            last: TextSelectionEntry = labels[labels.length() - 1];
+            this->anchor = TextSelectionPosition { label: 0, index: 0 };
+            this->caret = TextSelectionPosition { label: labels.length() - 1, index: last.target->SelectableLength() };
+        }
+        this->Paint(labels);
+    }
+
+    Clear~: () -> void {
+        this->anchored = false;
+    }
+
+    DrawGaps :: (renderer: IRenderer~*) -> void {
+        for gap in this->gaps {
+            renderer->FillRect(gap, this->colorSelection);
+        }
+    }
+
+private:
+    anchor~ TextSelectionPosition = TextSelectionPosition { };
+    caret~ TextSelectionPosition = TextSelectionPosition { };
+    gaps~ Array<Rect>! = [];
+    anchored~ bool = false;
+    dragging~ bool = false;
+    painted~ bool = false;
+
+    ScopeHasFocus :: (scope: WidgetBase~*) -> bool {
+        if focusState := this->focus {
+            if focusedWidget := focusState->focused {
+                return focusedWidget == scope;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    SelectionStart :: () -> TextSelectionPosition {
+        if TextSelectionBefore(this->caret, this->anchor) {
+            return this->caret;
+        }
+        return this->anchor;
+    }
+
+    SelectionEnd :: () -> TextSelectionPosition {
+        if TextSelectionBefore(this->anchor, this->caret) {
+            return this->caret;
+        }
+        return this->anchor;
+    }
+
+    TextOf :: (labels: Array<TextSelectionEntry>) -> string! {
+        result~ string! = "";
+        if !this->HasSelection() {
+            return result!;
+        }
+        start: TextSelectionPosition = this->SelectionStart();
+        end: TextSelectionPosition = this->SelectionEnd();
+        first~ bool = true;
+        previous~ Rect = Rect { };
+        previousParagraph~ usize = 0;
+        index~ usize = start.label;
+        while index <= end.label && index < labels.length() {
+            entry: TextSelectionEntry = labels[index];
+            index = index + 1;
+            length: usize = entry.target->SelectableLength();
+            from~ usize = 0;
+            if index - 1 == start.label {
+                from = TextSelectionSmallerIndex(start.index, length);
+            }
+            to~ usize = length;
+            if index - 1 == end.label {
+                to = TextSelectionSmallerIndex(end.index, length);
+            }
+            if from >= to {
+                continue;
+            }
+            begin: Rect = entry.target->CaretRectAt(from);
+            if !first {
+                separator~ string = "";
+                if TextSelectionOnSameLine(previous, begin) {
+                    if begin.x - previous.x > 0.5f {
+                        separator = " ";
+                    }
+                }
+                else if entry.paragraph != 0 && entry.paragraph == previousParagraph {
+                    separator = " ";
+                }
+                else {
+                    separator = "\n";
+                }
+                joined: string! = result + separator;
+                delete result;
+                result = joined!;
+            }
+            piece: string! = entry.target->SelectableRange(from, to);
+            extended: string! = result + piece;
+            delete piece;
+            delete result;
+            result = extended!;
+            previous = entry.target->CaretRectAt(to);
+            previousParagraph = entry.paragraph;
+            first = false;
+        }
+        return result!;
+    }
+
+    Paint~: (labels: Array<TextSelectionEntry>) -> void {
+        selected: bool = this->HasSelection();
+        start: TextSelectionPosition = this->SelectionStart();
+        end: TextSelectionPosition = this->SelectionEnd();
+        this->gaps.clear();
+        first~ bool = true;
+        previous~ Rect = Rect { };
+        index~ usize = 0;
+        while index < labels.length() {
+            entry: TextSelectionEntry = labels[index];
+            index = index + 1;
+            position: usize = index - 1;
+            if !selected || position < start.label || position > end.label {
+                entry.target->ClearSelection();
+                continue;
+            }
+            length: usize = entry.target->SelectableLength();
+            from~ usize = 0;
+            if position == start.label {
+                from = TextSelectionSmallerIndex(start.index, length);
+            }
+            to~ usize = length;
+            if position == end.label {
+                to = TextSelectionSmallerIndex(end.index, length);
+            }
+            entry.target->SetSelection(from, to, this->colorSelection);
+            if from >= to {
+                continue;
+            }
+            begin: Rect = entry.target->CaretRectAt(from);
+            if !first && TextSelectionOnSameLine(previous, begin) && begin.x > previous.x {
+                top: f32 = TextSelectionSmaller(previous.y, begin.y);
+                bottom: f32 = TextSelectionLarger(previous.y + previous.height, begin.y + begin.height);
+                this->gaps.push(Rect { x: previous.x, y: top, width: begin.x - previous.x, height: bottom - top });
+            }
+            previous = entry.target->CaretRectAt(to);
+            first = false;
+        }
+        this->painted = selected;
+    }
+}
+
+TextSelectionCollect :: (scope: WidgetBase~*) -> Array<TextSelectionEntry>! {
+    labels~ Array<TextSelectionEntry>! = [];
+    pending~ Array<TextSelectionVisit>! = [];
+    nextParagraph~ usize = 1;
+    scopeParagraph~ usize = 0;
+    if scope->StartsTextParagraph() {
+        scopeParagraph = nextParagraph;
+        nextParagraph = nextParagraph + 1;
+    }
+    childIndex~ usize = scope->GetChildCount();
+    while childIndex > 0 {
+        childIndex = childIndex - 1;
+        if child := scope->GetMutableChildAt(childIndex) {
+            if child->GetIsVisible() {
+                pending.push(TextSelectionVisit { widget: child, paragraph: scopeParagraph });
+            }
+        }
+    }
+    while pending.length() > 0 {
+        visit: TextSelectionVisit = pending.remove(pending.length() - 1);
+        widget: WidgetBase~* = visit.widget;
+        if target := widget->AsSelectableText() {
+            labels.push(TextSelectionEntry { target: target, paragraph: visit.paragraph });
+        }
+        paragraph~ usize = visit.paragraph;
+        if widget->StartsTextParagraph() {
+            paragraph = nextParagraph;
+            nextParagraph = nextParagraph + 1;
+        }
+        grandchildIndex~ usize = widget->GetChildCount();
+        while grandchildIndex > 0 {
+            grandchildIndex = grandchildIndex - 1;
+            if grandchild := widget->GetMutableChildAt(grandchildIndex) {
+                if grandchild->GetIsVisible() {
+                    pending.push(TextSelectionVisit { widget: grandchild, paragraph: paragraph });
+                }
+            }
+        }
+    }
+    delete pending;
+    return labels!;
+}
+
+TextSelectionInteractiveAt :: (widget: WidgetBase*, at: Point) -> bool {
+    index~ usize = 0;
+    while index < widget->GetChildCount() {
+        if child := widget->GetChildAt(index) {
+            if child->GetIsVisible() {
+                if TextSelectionContains(child->GetArrangedRect(), at) && child->TakesPointerFromTextSelection() {
+                    return true;
+                }
+                if TextSelectionInteractiveAt(child, at) {
+                    return true;
+                }
+            }
+        }
+        index = index + 1;
+    }
+    return false;
+}
+
+TextSelectionPositionAt :: (labels: Array<TextSelectionEntry>, at: Point) -> TextSelectionPosition {
+    best~ TextSelectionPosition = TextSelectionPosition { };
+    bestRow~ f32 = 0.0f;
+    bestColumn~ f32 = 0.0f;
+    found~ bool = false;
+    index~ usize = 0;
+    while index < labels.length() {
+        entry: TextSelectionEntry = labels[index];
+        area: Rect = entry.target->SelectableRect();
+        if entry.target->SelectableLength() > 0 && area.width > 0.0f && area.height > 0.0f {
+            row: f32 = TextSelectionDistanceOutside(at.y, area.y, area.y + area.height);
+            column: f32 = TextSelectionDistanceOutside(at.x, area.x, area.x + area.width);
+            if !found || row < bestRow || (row == bestRow && column < bestColumn) {
+                found = true;
+                bestRow = row;
+                bestColumn = column;
+                best.label = index;
+            }
+        }
+        index = index + 1;
+    }
+    if !found {
+        return TextSelectionPosition { };
+    }
+    entry: TextSelectionEntry = labels[best.label];
+    area: Rect = entry.target->SelectableRect();
+    if at.y < area.y {
+        best.index = 0;
+    }
+    else if at.y >= area.y + area.height {
+        best.index = entry.target->SelectableLength();
+    }
+    else {
+        best.index = entry.target->IndexAtPoint(at);
+    }
+    return best;
+}
+
+TextSelectionBefore :: (first: TextSelectionPosition, second: TextSelectionPosition) -> bool {
+    return first.label < second.label || (first.label == second.label && first.index < second.index);
+}
+
+TextSelectionContains :: (area: Rect, at: Point) -> bool {
+    return at.x >= area.x && at.x < area.x + area.width && at.y >= area.y && at.y < area.y + area.height;
+}
+
+TextSelectionDistanceOutside :: (value: f32, low: f32, high: f32) -> f32 {
+    if value < low {
+        return low - value;
+    }
+    if value > high {
+        return value - high;
+    }
+    return 0.0f;
+}
+
+TextSelectionOnSameLine :: (first: Rect, second: Rect) -> bool {
+    overlap: f32 = TextSelectionSmaller(first.y + first.height, second.y + second.height) - TextSelectionLarger(first.y, second.y);
+    return overlap > 0.5f * TextSelectionSmaller(first.height, second.height);
+}
+
+TextSelectionSmaller :: (first: f32, second: f32) -> f32 {
+    if first < second {
+        return first;
+    }
+    return second;
+}
+
+TextSelectionLarger :: (first: f32, second: f32) -> f32 {
+    if first > second {
+        return first;
+    }
+    return second;
+}
+
+TextSelectionSmallerIndex :: (first: usize, second: usize) -> usize {
+    if first < second {
+        return first;
+    }
+    return second;
+}

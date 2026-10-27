@@ -21,6 +21,7 @@ StackingTracker :: import StackingTracker;
 StackingContext :: import StackingContext;
 StackingPass :: import StackingPass;
 Stacking :: import Stacking;
+TextSelection :: import TextSelection;
 
 CrossPlacement :: struct {
     position~ f32 = 0.0f;
@@ -39,6 +40,25 @@ public:
 
     !Box~: () {
         this->children.freeAll();
+        delete this->selection;
+    }
+
+    EnableTextSelection~: () -> TextSelection~* {
+        if this->selection == null {
+            created: TextSelection*! = new TextSelection();
+            this->selection = created!;
+        }
+        if active ~= this->selection {
+            return active;
+        }
+        return this->EnableTextSelection();
+    }
+
+    GetTextSelection~: () -> TextSelection~*? {
+        if active ~= this->selection {
+            return active;
+        }
+        return null;
     }
 
     AddChild~: (child: WidgetBase*!) -> WidgetBase~* {
@@ -126,6 +146,9 @@ public:
             return false;
         }
         effective~ InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, input);
+        if active ~= this->selection {
+            active->Update(this, this->arrangedRect, effective);
+        }
         outermostKeys: bool = stacking->keys->Begin(this, effective);
         defer stacking->keys->End(outermostKeys);
         context: StackingContext*! = new StackingContext(this, StackingPass:::Input, stacking);
@@ -253,6 +276,9 @@ public:
             renderer->StrokeRect(this->arrangedRect, border, this->style.borderWidth);
         }
         this->DrawContent(renderer, this->ContentRectFrom(this->arrangedRect));
+        if active := this->selection {
+            active->DrawGaps(renderer);
+        }
         context->PaintBelow(renderer);
         for child in this->children {
             if child->GetIsVisible() && !stacking->IsLayeredOut(child) {
@@ -263,6 +289,7 @@ public:
     }
 
 protected:
+    selection~ TextSelection*!? = null;
     PlaceCross :: (contentStart: f32, contentExtent: f32, childExtent: f32, marginLead: f32, marginTrail: f32) -> CrossPlacement {
         available: f32 = Numbers:::NonNegative(contentExtent - marginLead - marginTrail);
         return when this->crossAlignment {
