@@ -12,6 +12,12 @@ Box :: import Box;
 Label :: import Label;
 FixedAdvanceFont :: import FixedAdvanceFont;
 RecordingRenderer :: import RecordingRenderer;
+InputState :: import InputState;
+InteractionState :: import InteractionState;
+
+PressCounter :: struct {
+    presses~ i32 = 0;
+}
 
 MakeLabel :: (font: IFontBackend*, text: string, sizeLogical: f32) -> Label*! {
     label: Label*! = new Label(font, text);
@@ -94,6 +100,91 @@ BuildWindow :: (font: IFontBackend*) -> Box*! {
     return window!;
 }
 
+StateName :: (state: InteractionState) -> string {
+    return when state {
+        InteractionState:::Default -> "default",
+        InteractionState:::Hovered -> "hovered",
+        InteractionState:::Pressed -> "pressed",
+        InteractionState:::Disabled -> "disabled"
+    };
+}
+
+BuildToolbar :: () -> Box*! {
+    toolbar: Box*! = MakeBox("toolbar", LayoutMode:::HorizontalStack);
+    toolbar->style.padding = Insets:::All(4.0f);
+    toolbar->childGap = 4.0f;
+    toolbar->style.colorBackgroundHovered = Color { red: 40, green: 40, blue: 48, alpha: 255 };
+
+    button: Box*! = MakeBox("button", LayoutMode:::None);
+    button->style.width = Lengths:::Logical(80.0f);
+    button->style.height = Lengths:::Logical(24.0f);
+    button->style.colorBackground = Color { red: 60, green: 60, blue: 70, alpha: 255 };
+    button->style.colorBackgroundHovered = Color { red: 70, green: 70, blue: 90, alpha: 255 };
+    button->style.colorBackgroundPressed = Color { red: 90, green: 90, blue: 120, alpha: 255 };
+    counter: PressCounter*! = new PressCounter();
+    button->onPressed = new () -> void [counter!] {
+        counter->presses = counter->presses + 1;
+        print("button pressed");
+        print(counter->presses);
+    };
+    button->onReleased = new () -> void [] { print("button released"); };
+    button->onHovered = new () -> void [] { print("button hovered"); };
+    button->onUnhovered = new () -> void [] { print("button unhovered"); };
+    button->onDestroyed = new () -> void [] { print("button destroyed"); };
+    toolbar->AddChild(button!);
+
+    disabled: Box*! = MakeBox("disabled", LayoutMode:::None);
+    disabled->style.width = Lengths:::Logical(80.0f);
+    disabled->style.height = Lengths:::Logical(24.0f);
+    disabled->style.colorBackground = Color { red: 60, green: 60, blue: 70, alpha: 255 };
+    disabled->style.colorBackgroundDisabled = Color { red: 30, green: 30, blue: 30, alpha: 255 };
+    disabled->onPressed = new () -> void [] { print("never printed"); };
+    disabled->SetIsEnabled(false);
+    toolbar->AddChild(disabled!);
+    return toolbar!;
+}
+
+RunFrame :: (toolbar: Box~*, frameName: string, x: f32, y: f32, down: bool, pressed: bool, released: bool) -> void {
+    print(frameName);
+    input~ InputState = InputState { };
+    input.mousePosition = Point { x: x, y: y };
+    input.mouseButtonDown[0] = down;
+    input.mouseButtonPressedThisFrame[0] = pressed;
+    input.mouseButtonReleasedThisFrame[0] = released;
+    consumed: bool = toolbar->UpdateInteractionState(input);
+    print(consumed);
+    print(StateName(toolbar->GetInteractionState()));
+    index~ usize = 0;
+    while index < toolbar->GetChildCount() {
+        if child := toolbar->GetChildAt(index) {
+            print(StateName(child->GetInteractionState()));
+        }
+        index = index + 1;
+    }
+}
+
+SimulateInput :: () -> void {
+    toolbar: Box*! = BuildToolbar();
+    defer delete toolbar;
+    toolbar->Measure(Point { x: 400.0f, y: 100.0f });
+    toolbar->Arrange(Rect { x: 0.0f, y: 0.0f, width: 400.0f, height: 32.0f });
+    RunFrame(toolbar, "frame outside", 300.0f, 200.0f, false, false, false);
+    RunFrame(toolbar, "frame over toolbar", 300.0f, 10.0f, false, false, false);
+    RunFrame(toolbar, "frame over button", 20.0f, 10.0f, false, false, false);
+    RunFrame(toolbar, "frame press", 20.0f, 10.0f, true, true, false);
+    RunFrame(toolbar, "frame hold", 21.0f, 11.0f, true, false, false);
+    RunFrame(toolbar, "frame release", 21.0f, 11.0f, false, false, true);
+    RunFrame(toolbar, "frame press disabled", 100.0f, 10.0f, true, true, false);
+    RunFrame(toolbar, "frame release disabled", 100.0f, 10.0f, false, false, true);
+    RunFrame(toolbar, "frame second press", 20.0f, 10.0f, true, true, false);
+    RunFrame(toolbar, "frame drag off", 300.0f, 10.0f, true, false, false);
+    RunFrame(toolbar, "frame release outside", 300.0f, 10.0f, false, false, true);
+
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    toolbar->Draw(renderer);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -111,5 +202,7 @@ main :: () -> i32 {
     defer delete renderer;
     window->Draw(renderer);
     print(renderer->commandCount);
+
+    SimulateInput();
     return 0;
 }

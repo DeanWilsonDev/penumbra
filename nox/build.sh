@@ -10,6 +10,7 @@ library_sources=(
     Penumbra/Geometry.nox
     Penumbra/Render/Color.nox
     Penumbra/Render/Renderer.nox
+    Penumbra/Platform/InputState.nox
     Penumbra/Widgets/Length.nox
     Penumbra/Widgets/Styles.nox
     Penumbra/Widgets/WidgetBase.nox

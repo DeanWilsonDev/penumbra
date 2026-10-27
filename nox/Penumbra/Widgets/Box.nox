@@ -2,6 +2,7 @@ Point :: import Point;
 Rect :: import Rect;
 Numbers :: import Numbers;
 Color :: import Color;
+Colors :: import Colors;
 IRenderer :: import IRenderer;
 EdgeInsets :: import EdgeInsets;
 LayoutMode :: import LayoutMode;
@@ -10,6 +11,9 @@ Justify :: import Justify;
 BoxStyle :: import BoxStyle;
 Length :: import Length;
 WidgetBase :: import WidgetBase;
+InteractionState :: import InteractionState;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
 
 CrossPlacement :: struct {
     position~ f32 = 0.0f;
@@ -95,15 +99,116 @@ public:
         this->ArrangeStack(content);
     }
 
+    UpdateInteractionState~: (input: InputState) -> bool override {
+        childConsumed~ bool = false;
+        index~ usize = this->children.length();
+        while index > 0 {
+            index = index - 1;
+            child: WidgetBase~* = this->children[index];
+            if !child->GetIsVisible() {
+                continue;
+            }
+            childInput~ InputState = input;
+            if childConsumed {
+                childInput = input.Occluded();
+            }
+            if child->UpdateInteractionState(childInput) {
+                childConsumed = true;
+            }
+        }
+
+        if !this->isEnabled {
+            this->currentState = InteractionState:::Disabled;
+            this->pressedInside = false;
+            if this->wasHovered {
+                if handler := this->onUnhovered {
+                    handler();
+                }
+            }
+            this->wasHovered = false;
+            return childConsumed;
+        }
+
+        if !this->HasCallbacks() && !this->style.HasInteractionColors() {
+            this->currentState = InteractionState:::Default;
+            this->pressedInside = false;
+            this->wasHovered = false;
+            return childConsumed;
+        }
+
+        left: usize = MouseButton:::Left();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        down: bool = input.mouseButtonDown[left];
+        released: bool = input.mouseButtonReleasedThisFrame[left];
+
+        if hovered {
+            if handler := this->onHovered {
+                handler();
+            }
+        }
+        if !hovered && this->wasHovered {
+            if handler := this->onUnhovered {
+                handler();
+            }
+        }
+        this->wasHovered = hovered;
+        if pressed && hovered && !childConsumed {
+            this->pressedInside = true;
+            if handler := this->onPressed {
+                handler();
+            }
+        }
+        if released {
+            if this->pressedInside {
+                if handler := this->onReleased {
+                    handler();
+                }
+            }
+            this->pressedInside = false;
+        }
+
+        if this->pressedInside && down && hovered {
+            this->currentState = InteractionState:::Pressed;
+        }
+        else if hovered {
+            this->currentState = InteractionState:::Hovered;
+        }
+        else {
+            this->currentState = InteractionState:::Default;
+        }
+        return childConsumed || hovered || (this->pressedInside && down);
+    }
+
+    BackgroundForState :: () -> Color {
+        return when this->currentState {
+            InteractionState:::Hovered -> Colors:::SetOr(this->style.colorBackgroundHovered, this->style.colorBackground),
+            InteractionState:::Pressed -> Colors:::SetOr(this->style.colorBackgroundPressed, this->style.colorBackground),
+            InteractionState:::Disabled -> Colors:::SetOr(this->style.colorBackgroundDisabled, this->style.colorBackground),
+            InteractionState:::Default -> this->style.colorBackground
+        };
+    }
+
+    BorderForState :: () -> Color {
+        return when this->currentState {
+            InteractionState:::Hovered -> Colors:::SetOr(this->style.colorBorderHovered, this->style.colorBorder),
+            InteractionState:::Pressed -> Colors:::SetOr(this->style.colorBorderPressed, this->style.colorBorder),
+            InteractionState:::Disabled -> Colors:::SetOr(this->style.colorBorderDisabled, this->style.colorBorder),
+            InteractionState:::Default -> this->style.colorBorder
+        };
+    }
+
     Draw~: (renderer: IRenderer~*) -> void override {
         if !this->isVisible {
             return;
         }
-        if this->style.colorBackground.IsVisible() {
-            renderer->FillRect(this->arrangedRect, this->style.colorBackground);
+        background: Color = this->BackgroundForState();
+        if background.IsVisible() {
+            renderer->FillRect(this->arrangedRect, background);
         }
-        if this->style.borderWidth > 0.0f && this->style.colorBorder.IsVisible() {
-            renderer->StrokeRect(this->arrangedRect, this->style.colorBorder, this->style.borderWidth);
+        border: Color = this->BorderForState();
+        if this->style.borderWidth > 0.0f && border.IsVisible() {
+            renderer->StrokeRect(this->arrangedRect, border, this->style.borderWidth);
         }
         this->DrawContent(renderer, this->ContentRectFrom(this->arrangedRect));
         for child in this->children {
@@ -153,6 +258,9 @@ protected:
     }
 
 private:
+    pressedInside~ bool = false;
+    wasHovered~ bool = false;
+
     ConstrainLength :: (isWidth: bool, value: f32, availableLogical: f32) -> f32 {
         size~ Length = this->style.height;
         if isWidth {
