@@ -8,6 +8,8 @@ CMath :: foreign "m" {
     log10f :: (value: f32) -> f32;
     powf :: (base: f32, exponent: f32) -> f32;
     fabsf :: (value: f32) -> f32;
+    sqrtf :: (value: f32) -> f32;
+    atan2f :: (y: f32, x: f32) -> f32;
 }
 
 Maths :: namespace {
@@ -62,6 +64,18 @@ Maths :: namespace {
     Absolute :: (value: f32) -> f32 {
         unsafe {
             return CMath:::fabsf(value);
+        }
+    }
+
+    SquareRoot :: (value: f32) -> f32 {
+        unsafe {
+            return CMath:::sqrtf(value);
+        }
+    }
+
+    AngleOf :: (y: f32, x: f32) -> f32 {
+        unsafe {
+            return CMath:::atan2f(y, x);
         }
     }
 

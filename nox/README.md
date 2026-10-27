@@ -36,7 +36,9 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   Then it wraps six boxes into lines in an `InlineContainer`, skipping a hidden one and clamping one
   wider than the line. Last it hovers, presses and disables an `IconWidget` drawn through a
   recording icon backend. Last it draws a vertical `BarChart`, hovers a category, and draws a
-  horizontal stacked one with a negative bar and value labels along the bottom.
+  horizontal stacked one with a negative bar and value labels along the bottom. Then a `LineChart`
+  whose area fill splits where the line crosses zero, and a `DonutChart` with a gap, an empty
+  slice, centre text and hover hit tests.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -71,6 +73,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/InlineContainer.h/.cpp` | `Penumbra/Widgets/InlineContainer.nox`: greedy line wrapping by width. The lines are one flat array of items that each carry their line index, since an array element can't own an array |
 | `Widgets/IconWidget.h/.cpp`, `Backends/IIconBackend.h` | `Penumbra/Widgets/IconWidget.nox`, and `IIconBackend` in `Penumbra/Render/Renderer.nox`: a fixed-size icon with per-state colours that fall back to the base colour when unset |
 | `Widgets/Chart.h/.cpp`, `Widgets/BarChart.h/.cpp` | `Penumbra/Widgets/Chart.nox` (`ChartStyle`, `ChartSeries`, `ChartBase`, `AxisChartBase` with tick planning, grid, baseline and category labels) and `Penumbra/Widgets/BarChart.nox`. `ChartStyle` holds its `BoxStyle` as `box`, since structs don't inherit. `ForEachTick`'s visitor became a tick count and `TickAt`, and `DrawCategoryLabels`' centre callback a virtual `CategoryCentre`, since a lambda can't borrow `this`. Tick labels pick their decimals with a `when` over fixed-precision templates, as a template's precision is a literal. `IRenderer` gained `GetFrameIndex` and `GetFrameDeltaSeconds` for the appear and transition clock. Bar corners are square (no rounded fill yet) |
+| `Widgets/LineChart.h/.cpp`, `Widgets/DonutChart.h/.cpp` | `Penumbra/Widgets/LineChart.nox` and `Penumbra/Widgets/DonutChart.nox`. The line chart keeps every series' points in one flat array and hands each series a `slice`, since an array element can't own an array. The donut's centre font is a size (`centreFontSizeLogical`), as the Nox font backend measures by size. `IRenderer` gained `DrawFilledCircle`, `DrawArc`, `DrawPolyline` (with `LineJoin` and `LineCap`) and `DrawFilledPolygon` |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
@@ -87,7 +90,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `BoxStyle.transform` so far.
 - Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
 - `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
-- `TextArea`, `LineChart`, `DonutChart`, `CanvasWidget`, `ImageWidget`
+- `TextArea`, `CanvasWidget`, `ImageWidget`
   and `ViewportWidget`.
 
 ## Language friction found so far

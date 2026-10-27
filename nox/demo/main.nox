@@ -41,6 +41,8 @@ ChartStyle :: import ChartStyle;
 ChartSeries :: import ChartSeries;
 BarChart :: import BarChart;
 BarOrientation :: import BarOrientation;
+LineChart :: import LineChart;
+DonutChart :: import DonutChart;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -1109,6 +1111,65 @@ ShowBarCharts :: (font: IFontBackend*) -> void {
     split->Draw(renderer, stacking);
 }
 
+ShowLineAndDonut :: (font: IFontBackend*) -> void {
+    print("line and donut charts");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+
+    trend: LineChart*! = new LineChart();
+    defer delete trend;
+    trend->className = "trend";
+    trend->fontBackend = font;
+    trend->fontSizeLogical = 10.0f;
+    look~ ChartStyle = ChartLook(25.0f, 3.0f);
+    look.lineThicknessLogical = 2.0f;
+    look.pointRadiusLogical = 2.0f;
+    look.hoverPointRadiusLogical = 4.0f;
+    look.areaOpacity = 0.5f;
+    trend->ApplyStyle(look);
+    trend->AddLabel("Q1");
+    trend->AddLabel("Q2");
+    trend->AddLabel("Q3");
+    trend->AddLabel("Q4");
+    profit: ChartSeries~* = trend->AddSeries("profit", Color { red: 30, green: 0, blue: 0, alpha: 255 });
+    profit->values.push(2.0f);
+    profit->values.push(-1.0f);
+    profit->values.push(3.0f);
+    profit->values.push(1.0f);
+    trend->Arrange(Rect { x: 0.0f, y: 0.0f, width: 160.0f, height: 100.0f }, layout);
+    trend->Draw(renderer, stacking);
+    print(trend->UpdateInteractionState(PointerAtPoint(100.0f, 40.0f, false, false, false), stacking));
+    print(trend->GetHoveredIndex());
+
+    ring: DonutChart*! = new DonutChart();
+    defer delete ring;
+    ring->className = "ring";
+    ring->fontBackend = font;
+    ring->fontSizeLogical = 10.0f;
+    ringLook~ ChartStyle = ChartLook(0.0f, 0.0f);
+    ringLook.donutThicknessLogical = 10.0f;
+    ringLook.segmentGapDegrees = 4.0f;
+    ring->ApplyStyle(ringLook);
+    ring->AddSlice("small", 1.0f, Color { red: 40, green: 0, blue: 0, alpha: 255 });
+    ring->AddSlice("large", 3.0f, Color { red: 50, green: 0, blue: 0, alpha: 255 });
+    ring->AddSlice("empty", 0.0f, Color { red: 60, green: 0, blue: 0, alpha: 255 });
+    ring->SetCentreText("4", "total");
+    ring->centreFontSizeLogical = 20.0f;
+    ring->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: 80.0f }, layout);
+    ring->Draw(renderer, stacking);
+    print(ring->UpdateInteractionState(PointerAtPoint(50.0f, 75.0f, false, false, false), stacking));
+    print(ring->GetHoveredIndex());
+    print(ring->UpdateInteractionState(PointerAtPoint(50.0f, 40.0f, false, false, false), stacking));
+    print(ring->GetHoveredIndex());
+    print(ring->UpdateInteractionState(PointerAtPoint(85.0f, 40.0f, false, false, false), stacking));
+    print(ring->GetHoveredIndex());
+    ring->Draw(renderer, stacking);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1146,5 +1207,6 @@ main :: () -> i32 {
     ShowInlineFlow();
     ShowIcon();
     ShowBarCharts(font);
+    ShowLineAndDonut(font);
     return 0;
 }

@@ -1,0 +1,178 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Maths :: import Maths;
+Color :: import Color;
+IRenderer :: import IRenderer;
+TweenedValues :: import TweenedValues;
+ChartStyle :: import ChartStyle;
+ChartBase :: import ChartBase;
+
+ChartSlice :: class {
+public:
+    label~ string! = "";
+    value~ f32 = 0.0f;
+    sliceColor~ Color = Color { };
+
+    ChartSlice~: (label: string, value: f32, sliceColor: Color) {
+        this->label = label.copy();
+        this->value = value;
+        this->sliceColor = sliceColor;
+    }
+
+    !ChartSlice~: () {
+        delete this->label;
+    }
+}
+
+DonutChart :: class : ChartBase {
+public:
+    slices~ Array<ChartSlice*!>! = [];
+    centreText~ string! = "";
+    centreCaption~ string! = "";
+    centreFontSizeLogical~ f32? = null;
+
+    DonutChart~: () : values(new TweenedValues()) { }
+
+    !DonutChart~: () {
+        this->slices.freeAll();
+        delete this->centreText;
+        delete this->centreCaption;
+        delete this->values;
+        delete this->sliceStarts;
+        delete this->sliceSweeps;
+    }
+
+    AddSlice~: (label: string, value: f32, sliceColor: Color) -> ChartSlice~* {
+        this->slices.push(new ChartSlice(label, value, sliceColor));
+        return this->slices[this->slices.length() - 1];
+    }
+
+    SetCentreText~: (text: string, caption: string) -> void {
+        copiedText: string! = text.copy();
+        copiedCaption: string! = caption.copy();
+        delete this->centreText;
+        delete this->centreCaption;
+        this->centreText = copiedText!;
+        this->centreCaption = copiedCaption!;
+    }
+
+protected:
+    DrawChart~: (renderer: IRenderer~*, contentRect: Rect, snap: bool, deltaSeconds: f32, appearProgress: f32) -> void override {
+        look: ChartStyle = this->chartVisualStyle;
+        twelveOClockDegrees: f32 = -90.0f;
+
+        target~ Array<f32>! = [];
+        defer delete target;
+        for slice in this->slices {
+            target.push(Numbers:::Larger(0.0f, slice->value));
+        }
+        this->SyncValues(this->values, target, snap, deltaSeconds);
+
+        this->centre = Point { x: contentRect.x + contentRect.width * 0.5f, y: contentRect.y + contentRect.height * 0.5f };
+        this->outerRadius = Numbers:::Smaller(contentRect.width, contentRect.height) * 0.5f;
+        this->innerRadius = 0.0f;
+        if look.donutThicknessLogical > 0.0f {
+            this->innerRadius = Numbers:::Larger(0.0f, this->outerRadius - look.donutThicknessLogical);
+        }
+
+        total~ f32 = 0.0f;
+        visible~ usize = 0;
+        index~ usize = 0;
+        while index < this->values->Size() {
+            total = total + Numbers:::Larger(0.0f, this->values->ValueAt(index));
+            if this->values->ValueAt(index) > 0.0f {
+                visible = visible + 1;
+            }
+            index = index + 1;
+        }
+
+        this->sliceStarts.clear();
+        this->sliceSweeps.clear();
+        index = 0;
+        while index < this->values->Size() {
+            this->sliceStarts.push(0.0f);
+            this->sliceSweeps.push(0.0f);
+            index = index + 1;
+        }
+        if total > 0.0f {
+            gap~ f32 = 0.0f;
+            if visible > 1 {
+                gap = Numbers:::Larger(0.0f, look.segmentGapDegrees);
+            }
+            angle~ f32 = 0.0f;
+            index = 0;
+            while index < this->values->Size() && index < this->slices.length() {
+                sweep: f32 = Numbers:::Larger(0.0f, this->values->ValueAt(index)) / total * 360.0f * appearProgress;
+                this->sliceStarts[index] = angle;
+                this->sliceSweeps[index] = sweep;
+                if sweep > gap {
+                    start: f32 = twelveOClockDegrees + angle + gap * 0.5f;
+                    renderer->DrawArc(this->centre, this->innerRadius, this->outerRadius, start, sweep - gap, this->slices[index]->sliceColor);
+                    if i32(index) == this->GetHoveredIndex() && look.colorHover.alpha != 0 {
+                        renderer->DrawArc(this->centre, this->innerRadius, this->outerRadius, start, sweep - gap, look.colorHover);
+                    }
+                }
+                angle = angle + sweep;
+                index = index + 1;
+            }
+        }
+
+        if look.colorLabel.alpha == 0 || (this->centreText.length() == 0 && this->centreCaption.length() == 0) {
+            return;
+        }
+        if font := this->fontBackend {
+            mainSize~ f32 = this->fontSizeLogical;
+            if size := this->centreFontSizeLogical {
+                mainSize = size;
+            }
+            mainHeight~ f32 = 0.0f;
+            if this->centreText.length() > 0 {
+                mainHeight = font->MeasureText("Ag", mainSize).y;
+            }
+            captionHeight~ f32 = 0.0f;
+            if this->centreCaption.length() > 0 {
+                captionHeight = this->LineHeight();
+            }
+            top~ f32 = this->centre.y - (mainHeight + captionHeight) * 0.5f;
+            if this->centreText.length() > 0 {
+                width: f32 = font->MeasureText(this->centreText, mainSize).x;
+                renderer->DrawText(this->centreText, Point { x: this->centre.x - width * 0.5f, y: top }, mainSize, look.colorLabel);
+                top = top + mainHeight;
+            }
+            if this->centreCaption.length() > 0 {
+                renderer->DrawText(this->centreCaption, Point { x: this->centre.x - this->TextWidth(this->centreCaption) * 0.5f, y: top },
+                    this->fontSizeLogical, look.colorLabel);
+            }
+        }
+    }
+
+    HitTest :: (mouseLogical: Point) -> i32 override {
+        offsetX: f32 = mouseLogical.x - this->centre.x;
+        offsetY: f32 = mouseLogical.y - this->centre.y;
+        distance: f32 = Maths:::SquareRoot(offsetX * offsetX + offsetY * offsetY);
+        if distance > this->outerRadius || distance < this->innerRadius {
+            return -1;
+        }
+        angle~ f32 = Maths:::AngleOf(offsetY, offsetX) * 180.0f / 3.14159265358979323846f + 90.0f;
+        if angle < 0.0f {
+            angle = angle + 360.0f;
+        }
+        index~ usize = 0;
+        while index < this->sliceStarts.length() {
+            if this->sliceSweeps[index] > 0.0f && angle >= this->sliceStarts[index] && angle < this->sliceStarts[index] + this->sliceSweeps[index] {
+                return i32(index);
+            }
+            index = index + 1;
+        }
+        return -1;
+    }
+
+private:
+    values~ TweenedValues*!;
+    centre~ Point = Point { };
+    innerRadius~ f32 = 0.0f;
+    outerRadius~ f32 = 0.0f;
+    sliceStarts~ Array<f32>! = [];
+    sliceSweeps~ Array<f32>! = [];
+}

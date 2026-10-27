@@ -1,0 +1,158 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Maths :: import Maths;
+Color :: import Color;
+IRenderer :: import IRenderer;
+LineJoin :: import LineJoin;
+LineCap :: import LineCap;
+ChartStyle :: import ChartStyle;
+AxisChartBase :: import AxisChartBase;
+
+LineCharts :: namespace {
+    FillToBaseline :: (renderer: IRenderer~*, line: Array<Point>, baselineY: f32, fill: Color) -> void {
+        polygon~ Array<Point>! = [];
+        defer delete polygon;
+        polygon.push(Point { x: line[0].x, y: baselineY });
+        index~ usize = 0;
+        while index < line.length() {
+            polygon.push(line[index]);
+            if index + 1 == line.length() {
+                break;
+            }
+            above: f32 = line[index].y - baselineY;
+            next: f32 = line[index + 1].y - baselineY;
+            if (above < 0.0f && next > 0.0f) || (above > 0.0f && next < 0.0f) {
+                along: f32 = above / (above - next);
+                crossing: Point = Point { x: line[index].x + (line[index + 1].x - line[index].x) * along, y: baselineY };
+                polygon.push(crossing);
+                if polygon.length() >= 3 {
+                    renderer->DrawFilledPolygon(polygon, fill);
+                }
+                polygon.clear();
+                polygon.push(crossing);
+            }
+            index = index + 1;
+        }
+        polygon.push(Point { x: line[line.length() - 1].x, y: baselineY });
+        if polygon.length() >= 3 {
+            renderer->DrawFilledPolygon(polygon, fill);
+        }
+    }
+}
+
+LineChart :: class : AxisChartBase {
+public:
+    join~ LineJoin = LineJoin:::Round;
+    cap~ LineCap = LineCap:::Round;
+
+protected:
+    AxisIncludesZero :: () -> bool override {
+        return this->showAxes;
+    }
+
+    CategoryCentre :: (category: usize) -> f32 override {
+        return this->PointX(category);
+    }
+
+    DrawChart~: (renderer: IRenderer~*, contentRect: Rect, snap: bool, deltaSeconds: f32, appearProgress: f32) -> void override {
+        look: ChartStyle = this->chartVisualStyle;
+        inset: f32 = Numbers:::Larger(Numbers:::Larger(look.lineThicknessLogical * 0.5f, look.pointRadiusLogical),
+            Numbers:::Larger(look.hoverPointRadiusLogical, 0.0f));
+        this->LayoutAxes(contentRect, false, inset, snap, deltaSeconds);
+        this->DrawGrid(renderer);
+
+        categories: usize = this->CategoryCount();
+        plot: Rect = this->plotRect;
+        hovered: i32 = this->GetHoveredIndex();
+        hoverValid: bool = hovered >= 0 && usize(hovered) < categories;
+
+        if hoverValid && look.colorHover.alpha != 0 && look.gridLineThicknessLogical > 0.0f {
+            hoverX: f32 = this->PointX(usize(hovered));
+            renderer->DrawLine(Point { x: hoverX, y: plot.y }, Point { x: hoverX, y: plot.y + plot.height }, look.colorHover, look.gridLineThicknessLogical);
+        }
+
+        points~ Array<Point>! = [];
+        defer delete points;
+        seriesIndex~ usize = 0;
+        while seriesIndex < this->series.length() {
+            category~ usize = 0;
+            while category < categories {
+                value: f32 = this->AppearValue(this->DisplayedValue(seriesIndex, category), appearProgress);
+                points.push(Point { x: this->PointX(category), y: this->ValuePosition(value) });
+                category = category + 1;
+            }
+            seriesIndex = seriesIndex + 1;
+        }
+
+        baselineY: f32 = this->ValuePosition(this->BaselineValue());
+        if look.areaOpacity > 0.0f && categories > 1 {
+            seriesIndex = 0;
+            while seriesIndex < this->series.length() {
+                fill~ Color = this->series[seriesIndex]->seriesColor;
+                fill.alpha = u8(Maths:::RoundToInteger(f32(fill.alpha) * Maths:::Clamp(look.areaOpacity, 0.0f, 1.0f)));
+                LineCharts:::FillToBaseline(renderer, points.slice(seriesIndex * categories, (seriesIndex + 1) * categories), baselineY, fill);
+                seriesIndex = seriesIndex + 1;
+            }
+        }
+
+        this->DrawBaseline(renderer);
+
+        if look.lineThicknessLogical > 0.0f && categories > 1 {
+            seriesIndex = 0;
+            while seriesIndex < this->series.length() {
+                renderer->DrawPolyline(points.slice(seriesIndex * categories, (seriesIndex + 1) * categories),
+                    this->series[seriesIndex]->seriesColor, look.lineThicknessLogical, this->join, this->cap);
+                seriesIndex = seriesIndex + 1;
+            }
+        }
+
+        seriesIndex = 0;
+        while seriesIndex < this->series.length() {
+            category~ usize = 0;
+            while category < categories {
+                radius~ f32 = look.pointRadiusLogical;
+                if hoverValid && category == usize(hovered) && look.hoverPointRadiusLogical > 0.0f {
+                    radius = look.hoverPointRadiusLogical;
+                }
+                if radius > 0.0f {
+                    renderer->DrawFilledCircle(points[seriesIndex * categories + category], radius, this->series[seriesIndex]->seriesColor);
+                }
+                category = category + 1;
+            }
+            seriesIndex = seriesIndex + 1;
+        }
+
+        this->DrawCategoryLabels(renderer, this->PointSpacing());
+    }
+
+    HitTest :: (mouseLogical: Point) -> i32 override {
+        categories: usize = this->CategoryCount();
+        content: Rect = this->lastContentRect;
+        if categories == 0 || mouseLogical.x < content.x || mouseLogical.x >= content.x + content.width ||
+            mouseLogical.y < content.y || mouseLogical.y >= content.y + content.height {
+            return -1;
+        }
+        if categories == 1 {
+            return 0;
+        }
+        nearest: f32 = f32(Maths:::RoundToInteger((mouseLogical.x - this->plotRect.x) / this->PointSpacing()));
+        return i32(Maths:::Clamp(nearest, 0.0f, f32(categories - 1)));
+    }
+
+private:
+    PointSpacing :: () -> f32 {
+        categories: usize = this->CategoryCount();
+        if categories > 1 {
+            return this->plotRect.width / f32(categories - 1);
+        }
+        return this->plotRect.width;
+    }
+
+    PointX :: (category: usize) -> f32 {
+        if this->CategoryCount() > 1 {
+            return this->plotRect.x + this->PointSpacing() * f32(category);
+        }
+        return this->plotRect.x + this->plotRect.width * 0.5f;
+    }
+}
