@@ -153,6 +153,7 @@ private:
     // Tracks whether a press began inside this Box, so OnReleased pairs with the
     // OnPressed that started it rather than firing on an unrelated mouse-up.
     bool              PressedInside{false};
+    bool              WasHovered{false};
     InteractionState  CurrentState{InteractionState::Default};
 
     // The eased values, created once Style.Transitions isn't empty, so a plain Box

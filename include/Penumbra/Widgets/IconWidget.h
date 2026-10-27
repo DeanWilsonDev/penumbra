@@ -71,6 +71,7 @@ private:
     Render::Color ColorForState() const;
 
     bool             PressedInside{false};
+    bool             WasHovered{false};
     InteractionState CurrentState{InteractionState::Default};
 };
 

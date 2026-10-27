@@ -4,20 +4,31 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Penumbra::Platform {
 
-// Penumbra's own small keycode vocabulary. Only covers what Penumbra's own widgets
-// and documented use cases need — TextInput's editing/navigation/clipboard keys, plus
-// Backspace/Escape for consumers implementing zoom-out-style interactions. Anything not
-// mapped comes through as Key::Unknown rather than growing this to match SDL's keyspace.
+// Penumbra's keycode vocabulary: every key an editor's shortcuts, a viewport's camera
+// controls or a text field can need. Anything SDL reports that isn't here comes through
+// as Key::Unknown. KeyName gives each key its web `KeyboardEvent.key` name.
 enum class Key {
     Unknown,
     Left, Right, Up, Down,
-    Home, End, Backspace, Delete, Escape, Enter, Tab,
-    A, C, V, X,
+    Home, End, PageUp, PageDown, Insert, Backspace, Delete, Escape, Enter, Tab, Space,
+    A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+    Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7, Digit8, Digit9,
+    F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+    Minus, Equals, LeftBracket, RightBracket, Backslash, Semicolon, Apostrophe, Grave, Comma, Period, Slash,
+    LeftShift, RightShift, LeftControl, RightControl, LeftAlt, RightAlt, LeftSuper, RightSuper,
+    CapsLock, PrintScreen, Pause,
+    Numpad0, Numpad1, Numpad2, Numpad3, Numpad4, Numpad5, Numpad6, Numpad7, Numpad8, Numpad9,
+    NumpadAdd, NumpadSubtract, NumpadMultiply, NumpadDivide, NumpadDecimal, NumpadEnter,
 };
+
+// The key's name as the web's `KeyboardEvent.key` gives it: "a", "0", "Escape", "ArrowLeft",
+// "F2", " " for Space. Letters are lower case; Unknown is "Unidentified".
+std::string_view KeyName(Key Code);
 
 struct Modifiers {
     bool Shift{false};
@@ -25,6 +36,16 @@ struct Modifiers {
     bool Alt{false};
     bool Super{false};
     bool Shortcut{false};
+};
+
+// One key transition this frame, in the order SDL reported them. Down is true for a
+// press (Repeat when the key was already held and the OS repeated it) and false for a
+// release. ModifierState is the modifier set at that moment, not at the end of the frame.
+struct KeyEvent {
+    Key       Code{Key::Unknown};
+    bool      Down{true};
+    bool      Repeat{false};
+    Modifiers ModifierState{};
 };
 
 // A snapshot of all OS input for a single frame, built by PlatformWindow.
@@ -42,8 +63,19 @@ struct InputState {
     float MouseWheelDeltaX{0.0f};
 
     std::string       TextInputThisFrame;              // from SDL text-input events
-    std::vector<Key>  KeysPressedThisFrame;            // arrows, backspace, delete, etc.
+    std::vector<Key>  KeysPressedThisFrame;            // every press, repeats included
+    std::vector<KeyEvent> KeyEvents;                   // every press and release, in order
+    std::vector<Key>  KeysHeld;                        // down at the end of the frame
     Modifiers         ModifierState{};
+
+    bool IsKeyHeld(Key Code) const {
+        for (const Key Held : KeysHeld) {
+            if (Held == Code) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     // Frame timing carried alongside input, so per-frame widget updates (e.g.
     // animations) can advance without changing the WidgetBase interface.

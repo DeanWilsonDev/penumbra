@@ -65,6 +65,14 @@ bool Button::UpdateInteractionState(const Platform::InputState& Given) {
         const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
         const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];
 
+        if (Hovered && OnHovered) {
+            OnHovered();
+        }
+        if (!Hovered && WasHovered && OnUnhovered) {
+            OnUnhovered();
+        }
+        WasHovered = Hovered;
+
         if (Pressed && Hovered) {
             PressedInside = true;
         }

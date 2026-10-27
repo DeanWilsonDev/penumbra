@@ -720,13 +720,14 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
     // hit-testing it rather than paying for a hit test on every plain Box
     // in the tree, every frame. A Box that only sets :hover-equivalent colours (no
     // onPress) still needs hit-testing to know when to use them.
-    const bool HasCallbacks = OnPressed || OnReleased || OnHovered || OnFocused || OnChanged;
+    const bool HasCallbacks = OnPressed || OnReleased || OnHovered || OnUnhovered || OnFocused || OnChanged;
     const bool HasInteractionColors =
         Style.ColorBackgroundHovered.A != 0 || Style.ColorBackgroundPressed.A != 0 ||
         Style.ColorBorderHovered.A != 0 || Style.ColorBorderPressed.A != 0;
     if (!HasCallbacks && !HasInteractionColors) {
         CurrentState  = InteractionState::Default;
         PressedInside = false;
+        WasHovered    = false;
         return ChildConsumed;
     }
 
@@ -740,6 +741,10 @@ bool Box::UpdateInteractionState(const Platform::InputState& Input) {
     if (Hovered && OnHovered) {
         OnHovered();
     }
+    if (!Hovered && WasHovered && OnUnhovered) {
+        OnUnhovered();
+    }
+    WasHovered = Hovered;
     if (Pressed && Hovered && !ChildConsumed) {
         PressedInside = true;
         if (OnPressed) {

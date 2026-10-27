@@ -1,32 +1,119 @@
 #include "Penumbra/Platform/PlatformWindow.h"
 
+#include <algorithm>
+
 namespace Penumbra::Platform {
 
 namespace {
 // SDL mouse buttons are 1-based (left=1, middle=2, right=3); InputState indexes 0-based.
 constexpr Uint32 ButtonMask[3] = {SDL_BUTTON_LMASK, SDL_BUTTON_MMASK, SDL_BUTTON_RMASK};
 
-// Maps SDL's keycode space onto Penumbra's small, deliberately incomplete Key
-// vocabulary (spec item 5) — only the keys Penumbra's own widgets and documented use
-// cases care about. Anything else comes through as Key::Unknown.
+// Maps SDL's keycode space onto Penumbra's Key vocabulary. Anything else comes
+// through as Key::Unknown.
 Key MapKey(SDL_Keycode Code) {
     switch (Code) {
-    case SDLK_LEFT:      return Key::Left;
-    case SDLK_RIGHT:     return Key::Right;
-    case SDLK_UP:        return Key::Up;
-    case SDLK_DOWN:      return Key::Down;
-    case SDLK_HOME:      return Key::Home;
-    case SDLK_END:       return Key::End;
+    case SDLK_LEFT: return Key::Left;
+    case SDLK_RIGHT: return Key::Right;
+    case SDLK_UP: return Key::Up;
+    case SDLK_DOWN: return Key::Down;
+    case SDLK_HOME: return Key::Home;
+    case SDLK_END: return Key::End;
+    case SDLK_PAGEUP: return Key::PageUp;
+    case SDLK_PAGEDOWN: return Key::PageDown;
+    case SDLK_INSERT: return Key::Insert;
     case SDLK_BACKSPACE: return Key::Backspace;
-    case SDLK_DELETE:    return Key::Delete;
-    case SDLK_ESCAPE:    return Key::Escape;
-    case SDLK_RETURN:    return Key::Enter;
-    case SDLK_TAB:       return Key::Tab;
-    case SDLK_A:         return Key::A;
-    case SDLK_C:         return Key::C;
-    case SDLK_V:         return Key::V;
-    case SDLK_X:         return Key::X;
-    default:             return Key::Unknown;
+    case SDLK_DELETE: return Key::Delete;
+    case SDLK_ESCAPE: return Key::Escape;
+    case SDLK_RETURN: return Key::Enter;
+    case SDLK_TAB: return Key::Tab;
+    case SDLK_SPACE: return Key::Space;
+    case SDLK_A: return Key::A;
+    case SDLK_B: return Key::B;
+    case SDLK_C: return Key::C;
+    case SDLK_D: return Key::D;
+    case SDLK_E: return Key::E;
+    case SDLK_F: return Key::F;
+    case SDLK_G: return Key::G;
+    case SDLK_H: return Key::H;
+    case SDLK_I: return Key::I;
+    case SDLK_J: return Key::J;
+    case SDLK_K: return Key::K;
+    case SDLK_L: return Key::L;
+    case SDLK_M: return Key::M;
+    case SDLK_N: return Key::N;
+    case SDLK_O: return Key::O;
+    case SDLK_P: return Key::P;
+    case SDLK_Q: return Key::Q;
+    case SDLK_R: return Key::R;
+    case SDLK_S: return Key::S;
+    case SDLK_T: return Key::T;
+    case SDLK_U: return Key::U;
+    case SDLK_V: return Key::V;
+    case SDLK_W: return Key::W;
+    case SDLK_X: return Key::X;
+    case SDLK_Y: return Key::Y;
+    case SDLK_Z: return Key::Z;
+    case SDLK_0: return Key::Digit0;
+    case SDLK_1: return Key::Digit1;
+    case SDLK_2: return Key::Digit2;
+    case SDLK_3: return Key::Digit3;
+    case SDLK_4: return Key::Digit4;
+    case SDLK_5: return Key::Digit5;
+    case SDLK_6: return Key::Digit6;
+    case SDLK_7: return Key::Digit7;
+    case SDLK_8: return Key::Digit8;
+    case SDLK_9: return Key::Digit9;
+    case SDLK_F1: return Key::F1;
+    case SDLK_F2: return Key::F2;
+    case SDLK_F3: return Key::F3;
+    case SDLK_F4: return Key::F4;
+    case SDLK_F5: return Key::F5;
+    case SDLK_F6: return Key::F6;
+    case SDLK_F7: return Key::F7;
+    case SDLK_F8: return Key::F8;
+    case SDLK_F9: return Key::F9;
+    case SDLK_F10: return Key::F10;
+    case SDLK_F11: return Key::F11;
+    case SDLK_F12: return Key::F12;
+    case SDLK_MINUS: return Key::Minus;
+    case SDLK_EQUALS: return Key::Equals;
+    case SDLK_LEFTBRACKET: return Key::LeftBracket;
+    case SDLK_RIGHTBRACKET: return Key::RightBracket;
+    case SDLK_BACKSLASH: return Key::Backslash;
+    case SDLK_SEMICOLON: return Key::Semicolon;
+    case SDLK_APOSTROPHE: return Key::Apostrophe;
+    case SDLK_GRAVE: return Key::Grave;
+    case SDLK_COMMA: return Key::Comma;
+    case SDLK_PERIOD: return Key::Period;
+    case SDLK_SLASH: return Key::Slash;
+    case SDLK_LSHIFT: return Key::LeftShift;
+    case SDLK_RSHIFT: return Key::RightShift;
+    case SDLK_LCTRL: return Key::LeftControl;
+    case SDLK_RCTRL: return Key::RightControl;
+    case SDLK_LALT: return Key::LeftAlt;
+    case SDLK_RALT: return Key::RightAlt;
+    case SDLK_LGUI: return Key::LeftSuper;
+    case SDLK_RGUI: return Key::RightSuper;
+    case SDLK_CAPSLOCK: return Key::CapsLock;
+    case SDLK_PRINTSCREEN: return Key::PrintScreen;
+    case SDLK_PAUSE: return Key::Pause;
+    case SDLK_KP_0: return Key::Numpad0;
+    case SDLK_KP_1: return Key::Numpad1;
+    case SDLK_KP_2: return Key::Numpad2;
+    case SDLK_KP_3: return Key::Numpad3;
+    case SDLK_KP_4: return Key::Numpad4;
+    case SDLK_KP_5: return Key::Numpad5;
+    case SDLK_KP_6: return Key::Numpad6;
+    case SDLK_KP_7: return Key::Numpad7;
+    case SDLK_KP_8: return Key::Numpad8;
+    case SDLK_KP_9: return Key::Numpad9;
+    case SDLK_KP_PLUS: return Key::NumpadAdd;
+    case SDLK_KP_MINUS: return Key::NumpadSubtract;
+    case SDLK_KP_MULTIPLY: return Key::NumpadMultiply;
+    case SDLK_KP_DIVIDE: return Key::NumpadDivide;
+    case SDLK_KP_PERIOD: return Key::NumpadDecimal;
+    case SDLK_KP_ENTER: return Key::NumpadEnter;
+    default: return Key::Unknown;
     }
 }
 
@@ -121,7 +208,10 @@ bool PlatformWindow::PumpEventsAndBuildInput(InputState& OutInputState) {
 
     OutInputState.TextInputThisFrame.clear();
     OutInputState.KeysPressedThisFrame.clear();
+    OutInputState.KeyEvents.clear();
     OutInputState.MouseWheelDelta = 0.0f;
+    bool PressedByEvent[3]{};
+    bool ReleasedByEvent[3]{};
     OutInputState.MouseWheelDeltaX = 0.0f;
 
     bool KeepRunning = true;
@@ -139,8 +229,31 @@ bool PlatformWindow::PumpEventsAndBuildInput(InputState& OutInputState) {
         case SDL_EVENT_TEXT_INPUT:
             OutInputState.TextInputThisFrame += Event.text.text;
             break;
-        case SDL_EVENT_KEY_DOWN:
-            OutInputState.KeysPressedThisFrame.push_back(MapKey(Event.key.key));
+        case SDL_EVENT_KEY_DOWN: {
+            const Key Code = MapKey(Event.key.key);
+            OutInputState.KeysPressedThisFrame.push_back(Code);
+            OutInputState.KeyEvents.push_back({Code, true, Event.key.repeat, MapModifiers(Event.key.mod)});
+            if (!Event.key.repeat && Code != Key::Unknown && !OutInputState.IsKeyHeld(Code)) {
+                OutInputState.KeysHeld.push_back(Code);
+            }
+            break;
+        }
+        case SDL_EVENT_KEY_UP: {
+            const Key Code = MapKey(Event.key.key);
+            OutInputState.KeyEvents.push_back({Code, false, false, MapModifiers(Event.key.mod)});
+            std::erase(OutInputState.KeysHeld, Code);
+            break;
+        }
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            // Folded into the per-frame edges below, so a press and release inside one
+            // frame still count as a click instead of vanishing between two samples.
+            if (Event.button.button >= 1 && Event.button.button <= 3) {
+                (Event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? PressedByEvent : ReleasedByEvent)[Event.button.button - 1] = true;
+            }
+            break;
+        case SDL_EVENT_WINDOW_FOCUS_LOST:
+            OutInputState.KeysHeld.clear();
             break;
         default:
             break;
@@ -157,8 +270,8 @@ bool PlatformWindow::PumpEventsAndBuildInput(InputState& OutInputState) {
         const bool WasDown = PreviousMouseButtonDown[Index];
 
         OutInputState.MouseButtonDown[Index] = Down;
-        OutInputState.MouseButtonPressedThisFrame[Index] = Down && !WasDown;
-        OutInputState.MouseButtonReleasedThisFrame[Index] = !Down && WasDown;
+        OutInputState.MouseButtonPressedThisFrame[Index] = (Down && !WasDown) || PressedByEvent[Index];
+        OutInputState.MouseButtonReleasedThisFrame[Index] = (!Down && WasDown) || (ReleasedByEvent[Index] && !Down);
 
         PreviousMouseButtonDown[Index] = Down;
     }

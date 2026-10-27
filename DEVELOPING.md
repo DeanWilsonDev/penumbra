@@ -60,8 +60,15 @@ the top-level project, unless a consumer sets `PENUMBRA_BUILD_DEMO=ON`.
   A scroll container also arranges its children inside a `ScrollportScope` of
   its viewport, so `Sticky` descendants stick to it.
 - A key no focused widget used goes to the topmost widget with an
-  `OnKeyPressed` handler (`Widgets/KeyDispatch.h`), so a widget that takes keys
-  while focused marks each one it uses with `KeyDispatch::MarkUsed`.
+  `OnKeyPressed` or `OnKeyEvent` handler (`Widgets/KeyDispatch.h`), so a widget
+  that takes keys while focused marks each one it uses with
+  `KeyDispatch::MarkUsed`. `InputState::KeyEvents` carries every press and
+  release with its modifiers, `KeysHeld` the keys down at the end of the frame,
+  and `Platform::KeyName` names a key the way the web's `KeyboardEvent.key` does.
+- Mouse presses and releases come from SDL's button events as well as the
+  per-frame button state, so a click shorter than a frame still lands.
+- `OnHovered` fires every frame the pointer is over a widget; `OnUnhovered`
+  fires once as it leaves.
 - Keep the core library independent of `demo/` and application languages.
   Language and declarative-UI integrations belong in their backend repositories.
 - Public names use `PascalCase`, including methods and local variables. The
