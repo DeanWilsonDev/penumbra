@@ -48,7 +48,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Geometry.h` | `Penumbra/Geometry.nox` (`Point`, `Rect`, `Transform`, plus `Numbers` helpers) |
 | `Render/Color.h` | `Penumbra/Render/Color.nox` |
 | `Platform/InputState.h` | `Penumbra/Platform/InputState.nox` (mouse, wheel, modifiers, occlusion, the `Key` enum, typed text and keys pressed this frame) |
-| `Render/Renderer.h`, `Render/IFontBackend.h` | `Penumbra/Render/Renderer.nox`, as the `IRenderer` and `IFontBackend` interfaces |
+| `Render/Renderer.h`, `Render/IFontBackend.h` | `Penumbra/Render/Renderer.nox`, as the `IRenderer` and `IFontBackend` interfaces. Fonts are a size, not a handle, and `IFontBackend` has `MeasureText` and `MeasureAscent` (the C++ `TextMetrics.AscentLogical`) |
 | `Widgets/Length.h` | `Penumbra/Widgets/Length.nox` (logical and percent units) |
 | `Widgets/Styles.h` | `Penumbra/Widgets/Styles.nox` (`EdgeInsets`, the layout enums, the layout half of `BoxStyle` and its hovered, pressed and disabled colours) |
 | `Widgets/WidgetBase.h` | `Penumbra/Widgets/WidgetBase.nox` (abstract class, with the seven callbacks as `(() -> void)!?` fields) |
@@ -64,6 +64,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Render/TextWrap.h/.cpp` | `Penumbra/Render/TextWrap.nox`: `TextWrap:::Wrap` over an `ITextRangeMeasure` (the C++ range-measure callback, as an interface) and `TextWrap:::WithFont` |
 | `Render/Utf8.h` | `Penumbra/Render/Utf8.nox`: `PreviousCodePoint` and `NextCodePoint` over `byteAt` |
 | `Widgets/FocusState.h` | `Penumbra/Widgets/FocusState.nox` |
+| `Widgets/TextArea.h/.cpp` | `Penumbra/Widgets/TextArea.nox`: wrapped multi-line editing with per-span font size, text colour and background (`TextAreaSpan`, with `fontSizeLogical` in place of a font handle and no class name), line boxes sized by each line's tallest run, vertical caret movement that keeps its column, Home and End per line, Enter, wheel scrolling, the caret kept in view and a scrollbar thumb. It implements `ITextRangeMeasure` so `TextWrap:::Wrap` measures through its spans. `ForEachRun`'s visitor became `RunsIn`, which returns the runs, and there's no font metrics cache |
 | `Widgets/TextInput.h/.cpp` | `Penumbra/Widgets/TextInput.nox`: focus on click, typed text, caret and shift selection by code point, drag selection, backspace and delete, select all, copy, cut and paste, `onTextChanged` and `onFocusLost`. The text is an owned `string!` rebuilt from two substrings and the insertion on each edit |
 | `Widgets/KeyDispatch.h/.cpp` | `Penumbra/Widgets/KeyDispatch.nox`: the outermost `Box` or `ScrollablePanel` opens a pass, a focused `TextInput` marks the keys it used, the first child with `onKeyPressed` that saw keys (or the root) gets the rest, and a child covering the window withholds keys and text from everything after it. The `StackingTracker` owns the `KeyDispatch` the C++ keeps in a global, with the viewport it needs |
 | `Widgets/SplitPanel.h/.cpp` | `Penumbra/Widgets/SplitPanel.nox`: horizontal and vertical splits, the ratio clamped by the minimum pane size, handle drag and hover colours, and the panes as optional owners (`WidgetBase*!?`). `SplitPanelStyle` isn't a struct of its own, since Nox structs don't inherit: its handle colours are fields on the panel |
@@ -91,7 +92,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `BoxStyle.transform` so far.
 - Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
 - `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
-- `TextArea`, `CanvasWidget`, `ImageWidget`
+- `CanvasWidget`, `ImageWidget`
   and `ViewportWidget`.
 
 ## Language friction found so far
