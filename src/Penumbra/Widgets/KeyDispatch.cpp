@@ -39,6 +39,11 @@ KeyDispatch::KeyDispatch(WidgetBase& Root, const Platform::InputState& Input) {
     }
     Outermost = true;
     Current   = Pass{true, &Root, Input.KeysPressedThisFrame, Input.KeyEvents, {}, nullptr, false};
+    if (Current.Events.empty()) {
+        for (const Platform::Key Key : Current.Keys) {
+            Current.Events.push_back(Platform::KeyEvent{Key, true, false, Input.ModifierState});
+        }
+    }
 }
 
 KeyDispatch::~KeyDispatch() {
