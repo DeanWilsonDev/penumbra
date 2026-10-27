@@ -112,8 +112,27 @@ public:
     }
 
     SetIsVisible~: (visible: bool) -> void {
+        shown: bool = visible && !this->isVisible;
         this->isVisible = visible;
+        if shown {
+            this->NotifyShown();
+        }
     }
+
+    NotifyShown~: () -> void {
+        this->OnShown();
+        index~ usize = 0;
+        while index < this->GetChildCount() {
+            if child := this->GetMutableChildAt(index) {
+                if child->GetIsVisible() {
+                    child->NotifyShown();
+                }
+            }
+            index = index + 1;
+        }
+    }
+
+    virtual OnShown~: () -> void { }
 
     GetIsVisible :: () -> bool {
         return this->isVisible;

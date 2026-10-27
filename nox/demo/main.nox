@@ -38,6 +38,8 @@ ChevronDirection :: import ChevronDirection;
 OverlayHost :: import OverlayHost;
 FocusState :: import FocusState;
 Key :: import Key;
+TransitionSpec :: import TransitionSpec;
+BoxStyle :: import BoxStyle;
 RecordingClipboard :: import RecordingClipboard;
 Dropdown :: import Dropdown;
 DropdownStyle :: import DropdownStyle;
@@ -1493,6 +1495,89 @@ ShowRoundedStyles :: () -> void {
     flat->Draw(renderer, stacking);
 }
 
+TransitionFrame :: (box: Box~*, renderer: RecordingRenderer~*, stacking: StackingTracker~*, layout: LayoutContext~*, frame: u64) -> void {
+    renderer->frameIndex = frame;
+    print("frame");
+    print(frame);
+    measured: Point = box->Measure(Point { x: 400.0f, y: 300.0f });
+    print(measured.x);
+    box->Arrange(Rect { x: 0.0f, y: 0.0f, width: measured.x, height: 20.0f }, layout);
+    box->Draw(renderer, stacking);
+}
+
+GrowFrame :: (grower: Box~*, renderer: RecordingRenderer~*, stacking: StackingTracker~*, layout: LayoutContext~*, frame: u64) -> void {
+    renderer->frameIndex = frame;
+    print("grow frame");
+    print(frame);
+    grower->Measure(Point { x: 200.0f, y: 20.0f });
+    print(grower->GetFlexGrow());
+    grower->Arrange(Rect { x: 0.0f, y: 0.0f, width: 50.0f, height: 20.0f }, layout);
+    grower->Draw(renderer, stacking);
+}
+
+ShowTransitions :: () -> void {
+    print("transitions");
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    renderer->frameDeltaSeconds = 0.25f;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+
+    panel: Box*! = MakeBox("panel", LayoutMode:::None);
+    defer delete panel;
+    panel->style.width = Lengths:::Logical(100.0f);
+    panel->style.colorBackground = Color { red: 100, green: 0, blue: 0, alpha: 255 };
+    panel->style.colorBackgroundHovered = Color { red: 200, green: 0, blue: 0, alpha: 255 };
+    panel->style.widthTransition = TransitionSpec { durationSeconds: 1.0f };
+    panel->style.backgroundColorTransition = TransitionSpec { durationSeconds: 1.0f };
+    starting~ BoxStyle = BoxStyle { };
+    starting.width = Lengths:::Logical(20.0f);
+    starting.colorBackground = Color { red: 0, green: 0, blue: 0, alpha: 255 };
+    panel->startingStyle = starting;
+    panel->onHovered = new () -> void { };
+
+    frame~ u64 = 1;
+    while frame <= 5 {
+        TransitionFrame(panel, renderer, stacking, layout, frame);
+        frame = frame + 1;
+    }
+    panel->style.width = Lengths:::Logical(60.0f);
+    print(panel->UpdateInteractionState(PointerAtPoint(5.0f, 5.0f, false, false, false), stacking));
+    while frame <= 8 {
+        TransitionFrame(panel, renderer, stacking, layout, frame);
+        frame = frame + 1;
+    }
+    panel->style.opacityTransition = TransitionSpec { durationSeconds: 0.5f };
+    panel->style.opacity = 0.0f;
+    while frame <= 11 {
+        TransitionFrame(panel, renderer, stacking, layout, frame);
+        frame = frame + 1;
+    }
+    panel->style.opacity = 1.0f;
+    panel->style.opacityTransition = null;
+    panel->SetIsVisible(false);
+    panel->SetIsVisible(true);
+    TransitionFrame(panel, renderer, stacking, layout, frame);
+    frame = frame + 1;
+    TransitionFrame(panel, renderer, stacking, layout, frame);
+
+    grower: Box*! = MakeBox("grower", LayoutMode:::None);
+    defer delete grower;
+    grower->style.flexGrow = 1.0f;
+    grower->style.flexGrowTransition = TransitionSpec { durationSeconds: 1.0f };
+    grower->style.colorBackground = Color { red: 50, green: 0, blue: 0, alpha: 255 };
+    renderer->printsDetail = false;
+    GrowFrame(grower, renderer, stacking, layout, 20);
+    grower->style.flexGrow = 3.0f;
+    frame = 21;
+    while frame <= 25 {
+        GrowFrame(grower, renderer, stacking, layout, frame);
+        frame = frame + 1;
+    }
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1536,5 +1621,6 @@ main :: () -> i32 {
     ShowSurfaces();
     ShowTextSelection(font);
     ShowRoundedStyles();
+    ShowTransitions();
     return 0;
 }

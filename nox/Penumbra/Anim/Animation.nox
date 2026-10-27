@@ -220,3 +220,28 @@ private:
         return true;
     }
 }
+
+EasedTrack<T> :: struct {
+    from~ T;
+    target~ T;
+    timeline~ Tween = Tween { };
+    curve~ Easing = Easing:::Linear;
+    known~ bool = false;
+
+    Progress :: () -> f32 {
+        return Anim:::Ease(curve, timeline.Progress());
+    }
+
+    Start~: (startFrom: T, newTarget: T, durationSeconds: f32, easingCurve: Easing, canEase: bool) -> void {
+        target = newTarget;
+        known = true;
+        if canEase && durationSeconds > 0.0f {
+            from = startFrom;
+            curve = easingCurve;
+            timeline.Start(durationSeconds);
+            return;
+        }
+        from = newTarget;
+        timeline = Tween { };
+    }
+}
