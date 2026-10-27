@@ -1,0 +1,114 @@
+Point :: import Point;
+Rect :: import Rect;
+InputState :: import InputState;
+Key :: import Key;
+WidgetBase :: import WidgetBase;
+
+KeyDispatch :: class {
+public:
+    viewportLogical~ Point = Point { };
+
+    !KeyDispatch~: () {
+        delete this->presses;
+        delete this->used;
+    }
+
+    Begin~: (root: WidgetBase~*, input: InputState) -> bool {
+        if this->open {
+            return false;
+        }
+        this->open = true;
+        this->root = root;
+        this->target = null;
+        this->withheld = false;
+        this->presses.clear();
+        this->used.clear();
+        for key in input.keysPressedThisFrame {
+            this->presses.push(key);
+        }
+        return true;
+    }
+
+    End~: (outermost: bool) -> void {
+        if !outermost {
+            return;
+        }
+        this->open = false;
+        chosen~ WidgetBase~*? = this->target;
+        if chosen == null && !this->withheld {
+            if passRoot := this->root {
+                if passRoot->onKeyPressed != null {
+                    chosen = passRoot;
+                }
+            }
+        }
+        this->root = null;
+        this->target = null;
+        guard receiver := chosen;
+        for key in this->presses {
+            if this->TakeUsed(key) {
+                continue;
+            }
+            if handler := receiver->onKeyPressed {
+                handler(key);
+            }
+        }
+    }
+
+    MarkUsed~: (key: Key) -> void {
+        if this->open {
+            this->used.push(key);
+        }
+    }
+
+    ForChild :: (input: InputState) -> InputState {
+        if !this->withheld || (input.keysPressedThisFrame.length() == 0 && input.textInputThisFrame.length() == 0) {
+            return input;
+        }
+        stripped~ InputState = input;
+        stripped.keysPressedThisFrame = [];
+        stripped.textInputThisFrame = "";
+        return stripped;
+    }
+
+    AfterChild~: (child: WidgetBase~*, given: InputState) -> void {
+        if !this->open {
+            return;
+        }
+        if this->target == null && child->onKeyPressed != null && given.keysPressedThisFrame.length() > 0 {
+            this->target = child;
+        }
+        if !given.pointerPassThrough && this->CoversWindow(child->GetArrangedRect()) {
+            this->withheld = true;
+        }
+    }
+
+private:
+    open~ bool = false;
+    root~ WidgetBase~*? = null;
+    target~ WidgetBase~*? = null;
+    withheld~ bool = false;
+    presses~ Array<Key>! = [];
+    used~ Array<Key>! = [];
+
+    TakeUsed~: (key: Key) -> bool {
+        index~ usize = 0;
+        while index < this->used.length() {
+            if this->used[index] == key {
+                this->used.remove(index);
+                return true;
+            }
+            index = index + 1;
+        }
+        return false;
+    }
+
+    CoversWindow :: (area: Rect) -> bool {
+        if this->viewportLogical.x <= 0.0f || this->viewportLogical.y <= 0.0f {
+            return false;
+        }
+        slack: f32 = 0.5f;
+        return area.x <= slack && area.y <= slack && area.x + area.width >= this->viewportLogical.x - slack
+            && area.y + area.height >= this->viewportLogical.y - slack;
+    }
+}

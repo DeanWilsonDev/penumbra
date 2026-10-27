@@ -7,6 +7,7 @@ Position :: import Position;
 PointerEvents :: import PointerEvents;
 Placement :: import Placement;
 WidgetBase :: import WidgetBase;
+KeyDispatch :: import KeyDispatch;
 
 StackingPass :: enum {
     Paint,
@@ -71,8 +72,20 @@ Stacking :: namespace {
 
 StackingTracker :: class {
 public:
+    keys~ KeyDispatch*!;
+
+    StackingTracker~: () : keys(new KeyDispatch()) { }
+
     !StackingTracker~: () {
         delete this->active;
+        delete this->keys;
+    }
+
+    DispatchToChild~: (child: WidgetBase~*, input: InputState) -> bool {
+        given: InputState = this->keys->ForChild(Stacking:::ForPointerEvents(child->GetPlacement().pointerEventsMode, input));
+        took: bool = child->UpdateInteractionState(given, this);
+        this->keys->AfterChild(child, given);
+        return took;
     }
 
     NextSerial~: () -> u64 {
@@ -328,10 +341,12 @@ private:
         inherited: bool = entry.passThroughAbove ?? input.pointerPassThrough;
         given.pointerPassThrough = Stacking:::PassThroughFor(placement.pointerEventsMode, inherited) ?? false;
 
+        handed: InputState = this->tracker->keys->ForChild(given);
         previous: WidgetBase*? = this->current;
         this->current = entry.widget;
-        took~ bool = entry.widget->UpdateInteractionState(given, this->tracker);
+        took~ bool = entry.widget->UpdateInteractionState(handed, this->tracker);
         this->current = previous;
+        this->tracker->keys->AfterChild(entry.widget, handed);
 
         if given.IsPointerOver(entry.widget->GetArrangedRect()) {
             took = true;

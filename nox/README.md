@@ -27,7 +27,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   toggled by two clicks. Then it scrolls a `ScrollablePanel` of five rows by the wheel and by
   dragging its scrollbar thumb. Last it focuses a `TextInput`, types UTF-8 text, moves and deletes
   by code point, selects with shift and by dragging, and copies, pastes and cuts through a recording
-  clipboard.
+  clipboard. Last it routes keys: a focused `TextInput` keeps the keys it uses, the root's
+  `onKeyPressed` gets the rest, and a full-window modal takes every key while it's shown.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -53,14 +54,14 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Render/Utf8.h` | `Penumbra/Render/Utf8.nox`: `PreviousCodePoint` and `NextCodePoint` over `byteAt` |
 | `Widgets/FocusState.h` | `Penumbra/Widgets/FocusState.nox` |
 | `Widgets/TextInput.h/.cpp` | `Penumbra/Widgets/TextInput.nox`: focus on click, typed text, caret and shift selection by code point, drag selection, backspace and delete, select all, copy, cut and paste, `onTextChanged` and `onFocusLost`. The text is an owned `string!` rebuilt from two substrings and the insertion on each edit |
+| `Widgets/KeyDispatch.h/.cpp` | `Penumbra/Widgets/KeyDispatch.nox`: the outermost `Box` or `ScrollablePanel` opens a pass, a focused `TextInput` marks the keys it used, the first child with `onKeyPressed` that saw keys (or the root) gets the rest, and a child covering the window withholds keys and text from everything after it. The `StackingTracker` owns the `KeyDispatch` the C++ keeps in a global, with the viewport it needs |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
 
 - The SDL platform layer, the SDL renderer and the SDL_ttf font backend. Foreign calls exist now,
   but only over bools, integers and floats: SDL needs opaque handles, raw pointers and C strings.
-- Key dispatch: a focused `TextInput` doesn't mark the keys it used (`KeyDispatch::MarkUsed`), and
-  nothing routes the keys it leaves to other handlers. `KeyEvent` and `KeyName` aren't ported.
+- `KeyEvent`, `OnKeyEvent` and `KeyName`: keys reach handlers only as `onKeyPressed`.
 - Groups painted through a transform or opacity (`PaintsAsGroup`), and text selection inside a
   `ScrollablePanel`.
 - `StackingContext::PointerTakerUsedWheel`: a layered descendant that took the wheel doesn't yet

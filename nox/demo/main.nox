@@ -634,6 +634,101 @@ ShowTextInput :: (font: IFontBackend*) -> void {
     field->Draw(renderer, stacking);
 }
 
+KeyLabel :: (key: Key) -> string {
+    if key == Key:::Escape {
+        return "escape";
+    }
+    if key == Key:::Tab {
+        return "tab";
+    }
+    if key == Key:::Left {
+        return "left";
+    }
+    if key == Key:::Backspace {
+        return "backspace";
+    }
+    return "other";
+}
+
+KeyFrame :: (root: Box~*, stacking: StackingTracker~*, label: string, input: InputState) -> void {
+    print(label);
+    root->UpdateInteractionState(input, stacking);
+}
+
+SetOverlayVisible :: (root: Box~*, visible: bool) -> void {
+    if overlay := root->GetMutableChildAt(1) {
+        overlay->SetIsVisible(visible);
+    }
+}
+
+ShowKeyDispatch :: (font: IFontBackend*) -> void {
+    print("key dispatch");
+    focusState: FocusState*! = new FocusState { };
+    defer delete focusState;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    viewport: Point = Point { x: 640.0f, y: 360.0f };
+    layout->viewportLogical = viewport;
+    stacking->keys->viewportLogical = viewport;
+
+    root: Box*! = MakeBox("root", LayoutMode:::VerticalStack);
+    defer delete root;
+    root->onKeyPressed = new (key: Key) -> void {
+        print("root key");
+        print(KeyLabel(key));
+    };
+    field: TextInput*! = new TextInput(font);
+    field->className = "field";
+    field->preferredWidthLogical = 100.0f;
+    field->focus = focusState;
+    field->onTextChanged = new (text: string) -> void {
+        print("field text");
+        print(text);
+    };
+    root->AddChild(field!);
+    overlay: Box*! = MakeBox("modal", LayoutMode:::None);
+    overlay->style.positionMode = Position:::Fixed;
+    overlay->style.left = Lengths:::Logical(0.0f);
+    overlay->style.top = Lengths:::Logical(0.0f);
+    overlay->style.right = Lengths:::Logical(0.0f);
+    overlay->style.bottom = Lengths:::Logical(0.0f);
+    overlay->onKeyPressed = new (key: Key) -> void {
+        print("modal key");
+        print(KeyLabel(key));
+    };
+    root->AddChild(overlay!);
+    SetOverlayVisible(root, false);
+
+    root->Measure(viewport);
+    root->Arrange(Rect { x: 0.0f, y: 0.0f, width: viewport.x, height: viewport.y }, layout);
+    PrintTree(root, 0);
+
+    KeyFrame(root, stacking, "focus the field", PointerAt(10.0f, true, true, false));
+
+    typing~ InputState = PointerAt(10.0f, false, false, true);
+    typing.textInputThisFrame = "ab";
+    typingKeys: Key[2] = [Key:::Left, Key:::Escape];
+    typing.keysPressedThisFrame = typingKeys.borrow();
+    KeyFrame(root, stacking, "type, left and escape", typing);
+
+    SetOverlayVisible(root, true);
+    root->Arrange(Rect { x: 0.0f, y: 0.0f, width: viewport.x, height: viewport.y }, layout);
+    PrintTree(root, 0);
+    blocked~ InputState = PointerAt(300.0f, false, false, false);
+    blocked.textInputThisFrame = "cd";
+    blockedKeys: Key[2] = [Key:::Left, Key:::Escape];
+    blocked.keysPressedThisFrame = blockedKeys.borrow();
+    KeyFrame(root, stacking, "the modal takes every key", blocked);
+
+    SetOverlayVisible(root, false);
+    erasing~ InputState = PointerAt(300.0f, false, false, false);
+    eraseKeys: Key[2] = [Key:::Backspace, Key:::Tab];
+    erasing.keysPressedThisFrame = eraseKeys.borrow();
+    KeyFrame(root, stacking, "backspace and tab", erasing);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -663,5 +758,6 @@ main :: () -> i32 {
     ShowButtons();
     ShowScrolling();
     ShowTextInput(font);
+    ShowKeyDispatch(font);
     return 0;
 }
