@@ -2402,3 +2402,60 @@ true
 hello
 world
 ab cd efgh
+rounded styles
+shadow
+10
+10
+60
+30
+180
+8
+6
+gradient
+10
+10
+60
+30
+190
+200
+6
+rounded stroke
+10
+10
+60
+30
+210
+1
+6
+true
+shadow
+10
+10
+60
+30
+180
+8
+6
+gradient
+10
+10
+60
+30
+195
+200
+6
+rounded stroke
+10
+10
+60
+30
+210
+1
+6
+rounded fill
+0
+0
+20
+10
+220
+3

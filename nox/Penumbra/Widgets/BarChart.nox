@@ -3,6 +3,7 @@ Rect :: import Rect;
 Numbers :: import Numbers;
 Maths :: import Maths;
 IRenderer :: import IRenderer;
+RoundedRects :: import RoundedRects;
 ChartStyle :: import ChartStyle;
 ValueExtent :: import ValueExtent;
 AxisChartBase :: import AxisChartBase;
@@ -107,7 +108,7 @@ protected:
                 }
                 start: f32 = this->ValuePosition(this->AppearValue(from, appearProgress));
                 end: f32 = this->ValuePosition(this->AppearValue(to, appearProgress));
-                renderer->FillRect(this->BandRect(category, offset, thickness, start, end), this->series[seriesIndex]->seriesColor);
+                RoundedRects:::Fill(renderer, this->BandRect(category, offset, thickness, start, end), this->series[seriesIndex]->seriesColor, look.barCornerRadiusLogical);
                 seriesIndex = seriesIndex + 1;
             }
             category = category + 1;

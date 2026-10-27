@@ -4,6 +4,7 @@ Numbers :: import Numbers;
 Maths :: import Maths;
 Color :: import Color;
 IRenderer :: import IRenderer;
+RoundedRects :: import RoundedRects;
 EdgeInsets :: import EdgeInsets;
 CrossAlign :: import CrossAlign;
 WidgetBase :: import WidgetBase;
@@ -260,10 +261,10 @@ public:
         defer delete context;
         background: Color = this->BackgroundForState();
         if background.IsVisible() {
-            renderer->FillRect(this->arrangedRect, background);
+            RoundedRects:::Fill(renderer, this->arrangedRect, background, this->style.borderRadius);
         }
         if this->style.borderWidth > 0.0f && this->style.colorBorder.IsVisible() {
-            renderer->StrokeRect(this->arrangedRect, this->style.colorBorder, this->style.borderWidth);
+            RoundedRects:::Stroke(renderer, this->arrangedRect, this->style.colorBorder, this->style.borderWidth, this->style.borderRadius);
         }
         content: Rect = this->ContentRectFrom(this->arrangedRect);
         context->PaintBelow(renderer);

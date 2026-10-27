@@ -21,6 +21,7 @@ StackingTracker :: import StackingTracker;
 StackingContext :: import StackingContext;
 StackingPass :: import StackingPass;
 Stacking :: import Stacking;
+RoundedRects :: import RoundedRects;
 TextSelection :: import TextSelection;
 
 CrossPlacement :: struct {
@@ -249,6 +250,24 @@ public:
         };
     }
 
+    GradientTopForState :: () -> Color {
+        return when this->currentState {
+            InteractionState:::Hovered -> Colors:::SetOr(this->style.gradientTopHovered, this->style.gradientTop),
+            InteractionState:::Pressed -> Colors:::SetOr(this->style.gradientTopPressed, this->style.gradientTop),
+            InteractionState:::Disabled -> this->style.gradientTop,
+            InteractionState:::Default -> this->style.gradientTop
+        };
+    }
+
+    GradientBottomForState :: () -> Color {
+        return when this->currentState {
+            InteractionState:::Hovered -> Colors:::SetOr(this->style.gradientBottomHovered, this->style.gradientBottom),
+            InteractionState:::Pressed -> Colors:::SetOr(this->style.gradientBottomPressed, this->style.gradientBottom),
+            InteractionState:::Disabled -> this->style.gradientBottom,
+            InteractionState:::Default -> this->style.gradientBottom
+        };
+    }
+
     BorderForState :: () -> Color {
         return when this->currentState {
             InteractionState:::Hovered -> Colors:::SetOr(this->style.colorBorderHovered, this->style.colorBorder),
@@ -267,13 +286,21 @@ public:
         }
         context: StackingContext*! = new StackingContext(this, StackingPass:::Paint, stacking);
         defer delete context;
+        radius: f32 = this->style.borderRadius;
+        if this->style.shadowBlurRadiusLogical > 0.0f {
+            renderer->DrawDropShadow(this->arrangedRect, this->style.shadowColor, this->style.shadowBlurRadiusLogical, radius);
+        }
         background: Color = this->BackgroundForState();
-        if background.IsVisible() {
-            renderer->FillRect(this->arrangedRect, background);
+        gradientTop: Color = this->GradientTopForState();
+        if gradientTop.IsVisible() {
+            renderer->FillGradientRect(this->arrangedRect, gradientTop, this->GradientBottomForState(), radius);
+        }
+        else if background.IsVisible() {
+            RoundedRects:::Fill(renderer, this->arrangedRect, background, radius);
         }
         border: Color = this->BorderForState();
         if this->style.borderWidth > 0.0f && border.IsVisible() {
-            renderer->StrokeRect(this->arrangedRect, border, this->style.borderWidth);
+            RoundedRects:::Stroke(renderer, this->arrangedRect, border, this->style.borderWidth, radius);
         }
         this->DrawContent(renderer, this->ContentRectFrom(this->arrangedRect));
         if active := this->selection {

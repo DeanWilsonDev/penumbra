@@ -17,6 +17,10 @@ LineCap :: enum {
 IRenderer :: interface {
     FillRect~ (rect: Rect, color: Color) -> void : 0;
     StrokeRect~ (rect: Rect, color: Color, thicknessLogical: f32) -> void : 0;
+    FillRoundedRect~ (rect: Rect, color: Color, cornerRadiusLogical: f32) -> void : 0;
+    StrokeRoundedRect~ (rect: Rect, color: Color, thicknessLogical: f32, cornerRadiusLogical: f32) -> void : 0;
+    FillGradientRect~ (rect: Rect, topColor: Color, bottomColor: Color, cornerRadiusLogical: f32) -> void : 0;
+    DrawDropShadow~ (rect: Rect, color: Color, blurRadiusLogical: f32, cornerRadiusLogical: f32) -> void : 0;
     DrawLine~ (from: Point, to: Point, color: Color, thicknessLogical: f32) -> void : 0;
     DrawText~ (text: string, origin: Point, sizeLogical: f32, color: Color) -> void : 0;
     PushClipRect~ (rect: Rect) -> void : 0;
@@ -34,6 +38,24 @@ IRenderer :: interface {
     BeginTextureTarget~ (texture: u64, clearColor: Color) -> void : 0;
     EndTextureTarget~ () -> void : 0;
     DrawTexture~ (texture: u64, destinationLogical: Rect) -> void : 0;
+}
+
+RoundedRects :: namespace {
+    Fill :: (renderer: IRenderer~*, rect: Rect, color: Color, cornerRadiusLogical: f32) -> void {
+        if cornerRadiusLogical > 0.0f {
+            renderer->FillRoundedRect(rect, color, cornerRadiusLogical);
+            return;
+        }
+        renderer->FillRect(rect, color);
+    }
+
+    Stroke :: (renderer: IRenderer~*, rect: Rect, color: Color, thicknessLogical: f32, cornerRadiusLogical: f32) -> void {
+        if cornerRadiusLogical > 0.0f {
+            renderer->StrokeRoundedRect(rect, color, thicknessLogical, cornerRadiusLogical);
+            return;
+        }
+        renderer->StrokeRect(rect, color, thicknessLogical);
+    }
 }
 
 IImageBackend :: interface {
