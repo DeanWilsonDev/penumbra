@@ -1,4 +1,5 @@
 Point :: import Point;
+Transform :: import Transform;
 Rect :: import Rect;
 Numbers :: import Numbers;
 Maths :: import Maths;
@@ -259,8 +260,13 @@ public:
             return;
         }
         this->AdvanceTransitions(renderer);
-        if this->DisplayedOpacity() <= 0.0f {
+        opacity: f32 = this->DisplayedOpacity();
+        if opacity <= 0.0f {
             return;
+        }
+        translucent: bool = opacity < 1.0f;
+        if translucent {
+            renderer->PushTransform(this->arrangedRect, Transform { }, opacity);
         }
         context: StackingContext*! = new StackingContext(this, StackingPass:::Paint, stacking);
         defer delete context;
@@ -285,6 +291,9 @@ public:
         renderer->PopClipRect();
         context->PaintAbove(renderer);
         this->DrawScrollbar(renderer, content);
+        if translucent {
+            renderer->PopTransform();
+        }
     }
 
 private:

@@ -46,8 +46,8 @@ public:
             this->blocks.push(ContainingBlock { paddingBox: initial, forFixed: true });
             pushed = pushed + 1;
         }
-        if placement.positionMode != Position:::Static {
-            this->blocks.push(ContainingBlock { paddingBox: paddingBox, forFixed: false });
+        if placement.positionMode != Position:::Static || placement.transformed {
+            this->blocks.push(ContainingBlock { paddingBox: paddingBox, forFixed: placement.transformed });
             pushed = pushed + 1;
         }
         return pushed;

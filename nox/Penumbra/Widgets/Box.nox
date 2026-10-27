@@ -1,4 +1,6 @@
 Point :: import Point;
+Transform :: import Transform;
+Transforms :: import Transforms;
 Rect :: import Rect;
 Numbers :: import Numbers;
 Color :: import Color;
@@ -197,7 +199,15 @@ public:
         if stacking->IsLayeredOut(this) {
             return false;
         }
-        effective~ InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, input);
+        untransformed~ InputState = input;
+        if !this->style.transform.IsIdentity() {
+            pivot: Point = Point {
+                x: this->arrangedRect.x + this->arrangedRect.width * 0.5f,
+                y: this->arrangedRect.y + this->arrangedRect.height * 0.5f
+            };
+            untransformed.mousePosition = Transforms:::InversePoint(input.mousePosition, pivot, this->style.transform);
+        }
+        effective~ InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, untransformed);
         if active ~= this->selection {
             active->Update(this, this->arrangedRect, effective);
         }
@@ -336,8 +346,13 @@ public:
             return;
         }
         this->AdvanceTransitions(renderer);
-        if this->DisplayedOpacity() <= 0.0f {
+        opacity: f32 = this->DisplayedOpacity();
+        if opacity <= 0.0f {
             return;
+        }
+        transformed: bool = !this->style.transform.IsIdentity() || opacity < 1.0f;
+        if transformed {
+            renderer->PushTransform(this->arrangedRect, this->style.transform, opacity);
         }
         context: StackingContext*! = new StackingContext(this, StackingPass:::Paint, stacking);
         defer delete context;
@@ -368,6 +383,13 @@ public:
             }
         }
         context->PaintAbove(renderer);
+        if transformed {
+            renderer->PopTransform();
+        }
+    }
+
+    PaintsAsGroup :: () -> bool override {
+        return !this->style.transform.IsIdentity() || this->DisplayedOpacity() < 1.0f;
     }
 
 protected:

@@ -492,13 +492,33 @@ fill
 rotated: inside the turned box
 true
 hovered
+push transform
+0
+40
+80
+24
+1
+90
+0
+1
 fill
 160
+pop transform
 rotated: inside the unturned box only
 false
 default
+push transform
+0
+40
+80
+24
+1
+90
+0
+1
 fill
 60
+pop transform
 20
 checked changed
 true
@@ -2572,6 +2592,15 @@ fill
 frame
 10
 60
+push transform
+0
+0
+60
+20
+1
+0
+0
+0.5
 fill
 0
 0
@@ -2581,6 +2610,7 @@ fill
 0
 0
 255
+pop transform
 frame
 11
 60
@@ -2738,3 +2768,64 @@ false
 10
 true
 10
+transform groups
+0
+parent
+0
+0
+200
+100
+1
+moved
+0
+0
+40
+20
+2
+target
+0
+0
+40
+20
+1
+plain
+0
+20
+40
+20
+fill
+13
+push transform
+0
+0
+40
+20
+1
+0
+100
+1
+fill
+11
+fill
+12
+pop transform
+pointer on the moved target
+target hovered
+true
+true
+fixed inside a transform
+0
+frame
+50
+50
+100
+60
+1
+pinned
+140
+50
+10
+10
+pointer where the target was laid out
+true
+false

@@ -1704,6 +1704,58 @@ ShowLayeredWheel :: () -> void {
     NestedWheelFrame(root, outerView, innerView, stacking, layout, "wheel over the outer rows", 20.0f, 45.0f);
 }
 
+ShowTransformGroups :: () -> void {
+    print("transform groups");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    renderer->printsDetail = false;
+
+    parent: Box*! = MakeBox("parent", LayoutMode:::VerticalStack);
+    defer delete parent;
+    moved: Box*! = MakeBox("moved", LayoutMode:::VerticalStack);
+    moved->style.transform = Transform { translateXLogical: 100.0f };
+    moved->style.colorBackground = Color { red: 11, green: 0, blue: 0, alpha: 255 };
+    target: Box*! = MakeSizedBox("target", 40.0f, 20.0f);
+    target->style.colorBackground = Color { red: 12, green: 0, blue: 0, alpha: 255 };
+    target->onHovered = new () -> void { print("target hovered"); };
+    targetView: Box~* = target;
+    moved->AddChild(target!);
+    parent->AddChild(moved!);
+    plain: Box*! = MakeSizedBox("plain", 40.0f, 20.0f);
+    plain->style.colorBackground = Color { red: 13, green: 0, blue: 0, alpha: 255 };
+    parent->AddChild(plain!);
+
+    parent->Measure(Point { x: 200.0f, y: 100.0f }, layout);
+    parent->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 100.0f }, layout);
+    PrintTree(parent, 0);
+    parent->Draw(renderer, stacking);
+
+    print("pointer on the moved target");
+    print(parent->UpdateInteractionState(PointerAtPoint(110.0f, 10.0f, false, false, false), stacking));
+    print(targetView->GetInteractionState() == InteractionState:::Hovered);
+    print("fixed inside a transform");
+    frame: Box*! = MakeBox("frame", LayoutMode:::None);
+    defer delete frame;
+    frame->style.transform = Transform { scaleX: 2.0f, scaleY: 2.0f };
+    frame->style.padding = Insets:::All(5.0f);
+    pinned: Box*! = MakeSizedBox("pinned", 10.0f, 10.0f);
+    pinned->style.positionMode = Position:::Fixed;
+    pinned->style.right = Lengths:::Logical(0.0f);
+    pinned->style.top = Lengths:::Logical(0.0f);
+    frame->AddChild(pinned!);
+    layout->viewportLogical = Point { x: 640.0f, y: 360.0f };
+    frame->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    frame->Arrange(Rect { x: 50.0f, y: 50.0f, width: 100.0f, height: 60.0f }, layout);
+    PrintTree(frame, 0);
+    print("pointer where the target was laid out");
+    print(parent->UpdateInteractionState(PointerAtPoint(10.0f, 10.0f, false, false, false), stacking));
+    print(targetView->GetInteractionState() == InteractionState:::Hovered);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1750,5 +1802,6 @@ main :: () -> i32 {
     ShowTransitions();
     ShowViewportUnitsAndMemo();
     ShowLayeredWheel();
+    ShowTransformGroups();
     return 0;
 }
