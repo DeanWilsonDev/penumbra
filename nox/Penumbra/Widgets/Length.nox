@@ -1,6 +1,10 @@
+Point :: import Point;
+
 LengthUnit :: enum {
     Logical,
-    Percent
+    Percent,
+    ViewportWidth,
+    ViewportHeight
 }
 
 Length :: struct {
@@ -11,10 +15,12 @@ Length :: struct {
         return value >= 0.0f;
     }
 
-    Resolve :: (percentBasisLogical: f32) -> f32 {
+    Resolve :: (percentBasisLogical: f32, viewportLogical: Point) -> f32 {
         return when unit {
             LengthUnit:::Logical -> value,
-            LengthUnit:::Percent -> percentBasisLogical * value / 100.0f
+            LengthUnit:::Percent -> percentBasisLogical * value / 100.0f,
+            LengthUnit:::ViewportWidth -> viewportLogical.x * value / 100.0f,
+            LengthUnit:::ViewportHeight -> viewportLogical.y * value / 100.0f
         };
     }
 }
@@ -26,5 +32,13 @@ Lengths :: namespace {
 
     Percent :: (value: f32) -> Length {
         return Length { value: value, unit: LengthUnit:::Percent };
+    }
+
+    ViewportWidth :: (value: f32) -> Length {
+        return Length { value: value, unit: LengthUnit:::ViewportWidth };
+    }
+
+    ViewportHeight :: (value: f32) -> Length {
+        return Length { value: value, unit: LengthUnit:::ViewportHeight };
     }
 }

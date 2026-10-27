@@ -106,9 +106,9 @@ public:
         return null;
     }
 
-    Measure~: (availableSizeLogical: Point) -> Point override {
+    Measure~: (availableSizeLogical: Point, layout: LayoutContext~*) -> Point override {
         if content ~= this->root {
-            return content->Measure(availableSizeLogical);
+            return content->Measure(availableSizeLogical, layout);
         }
         return availableSizeLogical;
     }
@@ -122,7 +122,7 @@ public:
         while index < this->contents.length() {
             placement: Rect = this->PlacementAt(index);
             overlay: WidgetBase~* = this->contents[index];
-            overlay->Measure(Point { x: placement.width, y: placement.height });
+            overlay->Measure(Point { x: placement.width, y: placement.height }, layout);
             overlay->Arrange(placement, layout);
             index = index + 1;
         }

@@ -92,7 +92,7 @@ public:
         return null;
     }
 
-    Measure~: (availableSizeLogical: Point) -> Point override {
+    Measure~: (availableSizeLogical: Point, layout: LayoutContext~*) -> Point override {
         return availableSizeLogical;
     }
 
@@ -265,6 +265,6 @@ ArrangePane :: (pane: WidgetBase~*, outer: Rect, layout: LayoutContext~*) -> voi
         width: Numbers:::NonNegative(outer.width - margin.left - margin.right),
         height: Numbers:::NonNegative(outer.height - margin.top - margin.bottom)
     };
-    pane->Measure(Point { x: inset.width, y: inset.height });
+    pane->Measure(Point { x: inset.width, y: inset.height }, layout);
     pane->Arrange(inset, layout);
 }

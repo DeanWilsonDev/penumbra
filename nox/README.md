@@ -49,11 +49,12 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Render/Color.h` | `Penumbra/Render/Color.nox` |
 | `Platform/InputState.h` | `Penumbra/Platform/InputState.nox` (mouse, wheel, modifiers, occlusion, the `Key` enum, typed text and keys pressed this frame) |
 | `Render/Renderer.h`, `Render/IFontBackend.h` | `Penumbra/Render/Renderer.nox`, as the `IRenderer` and `IFontBackend` interfaces. Fonts are a size, not a handle, and `IFontBackend` has `MeasureText` and `MeasureAscent` (the C++ `TextMetrics.AscentLogical`) |
-| `Widgets/Length.h` | `Penumbra/Widgets/Length.nox` (logical and percent units) |
+| `Widgets/Length.h` | `Penumbra/Widgets/Length.nox` (logical, percent and viewport units). `Resolve` takes the viewport, which comes from the `LayoutContext` |
 | `Widgets/Styles.h` | `Penumbra/Widgets/Styles.nox` (`EdgeInsets`, the layout enums, the layout half of `BoxStyle`, its hovered, pressed and disabled colours, `borderRadius`, the two-stop gradient with hovered and pressed overrides, and the drop shadow). `IRenderer` has `FillRoundedRect`, `StrokeRoundedRect`, `FillGradientRect` and `DrawDropShadow`, and `RoundedRects:::Fill`/`Stroke` pick the square call when the radius is 0, as the C++ renderer does |
 | `Widgets/WidgetBase.h` | `Penumbra/Widgets/WidgetBase.nox` (abstract class, with the seven callbacks as `(() -> void)!?` fields) |
 | `Widgets/Box.h/.cpp` | `Penumbra/Widgets/Box.nox`: children as `Array<WidgetBase*!>!`, the None, vertical, horizontal and fixed-leading layouts, flex grow, cross alignment, justify, width, height, min-width and max-width, drawing the background, border and children in their interaction-state colours, and `UpdateInteractionState` (children in reverse order, occluded input after one consumes it, hover, press, release and disabled). `BoxStyle` transitions ease width, height, flex grow, background colour and opacity, each with its own optional `TransitionSpec` (duration and curve); `startingStyle` is where a box eases from when it's first laid out or shown again. Opacity below 1 isn't drawn translucent yet, since groups aren't ported, but a box at 0 isn't drawn |
-| `Widgets/Positioning.h/.cpp` | `Penumbra/Widgets/Positioning.nox` and `LayoutContext.nox`: relative, absolute, fixed and sticky positioning, with the containing-block and scrollport stacks held by a `LayoutContext` passed to `Arrange` |
+| `Widgets/LayoutPass.h/.cpp` | `LayoutContext.BeginPass`/`EndPass` and its `passId` (nested passes are ignored), with `Box`'s four-slot measure memo keyed by pass and available size |
+| `Widgets/Positioning.h/.cpp` | `Penumbra/Widgets/Positioning.nox` and `LayoutContext.nox`: relative, absolute, fixed and sticky positioning, with the containing-block and scrollport stacks held by a `LayoutContext` passed to `Measure` and `Arrange` |
 | `Widgets/Stacking.h/.cpp` | `Penumbra/Widgets/Stacking.nox`: z-index stacking contexts for paint and input, clip regions from `GetChildClipRect`, pointer-events and the pointer path. A `StackingTracker` passed to `Draw` and `UpdateInteractionState` holds what the C++ keeps in globals |
 | `Widgets/Label.h/.cpp` | `Penumbra/Widgets/Label.nox`, measured through `IFontBackend`: word wrapping (cached per width, size and text), ellipsis truncation or clipping at `maxWidthLogical`, selection highlight, `IndexAtPoint` and `CaretRectAt`. It owns its text as a `string!`, set through `SetText` |
 | `<cmath>` | `Penumbra/Maths.nox`: a `CMath` foreign block over libm (`expf`, `cosf`, `sinf`, `lroundf`) behind the safe `Maths` namespace |
@@ -91,16 +92,15 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   stop its scrolling ancestor from using it too.
 - Transforms as containing blocks, and drawing through a transform: only `Button`'s hit test reads
   `BoxStyle.transform` so far.
-- The layout-pass measure memo, and viewport units.
 
 ## Language friction found so far
 
 The Nox board's Penumbra card tracks this list:
 
 - **No file-level mutable state.** Penumbra keeps the layout viewport, the current layout pass and
-  the containing-block stack in globals. The port passes a `LayoutContext` to `Arrange` instead,
-  which holds the viewport and the block and scrollport stacks. Viewport units and the measure
-  memo would need it passed to `Measure` too, so they're still left out.
+  the containing-block stack in globals. The port passes a `LayoutContext` to `Measure` and
+  `Arrange` instead, which holds the viewport, the running pass and the block and scrollport
+  stacks.
 - **No static members.** `Length::Logical(…)` became the namespace function
   `Lengths:::Logical(…)`.
 - **`print` takes one value.** The recording renderer prints one value per line. Floats printed

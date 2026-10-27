@@ -56,10 +56,10 @@ public:
         return this->ContentRectFrom(this->arrangedRect);
     }
 
-    Measure~: (availableSizeLogical: Point) -> Point override {
+    Measure~: (availableSizeLogical: Point, layout: LayoutContext~*) -> Point override {
         this->SyncLayoutTransitions();
         frame: Point = this->FrameSize();
-        viewport: Point = this->ConstrainAvailable(availableSizeLogical);
+        viewport: Point = this->ConstrainAvailable(availableSizeLogical, layout);
         contentAvailable: Point = Point {
             x: Numbers:::NonNegative(viewport.x - frame.x),
             y: Numbers:::NonNegative(viewport.y - frame.y)
@@ -78,7 +78,7 @@ public:
             desired: Point = child->Measure(Point {
                 x: Numbers:::NonNegative(contentAvailable.x - margin.Horizontal()),
                 y: Numbers:::NonNegative(contentAvailable.y - margin.Vertical())
-            });
+            }, layout);
             if anyVisible {
                 total = total + this->childGap;
             }
@@ -89,9 +89,9 @@ public:
         this->contentHeight = total;
         this->contentWidth = widest;
         if this->direction == ScrollDirection:::Horizontal {
-            return this->ConstrainDesired(Point { x: viewport.x, y: total + frame.y }, availableSizeLogical);
+            return this->ConstrainDesired(Point { x: viewport.x, y: total + frame.y }, availableSizeLogical, layout);
         }
-        return this->ConstrainDesired(Point { x: widest + frame.x, y: viewport.y }, availableSizeLogical);
+        return this->ConstrainDesired(Point { x: widest + frame.x, y: viewport.y }, availableSizeLogical, layout);
     }
 
     Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
@@ -139,7 +139,7 @@ public:
             desired: Point = child->Measure(Point {
                 x: Numbers:::NonNegative(content.width - margin.Horizontal()),
                 y: Numbers:::NonNegative(content.height - margin.Vertical())
-            });
+            }, layout);
             availableCross: f32 = Numbers:::NonNegative(content.width - margin.Horizontal());
             childX~ f32 = content.x + margin.left;
             childWidth~ f32 = desired.x;

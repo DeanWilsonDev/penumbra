@@ -40,7 +40,7 @@ public:
         this->textureSizeLogical = backend->TextureSizeLogical(this->texture);
     }
 
-    Measure~: (availableSizeLogical: Point) -> Point override {
+    Measure~: (availableSizeLogical: Point, layout: LayoutContext~*) -> Point override {
         if this->texture == 0 {
             return Point { };
         }
