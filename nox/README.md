@@ -22,7 +22,9 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   toolbar holding a button and a disabled box, printing each frame's callbacks and interaction
   states. Last it arranges a positioned panel with relative, absolute, fixed and sticky children.
   Then it paints and probes a stage whose children use z-index, absolute, fixed and relative
-  positioning, a child clip rect and pointer-events none.
+  positioning, a child clip rect and pointer-events none. Last it drives a `Button` whose background
+  eases between state colours, a rotated `Button` hit-tested through its transform, and a `Checkbox`
+  toggled by two clicks.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -40,16 +42,22 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/Positioning.h/.cpp` | `Penumbra/Widgets/Positioning.nox` and `LayoutContext.nox`: relative, absolute, fixed and sticky positioning, with the containing-block and scrollport stacks held by a `LayoutContext` passed to `Arrange` |
 | `Widgets/Stacking.h/.cpp` | `Penumbra/Widgets/Stacking.nox`: z-index stacking contexts for paint and input, clip regions from `GetChildClipRect`, pointer-events and the pointer path. A `StackingTracker` passed to `Draw` and `UpdateInteractionState` holds what the C++ keeps in globals |
 | `Widgets/Label.h/.cpp` | `Penumbra/Widgets/Label.nox`, measured through `IFontBackend` |
+| `<cmath>` | `Penumbra/Maths.nox`: a `CMath` foreign block over libm (`expf`, `cosf`, `sinf`, `lroundf`) behind the safe `Maths` namespace |
+| `Anim/Animation.h` | `Penumbra/Anim/Animation.nox`: `Approach`, `LerpColor`, the cubic and back easings, `Easing`, `AnimatedColor`, `Tween` and `TweenedValues` |
+| `Widgets/Button.h/.cpp` | `Penumbra/Widgets/Button.nox`: click on release inside, an eased state background (Box's `BackgroundForState` is virtual for it), and hit testing through `BoxStyle.transform` |
+| `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
 
-- The SDL platform layer, the SDL renderer and the SDL_ttf font backend. These need foreign
-  calls into C, which the prototype doesn't have yet.
+- The SDL platform layer, the SDL renderer and the SDL_ttf font backend. Foreign calls exist now,
+  but only over bools, integers and floats: SDL needs opaque handles, raw pointers and C strings.
 - Keyboard input, text input and key dispatch, pointer-events modes, and focus.
 - The scroll containers, and groups painted through a transform or opacity (`PaintsAsGroup`).
-- Transforms as containing blocks (Penumbra's `Transform` style isn't ported yet).
-- Transitions, animation, the layout-pass measure memo, and viewport units.
-- Every widget beyond `Box` and `Label`.
+- Transforms as containing blocks, and drawing through a transform: only `Button`'s hit test reads
+  `BoxStyle.transform` so far.
+- Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
+- `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
+- Every widget beyond `Box`, `Label`, `Button` and `Checkbox`.
 
 ## Language friction found so far
 
@@ -62,7 +70,7 @@ The Nox board's Penumbra card tracks this list:
 - **No static members.** `Length::Logical(…)` became the namespace function
   `Lengths:::Logical(…)`.
 - **`print` takes one value, and strings don't concatenate yet.** The recording renderer prints one
-  value per line, and floats print in their shortest form (`6.4e+02`).
+  value per line. Floats printed whole numbers in exponent form (`6.4e+02`) until nox #34 fixed it.
 - **No tuples.** `PlaceCross` returns a small `CrossPlacement` struct instead.
 - **Callbacks can't borrow application state.** A callback is an owned closure,
   `(() -> void)!?`, and an owned closure may only copy or own what it captures (NOX0456). The
@@ -75,6 +83,8 @@ The Nox board's Penumbra card tracks this list:
   struct element can't own an array.
 - **No dereference copy.** `UpdateInteractionState` takes `InputState` by value, and
   `InputState.Occluded()` rebuilds the copy field by field.
-- **Prototype features added for this port:** interfaces, arrays of owners
+- **No maths library.** Penumbra declares its own libm foreign block; every call sits in an
+  `unsafe` block inside a small safe function.
+- **Prototype features added for this port:** foreign C calls inside `unsafe` blocks, interfaces, arrays of owners
   (`Array<WidgetBase*!>!` with `freeAll()`), struct constructions and fixed array literals as
   field defaults, optional owned callables, arrays of borrows and arrays of structs holding borrows.

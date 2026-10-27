@@ -1,0 +1,71 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+IRenderer :: import IRenderer;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+StackingTracker :: import StackingTracker;
+Box :: import Box;
+
+Checkbox :: class : Box {
+public:
+    colorCheckMark~ Color = Color { };
+    colorBoxChecked~ Color = Color { };
+    glyphSizeLogical~ f32 = 0.0f;
+    checked~ bool = false;
+    onCheckedChanged~ ((checked: bool) -> void)!? = null;
+
+    !Checkbox~: () {
+        delete this->onCheckedChanged;
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if !this->isEnabled {
+            this->pressBeganInside = false;
+            return false;
+        }
+        left: usize = MouseButton:::Left();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        released: bool = input.mouseButtonReleasedThisFrame[left];
+
+        if pressed && hovered {
+            this->pressBeganInside = true;
+        }
+        if released {
+            if this->pressBeganInside && hovered {
+                this->checked = !this->checked;
+                if handler := this->onCheckedChanged {
+                    handler(this->checked);
+                }
+            }
+            this->pressBeganInside = false;
+        }
+        return hovered;
+    }
+
+protected:
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        return Point { x: this->glyphSizeLogical, y: this->glyphSizeLogical };
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        if !this->checked {
+            return;
+        }
+        renderer->FillRect(contentRect, this->colorBoxChecked);
+        markInsetRatio: f32 = 0.25f;
+        insetX: f32 = contentRect.width * markInsetRatio;
+        insetY: f32 = contentRect.height * markInsetRatio;
+        mark: Rect = Rect {
+            x: contentRect.x + insetX,
+            y: contentRect.y + insetY,
+            width: contentRect.width - 2.0f * insetX,
+            height: contentRect.height - 2.0f * insetY
+        };
+        renderer->FillRect(mark, this->colorCheckMark);
+    }
+
+private:
+    pressBeganInside~ bool = false;
+}

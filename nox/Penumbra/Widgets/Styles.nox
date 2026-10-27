@@ -1,4 +1,5 @@
 Color :: import Color;
+Transform :: import Transform;
 Length :: import Length;
 
 EdgeInsets :: struct {
@@ -98,6 +99,7 @@ BoxStyle :: struct {
     left~ Length? = null;
     zIndex~ i32? = null;
     pointerEventsMode~ PointerEvents = PointerEvents:::Inherit;
+    transform~ Transform = Transform { };
 
     PlacementOf :: () -> Placement {
         return Placement {

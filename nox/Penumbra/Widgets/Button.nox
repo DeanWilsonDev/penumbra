@@ -1,0 +1,118 @@
+Point :: import Point;
+Color :: import Color;
+Transforms :: import Transforms;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+InteractionState :: import InteractionState;
+StackingTracker :: import StackingTracker;
+Stacking :: import Stacking;
+AnimatedColor :: import AnimatedColor;
+Box :: import Box;
+
+Button :: class : Box {
+public:
+    onClicked~ (() -> void)!? = null;
+    backgroundTransitionSeconds~ f32 = 0.0f;
+
+    !Button~: () {
+        delete this->onClicked;
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if stacking->IsLayeredOut(this) {
+            return false;
+        }
+        effective: InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, input);
+        consumed~ bool = false;
+
+        if !this->isEnabled {
+            this->currentState = InteractionState:::Disabled;
+            this->pressBeganInside = false;
+            if this->hoveredLastFrame {
+                if handler := this->onUnhovered {
+                    handler();
+                }
+            }
+            this->hoveredLastFrame = false;
+        }
+        else {
+            pointer~ Point = effective.mousePosition;
+            if !this->style.transform.IsIdentity() {
+                pivot: Point = Point {
+                    x: this->arrangedRect.x + this->arrangedRect.width * 0.5f,
+                    y: this->arrangedRect.y + this->arrangedRect.height * 0.5f
+                };
+                pointer = Transforms:::InversePoint(pointer, pivot, this->style.transform);
+            }
+
+            left: usize = MouseButton:::Left();
+            hovered: bool = !effective.pointerOccluded && !effective.pointerPassThrough && this->arrangedRect.Contains(pointer);
+            down: bool = effective.mouseButtonDown[left];
+            pressed: bool = effective.mouseButtonPressedThisFrame[left];
+            released: bool = effective.mouseButtonReleasedThisFrame[left];
+
+            if hovered {
+                if handler := this->onHovered {
+                    handler();
+                }
+            }
+            if !hovered && this->hoveredLastFrame {
+                if handler := this->onUnhovered {
+                    handler();
+                }
+            }
+            this->hoveredLastFrame = hovered;
+
+            if pressed && hovered {
+                this->pressBeganInside = true;
+            }
+
+            clicked~ bool = false;
+            if released {
+                clicked = this->pressBeganInside && hovered;
+                this->pressBeganInside = false;
+            }
+
+            if this->pressBeganInside && down && hovered {
+                this->currentState = InteractionState:::Pressed;
+            }
+            else if hovered {
+                this->currentState = InteractionState:::Hovered;
+            }
+            else {
+                this->currentState = InteractionState:::Default;
+            }
+
+            if clicked {
+                if handler := this->onClicked {
+                    handler();
+                }
+            }
+            consumed = hovered || (this->pressBeganInside && down);
+        }
+
+        this->backgroundAnimation.Animate(this->StateBackground(), effective.deltaTimeSeconds, this->backgroundTransitionSeconds);
+        return consumed;
+    }
+
+    BackgroundForState :: () -> Color override {
+        if this->backgroundAnimation.initialised {
+            return this->backgroundAnimation.Value();
+        }
+        return this->StateBackground();
+    }
+
+private:
+    pressBeganInside~ bool = false;
+    hoveredLastFrame~ bool = false;
+    backgroundAnimation~ AnimatedColor = AnimatedColor { };
+
+    StateBackground :: () -> Color {
+        return when this->currentState {
+            InteractionState:::Hovered -> this->style.colorBackgroundHovered,
+            InteractionState:::Pressed -> this->style.colorBackgroundPressed,
+            InteractionState:::Disabled -> this->style.colorBackgroundDisabled,
+            InteractionState:::Default -> this->style.colorBackground
+        };
+    }
+}

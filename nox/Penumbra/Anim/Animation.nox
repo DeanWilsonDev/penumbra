@@ -1,0 +1,222 @@
+Color :: import Color;
+Maths :: import Maths;
+
+Easing :: enum {
+    Linear,
+    EaseIn,
+    EaseOut,
+    EaseInOut
+}
+
+Anim :: namespace {
+    Approach :: (current: f32, target: f32, deltaSeconds: f32, timeConstantSeconds: f32) -> f32 {
+        if timeConstantSeconds <= 0.0f {
+            return target;
+        }
+        factor: f32 = 1.0f - Maths:::Exp(-deltaSeconds / timeConstantSeconds);
+        return current + (target - current) * factor;
+    }
+
+    ChannelFrom :: (value: f32) -> u8 {
+        return u8(Maths:::RoundToInteger(Maths:::Clamp(value, 0.0f, 255.0f)));
+    }
+
+    MixChannel :: (from: u8, to: u8, amount: f32) -> u8 {
+        start: f32 = f32(from);
+        return ChannelFrom(start + (f32(to) - start) * amount);
+    }
+
+    LerpColor :: (from: Color, to: Color, amount: f32) -> Color {
+        clamped: f32 = Maths:::Clamp(amount, 0.0f, 1.0f);
+        return Color {
+            red: MixChannel(from.red, to.red, clamped),
+            green: MixChannel(from.green, to.green, clamped),
+            blue: MixChannel(from.blue, to.blue, clamped),
+            alpha: MixChannel(from.alpha, to.alpha, clamped)
+        };
+    }
+
+    EaseOutCubic :: (progress: f32) -> f32 {
+        remaining: f32 = 1.0f - progress;
+        return 1.0f - remaining * remaining * remaining;
+    }
+
+    EaseInCubic :: (progress: f32) -> f32 {
+        return progress * progress * progress;
+    }
+
+    EaseInOutCubic :: (progress: f32) -> f32 {
+        if progress < 0.5f {
+            return 4.0f * progress * progress * progress;
+        }
+        remaining: f32 = -2.0f * progress + 2.0f;
+        return 1.0f - remaining * remaining * remaining / 2.0f;
+    }
+
+    Ease :: (curve: Easing, progress: f32) -> f32 {
+        return when curve {
+            Easing:::EaseIn -> EaseInCubic(progress),
+            Easing:::EaseOut -> EaseOutCubic(progress),
+            Easing:::EaseInOut -> EaseInOutCubic(progress),
+            Easing:::Linear -> progress
+        };
+    }
+
+    EaseOutBack :: (progress: f32) -> f32 {
+        overshoot: f32 = 1.70158f;
+        overshootPlusOne: f32 = overshoot + 1.0f;
+        offset: f32 = progress - 1.0f;
+        return 1.0f + overshootPlusOne * offset * offset * offset + overshoot * offset * offset;
+    }
+}
+
+AnimatedColor :: struct {
+    red~ f32 = 0.0f;
+    green~ f32 = 0.0f;
+    blue~ f32 = 0.0f;
+    alpha~ f32 = 0.0f;
+    initialised~ bool = false;
+
+    SnapTo ~: (target: Color) -> void {
+        red = f32(target.red);
+        green = f32(target.green);
+        blue = f32(target.blue);
+        alpha = f32(target.alpha);
+        initialised = true;
+    }
+
+    Animate ~: (target: Color, deltaSeconds: f32, timeConstantSeconds: f32) -> void {
+        if !initialised {
+            SnapTo(target);
+            return;
+        }
+        red = Anim:::Approach(red, f32(target.red), deltaSeconds, timeConstantSeconds);
+        green = Anim:::Approach(green, f32(target.green), deltaSeconds, timeConstantSeconds);
+        blue = Anim:::Approach(blue, f32(target.blue), deltaSeconds, timeConstantSeconds);
+        alpha = Anim:::Approach(alpha, f32(target.alpha), deltaSeconds, timeConstantSeconds);
+    }
+
+    Value :: () -> Color {
+        return Color {
+            red: Anim:::ChannelFrom(red),
+            green: Anim:::ChannelFrom(green),
+            blue: Anim:::ChannelFrom(blue),
+            alpha: Anim:::ChannelFrom(alpha)
+        };
+    }
+}
+
+Tween :: struct {
+    elapsed~ f32 = 0.0f;
+    duration~ f32 = 0.0f;
+    playing~ bool = false;
+
+    Start ~: (durationSeconds: f32) -> void {
+        duration = durationSeconds;
+        elapsed = 0.0f;
+        playing = true;
+    }
+
+    Update ~: (deltaSeconds: f32) -> void {
+        if !playing {
+            return;
+        }
+        elapsed = elapsed + deltaSeconds;
+        if elapsed >= duration {
+            elapsed = duration;
+            playing = false;
+        }
+    }
+
+    Progress :: () -> f32 {
+        if duration > 0.0f {
+            return Maths:::Clamp(elapsed / duration, 0.0f, 1.0f);
+        }
+        return 1.0f;
+    }
+}
+
+TweenedValues :: class {
+public:
+    !TweenedValues~: () {
+        delete this->from;
+        delete this->to;
+    }
+
+    SnapTo~: (target: Array<f32>) -> void {
+        this->to.clear();
+        this->from.clear();
+        for value in target {
+            this->to.push(value);
+            this->from.push(value);
+        }
+        this->timeline = Tween { };
+    }
+
+    RetargetTo~: (target: Array<f32>, durationSeconds: f32) -> void {
+        if this->Matches(target) {
+            return;
+        }
+        if durationSeconds <= 0.0f {
+            this->SnapTo(target);
+            return;
+        }
+        current~ Array<f32>! = [];
+        defer delete current;
+        index~ usize = 0;
+        while index < target.length() {
+            if index < this->to.length() {
+                current.push(this->ValueAt(index));
+            }
+            else {
+                current.push(0.0f);
+            }
+            index = index + 1;
+        }
+        this->from.clear();
+        for value in current {
+            this->from.push(value);
+        }
+        this->to.clear();
+        for value in target {
+            this->to.push(value);
+        }
+        this->timeline.Start(durationSeconds);
+    }
+
+    Update~: (deltaSeconds: f32) -> void {
+        this->timeline.Update(deltaSeconds);
+    }
+
+    Size :: () -> usize {
+        return this->to.length();
+    }
+
+    IsAnimating :: () -> bool {
+        return this->timeline.playing;
+    }
+
+    ValueAt :: (index: usize) -> f32 {
+        progress: f32 = Anim:::EaseOutCubic(this->timeline.Progress());
+        return this->from[index] + (this->to[index] - this->from[index]) * progress;
+    }
+
+private:
+    from~ Array<f32>! = [];
+    to~ Array<f32>! = [];
+    timeline~ Tween = Tween { };
+
+    Matches :: (target: Array<f32>) -> bool {
+        if target.length() != this->to.length() {
+            return false;
+        }
+        index~ usize = 0;
+        while index < target.length() {
+            if target[index] != this->to[index] {
+                return false;
+            }
+            index = index + 1;
+        }
+        return true;
+    }
+}

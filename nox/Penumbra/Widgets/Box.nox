@@ -216,7 +216,7 @@ public:
         return childConsumed || hovered || (this->pressedInside && down);
     }
 
-    BackgroundForState :: () -> Color {
+    virtual BackgroundForState :: () -> Color {
         return when this->currentState {
             InteractionState:::Hovered -> Colors:::SetOr(this->style.colorBackgroundHovered, this->style.colorBackground),
             InteractionState:::Pressed -> Colors:::SetOr(this->style.colorBackgroundPressed, this->style.colorBackground),

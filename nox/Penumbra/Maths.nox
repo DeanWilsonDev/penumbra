@@ -1,0 +1,46 @@
+CMath :: foreign "m" {
+    expf :: (value: f32) -> f32;
+    cosf :: (value: f32) -> f32;
+    sinf :: (value: f32) -> f32;
+    lroundf :: (value: f32) -> i64;
+}
+
+Maths :: namespace {
+    Exp :: (value: f32) -> f32 {
+        unsafe {
+            return CMath:::expf(value);
+        }
+    }
+
+    Cos :: (radians: f32) -> f32 {
+        unsafe {
+            return CMath:::cosf(radians);
+        }
+    }
+
+    Sin :: (radians: f32) -> f32 {
+        unsafe {
+            return CMath:::sinf(radians);
+        }
+    }
+
+    RoundToInteger :: (value: f32) -> i64 {
+        unsafe {
+            return CMath:::lroundf(value);
+        }
+    }
+
+    Clamp :: (value: f32, lowest: f32, highest: f32) -> f32 {
+        if value < lowest {
+            return lowest;
+        }
+        if value > highest {
+            return highest;
+        }
+        return value;
+    }
+
+    RadiansPerDegree :: () -> f32 {
+        return 3.14159265358979323846f / 180.0f;
+    }
+}
