@@ -7,6 +7,7 @@ output_directory="${nox_root}/../build-nox"
 mkdir -p "${output_directory}"
 
 library_sources=(
+    Penumbra/Maths.nox
     Penumbra/Geometry.nox
     Penumbra/Render/Color.nox
     Penumbra/Render/Renderer.nox
@@ -19,6 +20,9 @@ library_sources=(
     Penumbra/Widgets/Stacking.nox
     Penumbra/Widgets/Box.nox
     Penumbra/Widgets/Label.nox
+    Penumbra/Anim/Animation.nox
+    Penumbra/Widgets/Button.nox
+    Penumbra/Widgets/Checkbox.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox

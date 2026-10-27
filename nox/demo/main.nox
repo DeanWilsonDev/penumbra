@@ -18,6 +18,9 @@ InputState :: import InputState;
 InteractionState :: import InteractionState;
 Position :: import Position;
 PointerEvents :: import PointerEvents;
+Button :: import Button;
+Checkbox :: import Checkbox;
+Transform :: import Transform;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -353,6 +356,104 @@ ShowStacking :: () -> void {
     PointAt(stage, stacking, 190.0f, 110.0f);
 }
 
+ClickCounter :: struct {
+    clicks~ i32 = 0;
+}
+
+MakeButton :: (name: string, x: f32) -> Button*! {
+    button: Button*! = new Button();
+    button->className = name;
+    button->style.width = Lengths:::Logical(80.0f);
+    button->style.height = Lengths:::Logical(24.0f);
+    button->style.colorBackground = Color { red: 60, green: 60, blue: 70, alpha: 255 };
+    button->style.colorBackgroundHovered = Color { red: 160, green: 60, blue: 70, alpha: 255 };
+    button->style.colorBackgroundPressed = Color { red: 220, green: 60, blue: 70, alpha: 255 };
+    button->style.colorBackgroundDisabled = Color { red: 20, green: 20, blue: 20, alpha: 255 };
+    return button!;
+}
+
+ButtonFrame :: (button: Button~*, stacking: StackingTracker~*, renderer: RecordingRenderer~*, frameName: string, x: f32, y: f32, down: bool, pressed: bool, released: bool) -> void {
+    print(frameName);
+    input~ InputState = InputState { };
+    input.mousePosition = Point { x: x, y: y };
+    input.mouseButtonDown[0] = down;
+    input.mouseButtonPressedThisFrame[0] = pressed;
+    input.mouseButtonReleasedThisFrame[0] = released;
+    input.deltaTimeSeconds = 0.05f;
+    print(button->UpdateInteractionState(input, stacking));
+    print(StateName(button->GetInteractionState()));
+    button->Draw(renderer, stacking);
+}
+
+ShowButtons :: () -> void {
+    print("buttons");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    renderer->printsDetail = false;
+
+    button: Button*! = MakeButton("eased", 0.0f);
+    defer delete button;
+    button->backgroundTransitionSeconds = 0.1f;
+    counter: ClickCounter*! = new ClickCounter();
+    button->onClicked = new () -> void [counter!] {
+        counter->clicks = counter->clicks + 1;
+        print("clicked");
+        print(counter->clicks);
+    };
+    button->Measure(Point { x: 200.0f, y: 100.0f });
+    button->Arrange(Rect { x: 0.0f, y: 0.0f, width: 80.0f, height: 24.0f }, layout);
+    ButtonFrame(button, stacking, renderer, "away", 200.0f, 200.0f, false, false, false);
+    ButtonFrame(button, stacking, renderer, "hover", 10.0f, 10.0f, false, false, false);
+    ButtonFrame(button, stacking, renderer, "hover again", 10.0f, 10.0f, false, false, false);
+    ButtonFrame(button, stacking, renderer, "press", 10.0f, 10.0f, true, true, false);
+    ButtonFrame(button, stacking, renderer, "release", 10.0f, 10.0f, false, false, true);
+    ButtonFrame(button, stacking, renderer, "press then drag off", 10.0f, 10.0f, true, true, false);
+    ButtonFrame(button, stacking, renderer, "dragged off", 150.0f, 10.0f, true, false, false);
+    ButtonFrame(button, stacking, renderer, "released off", 150.0f, 10.0f, false, false, true);
+    button->SetIsEnabled(false);
+    ButtonFrame(button, stacking, renderer, "disabled", 10.0f, 10.0f, false, false, false);
+
+    rotated: Button*! = MakeButton("rotated", 0.0f);
+    defer delete rotated;
+    rotated->style.transform = Transform { rotationDegrees: 90.0f };
+    rotated->Measure(Point { x: 200.0f, y: 100.0f });
+    rotated->Arrange(Rect { x: 0.0f, y: 40.0f, width: 80.0f, height: 24.0f }, layout);
+    ButtonFrame(rotated, stacking, renderer, "rotated: inside the turned box", 40.0f, 20.0f, false, false, false);
+    ButtonFrame(rotated, stacking, renderer, "rotated: inside the unturned box only", 5.0f, 52.0f, false, false, false);
+
+    checkbox: Checkbox*! = new Checkbox();
+    defer delete checkbox;
+    checkbox->glyphSizeLogical = 16.0f;
+    checkbox->style.padding = Insets:::All(2.0f);
+    checkbox->colorBoxChecked = Color { red: 40, green: 120, blue: 200, alpha: 255 };
+    checkbox->colorCheckMark = Color { red: 250, green: 250, blue: 250, alpha: 255 };
+    checkbox->onCheckedChanged = new (checked: bool) -> void [] {
+        print("checked changed");
+        print(checked);
+    };
+    measured: Point = checkbox->Measure(Point { x: 200.0f, y: 100.0f });
+    print(measured.x);
+    checkbox->Arrange(Rect { x: 0.0f, y: 80.0f, width: measured.x, height: measured.y }, layout);
+    clickAt: InputState = InputState { mousePosition: Point { x: 5.0f, y: 85.0f } };
+    pressedInput~ InputState = clickAt;
+    pressedInput.mouseButtonPressedThisFrame[0] = true;
+    pressedInput.mouseButtonDown[0] = true;
+    releasedInput~ InputState = clickAt;
+    releasedInput.mouseButtonReleasedThisFrame[0] = true;
+    checkbox->UpdateInteractionState(pressedInput, stacking);
+    checkbox->UpdateInteractionState(releasedInput, stacking);
+    renderer->printsDetail = true;
+    checkbox->Draw(renderer, stacking);
+    checkbox->UpdateInteractionState(pressedInput, stacking);
+    checkbox->UpdateInteractionState(releasedInput, stacking);
+    checkbox->Draw(renderer, stacking);
+    print(checkbox->checked);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -379,5 +480,6 @@ main :: () -> i32 {
     SimulateInput();
     ShowPositioning();
     ShowStacking();
+    ShowButtons();
     return 0;
 }
