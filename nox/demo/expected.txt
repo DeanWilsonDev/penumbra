@@ -1071,3 +1071,111 @@ press outside the popup
 true
 1
 false
+dropdown
+text
+Alpha
+102
+12
+16
+line
+169
+18.5
+172
+21.5
+1
+line
+172
+21.5
+175
+18.5
+1
+click the trigger
+false
+false
+release
+false
+true
+0
+dropdown
+100
+10
+80
+20
+1
+dropdown backdrop
+0
+0
+200
+100
+2
+dropdown menu
+40
+10
+140
+60
+3
+dropdown row
+40
+10
+140
+20
+3
+dropdown row
+40
+30
+140
+20
+3
+dropdown row
+40
+50
+140
+20
+click the long row
+true
+true
+release
+selection changed
+2
+true
+false
+2
+text
+A very..
+102
+12
+16
+line
+169
+18.5
+172
+21.5
+1
+line
+172
+21.5
+175
+18.5
+1
+reopen
+false
+false
+release
+false
+true
+click the backdrop
+true
+false
+release
+false
+false
+2
+reopen
+false
+false
+release
+false
+true
+escape
+true
+false

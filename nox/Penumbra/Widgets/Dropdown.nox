@@ -1,0 +1,413 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Color :: import Color;
+IRenderer :: import IRenderer;
+IFontBackend :: import IFontBackend;
+Utf8 :: import Utf8;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+Key :: import Key;
+Tween :: import Tween;
+Anim :: import Anim;
+Lengths :: import Lengths;
+Position :: import Position;
+LayoutMode :: import LayoutMode;
+CrossAlign :: import CrossAlign;
+BoxStyle :: import BoxStyle;
+InteractionState :: import InteractionState;
+WidgetBase :: import WidgetBase;
+StackingTracker :: import StackingTracker;
+Box :: import Box;
+
+DropdownStyle :: struct {
+    trigger~ BoxStyle = BoxStyle { };
+    menu~ BoxStyle = BoxStyle { };
+    row~ BoxStyle = BoxStyle { };
+    selectedRow~ BoxStyle = BoxStyle { };
+    colorText~ Color = Color { };
+    colorTextHighlighted~ Color = Color { };
+    triggerContentSizeLogical~ f32 = 0.0f;
+    rowHeightLogical~ f32 = 0.0f;
+    leadingVisualSizeLogical~ f32 = 0.0f;
+    leadingVisualGapLogical~ f32 = 0.0f;
+    minimumOpenWidthLogical~ f32 = 0.0f;
+    openTransitionSeconds~ f32 = 0.0f;
+    triggerChevronWidthLogical~ f32 = 0.0f;
+    triggerChevronThicknessLogical~ f32 = 0.0f;
+    menuZIndex~ i32? = null;
+}
+
+DropdownItem :: class {
+public:
+    label~ string! = "";
+    drawLeadingVisual~ ((renderer: IRenderer~*, rect: Rect, color: Color) -> void)!? = null;
+
+    DropdownItem~: (label: string) {
+        this->label = label.copy();
+    }
+
+    !DropdownItem~: () {
+        delete this->label;
+        delete this->drawLeadingVisual;
+    }
+}
+
+DropdownState :: class {
+public:
+    isOpen~ bool = false;
+    widthTween~ Tween = Tween { };
+    triggerRect~ Rect = Rect { };
+    openWidth~ f32 = 0.0f;
+    height~ f32 = 0.0f;
+    rowHeight~ f32 = 0.0f;
+    chosenIndex~ usize? = null;
+    dismissRequested~ bool = false;
+
+    PanelRect :: () -> Rect {
+        progress: f32 = Anim:::EaseOutCubic(this->widthTween.Progress());
+        width: f32 = this->triggerRect.width + (this->openWidth - this->triggerRect.width) * progress;
+        right: f32 = this->triggerRect.x + this->triggerRect.width;
+        return Rect { x: right - width, y: this->triggerRect.y, width: width, height: this->height };
+    }
+}
+
+DropdownRow :: class : Box {
+public:
+    textColor~ Color = Color { };
+    highlightedTextColor~ Color = Color { };
+    fontSizeLogical~ f32 = 16.0f;
+    visualSize~ f32 = 0.0f;
+    visualGap~ f32 = 0.0f;
+    alwaysHighlighted~ bool = false;
+
+    DropdownRow~: (font: IFontBackend*, item: DropdownItem*, index: usize, state: DropdownState~*) : font(font), item(item), index(index), state(state) { }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        left: usize = MouseButton:::Left();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        if input.mouseButtonPressedThisFrame[left] && hovered {
+            this->pressBeganInside = true;
+        }
+        if input.mouseButtonReleasedThisFrame[left] {
+            if this->pressBeganInside {
+                this->state->chosenIndex = this->index;
+            }
+            this->pressBeganInside = false;
+        }
+        return Box:::UpdateInteractionState(input, stacking);
+    }
+
+protected:
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        return Point { x: 0.0f, y: this->style.height.value };
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        highlighted: bool = this->alwaysHighlighted || this->GetInteractionState() != InteractionState:::Default;
+        color~ Color = this->textColor;
+        if highlighted {
+            color = this->highlightedTextColor;
+        }
+        visualRect: Rect = Rect {
+            x: contentRect.x,
+            y: contentRect.y + (contentRect.height - this->visualSize) * 0.5f,
+            width: this->visualSize,
+            height: this->visualSize
+        };
+        renderer->PushClipRect(contentRect);
+        if visual := this->item->drawLeadingVisual {
+            visual(renderer, visualRect, color);
+        }
+        textX: f32 = contentRect.x + this->visualSize + this->visualGap;
+        textHeight: f32 = this->font->MeasureText("Ag", this->fontSizeLogical).y;
+        maxWidth: f32 = Numbers:::NonNegative(contentRect.x + contentRect.width - textX);
+        label: string = this->item->label;
+        length~ usize = label.length();
+        while length > 0 && this->font->MeasureText(label.substring(0, length), this->fontSizeLogical).x > maxWidth {
+            length = length - 1;
+        }
+        origin: Point = Point { x: textX, y: contentRect.y + (contentRect.height - textHeight) * 0.5f };
+        if length >= 2 && length != label.length() {
+            dots~ string = "..";
+            if length == 2 {
+                dots = ".";
+            }
+            shortened: string! = label.substring(0, length - dots.length()) + dots;
+            renderer->DrawText(shortened, origin, this->fontSizeLogical, color);
+            delete shortened;
+        }
+        else {
+            renderer->DrawText(label.substring(0, length), origin, this->fontSizeLogical, color);
+        }
+        renderer->PopClipRect();
+    }
+
+private:
+    font: IFontBackend*;
+    item: DropdownItem*;
+    index: usize;
+    state: DropdownState~*;
+    pressBeganInside~ bool = false;
+}
+
+DropdownMenu :: class : Box {
+public:
+    DropdownMenu~: (state: DropdownState~*) : state(state) { }
+
+    Place~: () -> void {
+        panel: Rect = this->state->PanelRect();
+        this->style.positionMode = Position:::Absolute;
+        this->style.left = Lengths:::Logical(panel.x);
+        this->style.top = Lengths:::Logical(panel.y);
+        this->style.width = Lengths:::Logical(panel.width);
+        this->style.height = Lengths:::Logical(panel.height);
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        this->state->widthTween.Update(input.deltaTimeSeconds);
+        this->Place();
+        return Box:::UpdateInteractionState(input, stacking);
+    }
+
+private:
+    state: DropdownState~*;
+}
+
+DropdownBackdrop :: class : Box {
+public:
+    DropdownBackdrop~: (state: DropdownState~*) : state(state) { }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        took: bool = Box:::UpdateInteractionState(input, stacking);
+        if input.mouseButtonPressedThisFrame[MouseButton:::Left()] && input.IsPointerOver(this->arrangedRect) && !took {
+            this->state->dismissRequested = true;
+        }
+        for key in input.keysPressedThisFrame {
+            if key == Key:::Escape {
+                stacking->keys->MarkUsed(key);
+                this->state->dismissRequested = true;
+            }
+        }
+        return took || input.IsPointerOver(this->arrangedRect);
+    }
+
+private:
+    state: DropdownState~*;
+}
+
+Dropdown :: class : Box {
+public:
+    dropdownStyle~ DropdownStyle = DropdownStyle { };
+    items~ Array<DropdownItem*!>! = [];
+    selectedIndex~ usize = 0;
+    fontSizeLogical~ f32 = 16.0f;
+    onSelectionChanged~ ((index: usize) -> void)!? = null;
+
+    Dropdown~: (font: IFontBackend*) : font(font), state(new DropdownState()) { }
+
+    !Dropdown~: () {
+        this->Dismiss();
+        this->items.freeAll();
+        delete this->state;
+        delete this->onSelectionChanged;
+    }
+
+    AddItem~: (label: string) -> DropdownItem~* {
+        this->items.push(new DropdownItem(label));
+        return this->items[this->items.length() - 1];
+    }
+
+    ApplyStyle~: (styleValue: DropdownStyle) -> void {
+        this->dropdownStyle = styleValue;
+        this->style = styleValue.trigger;
+    }
+
+    GetIsOpen :: () -> bool {
+        return this->state->isOpen;
+    }
+
+    Dismiss~: () -> void {
+        this->state->isOpen = false;
+        if this->hasLayer {
+            this->children[0]->SetIsVisible(false);
+        }
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if stacking->IsLayeredOut(this) {
+            return false;
+        }
+        left: usize = MouseButton:::Left();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        if input.mouseButtonPressedThisFrame[left] && hovered {
+            this->triggerPressedInside = true;
+        }
+        if input.mouseButtonReleasedThisFrame[left] {
+            if this->triggerPressedInside && hovered && !this->GetIsOpen() {
+                this->Open();
+            }
+            this->triggerPressedInside = false;
+        }
+        took: bool = Box:::UpdateInteractionState(input, stacking);
+        this->ApplyMenuResults();
+        return took;
+    }
+
+protected:
+    DrawsSelectedLabel :: () -> bool {
+        if this->items.length() == 0 || this->selectedIndex >= this->items.length() {
+            return false;
+        }
+        return this->items[this->selectedIndex]->drawLeadingVisual == null;
+    }
+
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        visualStyle: DropdownStyle = this->dropdownStyle;
+        if this->DrawsSelectedLabel() {
+            textHeight: f32 = this->font->MeasureText("Ag", this->fontSizeLogical).y;
+            return Point {
+                x: this->WidestLabel() + visualStyle.leadingVisualGapLogical + visualStyle.triggerChevronWidthLogical,
+                y: Numbers:::Larger(textHeight, visualStyle.triggerContentSizeLogical)
+            };
+        }
+        return Point { x: visualStyle.triggerContentSizeLogical, y: visualStyle.triggerContentSizeLogical };
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        if this->items.length() == 0 || this->selectedIndex >= this->items.length() {
+            return;
+        }
+        visualStyle: DropdownStyle = this->dropdownStyle;
+        selected: DropdownItem* = this->items[this->selectedIndex];
+        if visual := selected->drawLeadingVisual {
+            visual(renderer, contentRect, visualStyle.colorTextHighlighted);
+            return;
+        }
+        textHeight: f32 = this->font->MeasureText("Ag", this->fontSizeLogical).y;
+        maxWidth: f32 = Numbers:::NonNegative(contentRect.width - visualStyle.triggerChevronWidthLogical);
+        label: string = selected->label;
+        origin: Point = Point { x: contentRect.x, y: contentRect.y + (contentRect.height - textHeight) * 0.5f };
+        if this->font->MeasureText(label, this->fontSizeLogical).x > maxWidth {
+            length~ usize = label.length();
+            while length > 0 && this->TextWithDotsWidth(label.substring(0, length)) > maxWidth {
+                length = Utf8:::PreviousCodePoint(label, length);
+            }
+            shortened: string! = label.substring(0, length) + "..";
+            renderer->DrawText(shortened, origin, this->fontSizeLogical, visualStyle.colorText);
+            delete shortened;
+        }
+        else {
+            renderer->DrawText(label, origin, this->fontSizeLogical, visualStyle.colorText);
+        }
+        chevronWidth: f32 = visualStyle.triggerChevronWidthLogical;
+        chevronSize: f32 = Numbers:::Smaller(chevronWidth * 0.5f, contentRect.height * 0.5f);
+        chevronX: f32 = contentRect.x + contentRect.width - chevronWidth + (chevronWidth - chevronSize) * 0.5f;
+        chevronY: f32 = contentRect.y + (contentRect.height - chevronSize * 0.5f) * 0.5f;
+        tip: Point = Point { x: chevronX + chevronSize * 0.5f, y: chevronY + chevronSize * 0.5f };
+        renderer->DrawLine(Point { x: chevronX, y: chevronY }, tip, visualStyle.colorText, visualStyle.triggerChevronThicknessLogical);
+        renderer->DrawLine(tip, Point { x: chevronX + chevronSize, y: chevronY }, visualStyle.colorText, visualStyle.triggerChevronThicknessLogical);
+    }
+
+private:
+    font: IFontBackend*;
+    state~ DropdownState*!;
+    triggerPressedInside~ bool = false;
+    hasLayer~ bool = false;
+
+    WidestLabel :: () -> f32 {
+        widest~ f32 = 0.0f;
+        for item in this->items {
+            widest = Numbers:::Larger(widest, this->font->MeasureText(item->label, this->fontSizeLogical).x);
+        }
+        return widest;
+    }
+
+    TextWithDotsWidth :: (text: string) -> f32 {
+        withDots: string! = text + "..";
+        defer delete withDots;
+        return this->font->MeasureText(withDots, this->fontSizeLogical).x;
+    }
+
+    ApplyMenuResults~: () -> void {
+        if chosen := this->state->chosenIndex {
+            this->state->chosenIndex = null;
+            if chosen != this->selectedIndex {
+                this->selectedIndex = chosen;
+                if handler := this->onSelectionChanged {
+                    handler(chosen);
+                }
+            }
+            this->Dismiss();
+        }
+        if this->state->dismissRequested {
+            this->state->dismissRequested = false;
+            this->Dismiss();
+        }
+    }
+
+    Open~: () -> void {
+        if this->items.length() == 0 || this->selectedIndex >= this->items.length() || this->GetIsOpen() {
+            return;
+        }
+        visualStyle: DropdownStyle = this->dropdownStyle;
+        this->state->isOpen = true;
+        this->state->triggerRect = this->arrangedRect;
+        this->state->rowHeight = visualStyle.rowHeightLogical;
+        this->state->height = visualStyle.rowHeightLogical * f32(this->items.length())
+            + visualStyle.menu.padding.top + visualStyle.menu.padding.bottom + 2.0f * visualStyle.menu.borderWidth;
+        this->state->widthTween.Start(visualStyle.openTransitionSeconds);
+        rowFrame: f32 = visualStyle.row.padding.Horizontal() + 2.0f * visualStyle.row.borderWidth;
+        menuFrame: f32 = visualStyle.menu.padding.Horizontal() + 2.0f * visualStyle.menu.borderWidth;
+        this->state->openWidth = Numbers:::Larger(visualStyle.minimumOpenWidthLogical,
+            menuFrame + rowFrame + visualStyle.leadingVisualSizeLogical + visualStyle.leadingVisualGapLogical + this->WidestLabel());
+
+        menu: DropdownMenu*! = new DropdownMenu(this->state);
+        menu->className = "dropdown menu";
+        menu->style = visualStyle.menu;
+        menu->layout = LayoutMode:::VerticalStack;
+        menu->crossAlignment = CrossAlign:::Stretch;
+        menu->Place();
+        menu->AddChild(this->MakeRow(this->selectedIndex, true));
+        index~ usize = 0;
+        while index < this->items.length() {
+            if index != this->selectedIndex {
+                menu->AddChild(this->MakeRow(index, false));
+            }
+            index = index + 1;
+        }
+
+        if this->hasLayer {
+            this->RemoveChildAt(0);
+        }
+        backdrop: DropdownBackdrop*! = new DropdownBackdrop(this->state);
+        backdrop->className = "dropdown backdrop";
+        backdrop->style.positionMode = Position:::Fixed;
+        backdrop->style.top = Lengths:::Logical(0.0f);
+        backdrop->style.right = Lengths:::Logical(0.0f);
+        backdrop->style.bottom = Lengths:::Logical(0.0f);
+        backdrop->style.left = Lengths:::Logical(0.0f);
+        backdrop->style.zIndex = visualStyle.menuZIndex;
+        backdrop->AddChild(menu!);
+        this->InsertChildAt(0, backdrop!);
+        this->hasLayer = true;
+    }
+
+    MakeRow~: (index: usize, selected: bool) -> WidgetBase*! {
+        visualStyle: DropdownStyle = this->dropdownStyle;
+        row: DropdownRow*! = new DropdownRow(this->font, this->items[index], index, this->state);
+        row->className = "dropdown row";
+        row->fontSizeLogical = this->fontSizeLogical;
+        row->textColor = visualStyle.colorText;
+        row->highlightedTextColor = visualStyle.colorTextHighlighted;
+        row->visualSize = visualStyle.leadingVisualSizeLogical;
+        row->visualGap = visualStyle.leadingVisualGapLogical;
+        row->alwaysHighlighted = selected;
+        row->style = visualStyle.row;
+        if selected {
+            row->style = visualStyle.selectedRow;
+        }
+        row->style.height = Lengths:::Logical(visualStyle.rowHeightLogical);
+        return row!;
+    }
+}

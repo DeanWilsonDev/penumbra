@@ -31,7 +31,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `onKeyPressed` gets the rest, and a full-window modal takes every key while it's shown. Last it
   drags a `SplitPanel`'s handle past its minimum pane size, with a vertical split nested inside.
   Then it drags a `NumericDrag`, draws both `Chevron`s, and opens and dismisses overlays on an
-  `OverlayHost` by Escape and by a press outside.
+  `OverlayHost` by Escape and by a press outside. Last it opens a `Dropdown`, picks its long
+  item (drawn truncated in the trigger), and dismisses the menu by a backdrop press and by Escape.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -62,6 +63,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/NumericDrag.h/.cpp` | `Penumbra/Widgets/NumericDrag.nox`, formatting its value with a template string (`${value:.2f}`) |
 | `Widgets/Chevron.h/.cpp` | `Penumbra/Widgets/Chevron.nox`; `IRenderer` gains `DrawLine` |
 | `Widgets/OverlayHost.h/.cpp` | `Penumbra/Widgets/OverlayHost.nox`: a root and a stack of overlays, Escape and outside-press dismissal, and dismissals deferred while the top overlay handles input. The overlays are parallel arrays (ids, owned contents, optional placements, dismiss flags), since a struct element can't own a widget |
+| `Widgets/Dropdown.h/.cpp` | `Penumbra/Widgets/Dropdown.nox`: the trigger with its truncated label and chevron, a fixed backdrop and a menu that widens with a tween. The rows and the backdrop write the press to a shared `DropdownState` (the chosen index, a dismiss flag), and the dropdown applies it after dispatching to them, because a row's callback can't capture the dropdown |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
@@ -105,7 +107,8 @@ The Nox board's Penumbra card tracks this list:
   `(() -> void)!?`, and an owned closure may only copy or own what it captures (NOX0456). The
   C++ callbacks capture `this` or app objects by reference; in Nox the demo's button owns its
   counter. Wiring a callback to state the app also uses needs shared ownership or an unsafe
-  escape, which the language hasn't designed yet.
+  escape, which the language hasn't designed yet. Widgets that talk to their parts, like
+  `Dropdown`'s rows, write to a state object both sides borrow and the parent polls it.
 - **Lists of borrowed widgets.** Stacking contexts keep the widgets they paint, so the prototype
   gained arrays of borrows (`Array<WidgetBase~*>!`) and arrays of structs that hold borrows. An
   entry's ancestors live in one pool array on the context, indexed by start and count, because a
