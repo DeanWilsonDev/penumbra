@@ -58,6 +58,10 @@ public:
         return false;
     }
 
+    TakesPointerFromTextSelection :: () -> bool override {
+        return true;
+    }
+
     UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
         left: usize = MouseButton:::Left();
         hovered: bool = input.IsPointerOver(this->arrangedRect);

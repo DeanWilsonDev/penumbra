@@ -180,6 +180,13 @@ public:
 
         content: Rect = this->ContentRectFrom(this->arrangedRect);
         scrollbarTook: bool = this->UpdateScrollbar(handed, content);
+        if active ~= this->selection {
+            selectionRegion~ Rect = content;
+            if scrollbarTook {
+                selectionRegion = Rect { };
+            }
+            active->Update(this, selectionRegion, handed);
+        }
         occluded: InputState = handed.Occluded();
         outermostKeys: bool = stacking->keys->Begin(this, handed);
         defer stacking->keys->End(outermostKeys);
@@ -261,6 +268,9 @@ public:
         content: Rect = this->ContentRectFrom(this->arrangedRect);
         context->PaintBelow(renderer);
         renderer->PushClipRect(content);
+        if active := this->selection {
+            active->DrawGaps(renderer);
+        }
         for child in this->children {
             if child->GetIsVisible() && !stacking->IsLayeredOut(child) {
                 child->Draw(renderer, stacking);

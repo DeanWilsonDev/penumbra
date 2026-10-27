@@ -42,6 +42,7 @@ RecordingClipboard :: import RecordingClipboard;
 Dropdown :: import Dropdown;
 DropdownStyle :: import DropdownStyle;
 InlineContainer :: import InlineContainer;
+TextSelection :: import TextSelection;
 IconWidget :: import IconWidget;
 RecordingIconBackend :: import RecordingIconBackend;
 ChartStyle :: import ChartStyle;
@@ -1391,6 +1392,73 @@ ShowSurfaces :: () -> void {
     print(viewport->UpdateInteractionState(PointerAtPoint(100.0f, 100.0f, false, false, false), stacking));
 }
 
+SelectionFrame :: (page: Box~*, stacking: StackingTracker~*, label: string, input: InputState) -> void {
+    print(label);
+    page->UpdateInteractionState(input, stacking);
+    if selection ~= page->GetTextSelection() {
+        print(selection->HasSelection());
+        selected: string! = selection->SelectedText(page);
+        print(selected);
+        delete selected;
+    }
+}
+
+ShowTextSelection :: (font: IFontBackend*) -> void {
+    print("text selection");
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    focusState: FocusState*! = new FocusState { };
+    defer delete focusState;
+    clipboard: RecordingClipboard*! = new RecordingClipboard();
+    defer delete clipboard;
+
+    page: Box*! = MakeBox("page", LayoutMode:::VerticalStack);
+    defer delete page;
+    page->AddChild(MakeLabel(font, "hello", 10.0f));
+    page->AddChild(MakeLabel(font, "world", 10.0f));
+    paragraph: InlineContainer*! = new InlineContainer();
+    paragraph->className = "paragraph";
+    paragraph->childGap = 5.0f;
+    paragraph->AddChild(MakeLabel(font, "ab", 10.0f));
+    paragraph->AddChild(MakeLabel(font, "cd", 10.0f));
+    paragraph->AddChild(MakeLabel(font, "efgh", 10.0f));
+    page->AddChild(paragraph!);
+    selection: TextSelection~* = page->EnableTextSelection();
+    selection->focus = focusState;
+    selection->clipboard = clipboard;
+    selection->colorSelection = Color { red: 170, green: 0, blue: 0, alpha: 85 };
+    desired: Point = page->Measure(Point { x: 30.0f, y: 200.0f });
+    page->Arrange(Rect { x: 0.0f, y: 0.0f, width: 30.0f, height: desired.y }, layout);
+    PrintTree(page, 0);
+
+    SelectionFrame(page, stacking, "press", PointerAtPoint(7.0f, 5.0f, true, true, false));
+    SelectionFrame(page, stacking, "drag", PointerAtPoint(23.0f, 25.0f, false, true, false));
+    SelectionFrame(page, stacking, "drag below", PointerAtPoint(8.0f, 35.0f, false, true, false));
+    SelectionFrame(page, stacking, "release", PointerAtPoint(8.0f, 35.0f, false, false, true));
+    page->Draw(renderer, stacking);
+
+    copy: Key[1] = [Key:::C];
+    copying~ InputState = PointerAtPoint(8.0f, 35.0f, false, false, false);
+    copying.keysPressedThisFrame = copy.borrow();
+    copying.modifierState.shortcut = true;
+    SelectionFrame(page, stacking, "copy", copying);
+
+    escape: Key[1] = [Key:::Escape];
+    escaping~ InputState = PointerAtPoint(8.0f, 35.0f, false, false, false);
+    escaping.keysPressedThisFrame = escape.borrow();
+    SelectionFrame(page, stacking, "escape", escaping);
+
+    all: Key[1] = [Key:::A];
+    selectingAll~ InputState = PointerAtPoint(8.0f, 35.0f, false, false, false);
+    selectingAll.keysPressedThisFrame = all.borrow();
+    selectingAll.modifierState.shortcut = true;
+    SelectionFrame(page, stacking, "select all", selectingAll);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1432,5 +1500,6 @@ main :: () -> i32 {
     ShowLabels(font);
     ShowTextArea(font);
     ShowSurfaces();
+    ShowTextSelection(font);
     return 0;
 }

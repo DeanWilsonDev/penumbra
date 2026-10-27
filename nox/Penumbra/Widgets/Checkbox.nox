@@ -19,6 +19,10 @@ public:
         delete this->onCheckedChanged;
     }
 
+    TakesPointerFromTextSelection :: () -> bool override {
+        return true;
+    }
+
     UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
         if !this->isEnabled {
             this->pressBeganInside = false;
