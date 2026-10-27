@@ -1,0 +1,115 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+IFontBackend :: import IFontBackend;
+Lengths :: import Lengths;
+Insets :: import Insets;
+LayoutMode :: import LayoutMode;
+CrossAlign :: import CrossAlign;
+Justify :: import Justify;
+WidgetBase :: import WidgetBase;
+Box :: import Box;
+Label :: import Label;
+FixedAdvanceFont :: import FixedAdvanceFont;
+RecordingRenderer :: import RecordingRenderer;
+
+MakeLabel :: (font: IFontBackend*, text: string, sizeLogical: f32) -> Label*! {
+    label: Label*! = new Label(font, text);
+    label->fontSizeLogical = sizeLogical;
+    label->colorText = Color { red: 230, green: 230, blue: 230, alpha: 255 };
+    label->className = text;
+    return label!;
+}
+
+MakeBox :: (name: string, layout: LayoutMode) -> Box*! {
+    box: Box*! = new Box();
+    box->className = name;
+    box->layout = layout;
+    return box!;
+}
+
+PrintTree :: (widget: WidgetBase*, depth: i32) -> void {
+    print(depth);
+    print(widget->className);
+    rect: Rect = widget->GetArrangedRect();
+    print(rect.x);
+    print(rect.y);
+    print(rect.width);
+    print(rect.height);
+    index~ usize = 0;
+    while index < widget->GetChildCount() {
+        if child := widget->GetChildAt(index) {
+            PrintTree(child, depth + 1);
+        }
+        index = index + 1;
+    }
+}
+
+BuildWindow :: (font: IFontBackend*) -> Box*! {
+    window: Box*! = MakeBox("window", LayoutMode:::VerticalStack);
+    window->style.padding = Insets:::All(8.0f);
+    window->style.colorBackground = Color { red: 20, green: 20, blue: 24, alpha: 255 };
+    window->childGap = 4.0f;
+    window->crossAlignment = CrossAlign:::Stretch;
+
+    header: Box*! = MakeBox("header", LayoutMode:::HorizontalStack);
+    header->style.padding = Insets:::Symmetric(12.0f, 6.0f);
+    header->style.colorBorder = Color { red: 80, green: 80, blue: 90, alpha: 255 };
+    header->style.borderWidth = 1.0f;
+    header->childGap = 8.0f;
+    header->crossAlignment = CrossAlign:::Center;
+    header->AddChild(MakeLabel(font, "Cairn", 20.0f));
+    spacer: Box*! = MakeBox("spacer", LayoutMode:::None);
+    spacer->style.flexGrow = 1.0f;
+    header->AddChild(spacer!);
+    header->AddChild(MakeLabel(font, "v0.1", 12.0f));
+    window->AddChild(header!);
+
+    body: Box*! = MakeBox("body", LayoutMode:::HorizontalStack);
+    body->style.flexGrow = 1.0f;
+    body->childGap = 4.0f;
+    body->crossAlignment = CrossAlign:::Stretch;
+    sidebar: Box*! = MakeBox("sidebar", LayoutMode:::VerticalStack);
+    sidebar->style.width = Lengths:::Percent(25.0f);
+    sidebar->style.colorBackground = Color { red: 30, green: 30, blue: 36, alpha: 255 };
+    sidebar->AddChild(MakeLabel(font, "Epics", 14.0f));
+    sidebar->AddChild(MakeLabel(font, "Features", 14.0f));
+    body->AddChild(sidebar!);
+    content: Box*! = MakeBox("content", LayoutMode:::FixedLeadingStack);
+    content->style.flexGrow = 1.0f;
+    content->leadingExtentLogical = 40.0f;
+    content->childGap = 4.0f;
+    content->crossAlignment = CrossAlign:::Stretch;
+    content->AddChild(MakeLabel(font, "Board", 18.0f));
+    content->AddChild(MakeBox("lanes", LayoutMode:::None));
+    body->AddChild(content!);
+    window->AddChild(body!);
+
+    footer: Box*! = MakeBox("footer", LayoutMode:::HorizontalStack);
+    footer->justifyContentMode = Justify:::SpaceBetween;
+    footer->style.height = Lengths:::Logical(24.0f);
+    footer->AddChild(MakeLabel(font, "3 open", 12.0f));
+    footer->AddChild(MakeLabel(font, "saved", 12.0f));
+    window->AddChild(footer!);
+    return window!;
+}
+
+main :: () -> i32 {
+    font: FixedAdvanceFont*! = new FixedAdvanceFont();
+    defer delete font;
+    window: Box*! = BuildWindow(font);
+    defer delete window;
+
+    viewport: Point = Point { x: 640.0f, y: 360.0f };
+    desired: Point = window->Measure(viewport);
+    print(desired.x);
+    print(desired.y);
+    window->Arrange(Rect { x: 0.0f, y: 0.0f, width: viewport.x, height: viewport.y });
+    PrintTree(window, 0);
+
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    window->Draw(renderer);
+    print(renderer->commandCount);
+    return 0;
+}

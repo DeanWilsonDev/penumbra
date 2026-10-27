@@ -1,0 +1,62 @@
+Color :: import Color;
+Length :: import Length;
+
+EdgeInsets :: struct {
+    left~ f32 = 0.0f;
+    top~ f32 = 0.0f;
+    right~ f32 = 0.0f;
+    bottom~ f32 = 0.0f;
+
+    Horizontal :: () -> f32 {
+        return left + right;
+    }
+
+    Vertical :: () -> f32 {
+        return top + bottom;
+    }
+}
+
+Insets :: namespace {
+    All :: (value: f32) -> EdgeInsets {
+        return EdgeInsets { left: value, top: value, right: value, bottom: value };
+    }
+
+    Symmetric :: (horizontal: f32, vertical: f32) -> EdgeInsets {
+        return EdgeInsets { left: horizontal, top: vertical, right: horizontal, bottom: vertical };
+    }
+}
+
+LayoutMode :: enum {
+    None,
+    VerticalStack,
+    HorizontalStack,
+    FixedLeadingStack
+}
+
+CrossAlign :: enum {
+    Start,
+    Center,
+    End,
+    Stretch
+}
+
+Justify :: enum {
+    Start,
+    Center,
+    End,
+    SpaceBetween
+}
+
+BoxStyle :: struct {
+    colorBackground~ Color = Color { };
+    colorBorder~ Color = Color { };
+    borderWidth~ f32 = 0.0f;
+    padding~ EdgeInsets = EdgeInsets { };
+    margin~ EdgeInsets = EdgeInsets { };
+    width~ Length = Length { };
+    height~ Length = Length { };
+    minWidth~ Length = Length { };
+    maxWidth~ Length = Length { };
+    flexGrow~ f32 = 0.0f;
+    opacity~ f32 = 1.0f;
+}

@@ -1,0 +1,50 @@
+Point :: struct {
+    x~ f32 = 0.0f;
+    y~ f32 = 0.0f;
+}
+
+Rect :: struct {
+    x~ f32 = 0.0f;
+    y~ f32 = 0.0f;
+    width~ f32 = 0.0f;
+    height~ f32 = 0.0f;
+
+    Contains :: (point: Point) -> bool {
+        return point.x >= x && point.y >= y && point.x < x + width && point.y < y + height;
+    }
+}
+
+Transform :: struct {
+    scaleX~ f32 = 1.0f;
+    scaleY~ f32 = 1.0f;
+    translateXLogical~ f32 = 0.0f;
+    translateYLogical~ f32 = 0.0f;
+    rotationDegrees~ f32 = 0.0f;
+
+    IsIdentity :: () -> bool {
+        return scaleX == 1.0f && scaleY == 1.0f && translateXLogical == 0.0f && translateYLogical == 0.0f && rotationDegrees == 0.0f;
+    }
+}
+
+Numbers :: namespace {
+    NonNegative :: (value: f32) -> f32 {
+        if value > 0.0f {
+            return value;
+        }
+        return 0.0f;
+    }
+
+    Larger :: (first: f32, second: f32) -> f32 {
+        if first > second {
+            return first;
+        }
+        return second;
+    }
+
+    Smaller :: (first: f32, second: f32) -> f32 {
+        if first < second {
+            return first;
+        }
+        return second;
+    }
+}

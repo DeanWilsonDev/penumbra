@@ -1,0 +1,27 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+IRenderer :: import IRenderer;
+IFontBackend :: import IFontBackend;
+Box :: import Box;
+
+Label :: class : Box {
+public:
+    text~ string = "";
+    fontSizeLogical~ f32 = 16.0f;
+    colorText~ Color = Color { };
+
+    Label~: (font: IFontBackend*, text: string) : font(font), text(text) { }
+
+protected:
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        return this->font->MeasureText(this->text, this->fontSizeLogical);
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        renderer->DrawText(this->text, Point { x: contentRect.x, y: contentRect.y }, this->fontSizeLogical, this->colorText);
+    }
+
+private:
+    font: IFontBackend*;
+}

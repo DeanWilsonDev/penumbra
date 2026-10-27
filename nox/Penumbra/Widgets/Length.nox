@@ -1,0 +1,30 @@
+LengthUnit :: enum {
+    Logical,
+    Percent
+}
+
+Length :: struct {
+    value~ f32 = -1.0f;
+    unit~ LengthUnit = LengthUnit:::Logical;
+
+    IsSet :: () -> bool {
+        return value >= 0.0f;
+    }
+
+    Resolve :: (percentBasisLogical: f32) -> f32 {
+        return when unit {
+            LengthUnit:::Logical -> value,
+            LengthUnit:::Percent -> percentBasisLogical * value / 100.0f
+        };
+    }
+}
+
+Lengths :: namespace {
+    Logical :: (value: f32) -> Length {
+        return Length { value: value, unit: LengthUnit:::Logical };
+    }
+
+    Percent :: (value: f32) -> Length {
+        return Length { value: value, unit: LengthUnit:::Percent };
+    }
+}
