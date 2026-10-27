@@ -1,0 +1,113 @@
+IFontBackend :: import IFontBackend;
+Utf8 :: import Utf8;
+
+TextLine :: struct {
+    contentStart~ usize = 0;
+    contentEnd~ usize = 0;
+}
+
+ITextRangeMeasure :: interface {
+    MeasureRange : (start: usize, end: usize) -> f32 : 0;
+}
+
+FontRangeMeasure :: class {
+    implements:
+        ITextRangeMeasure;
+public:
+    FontRangeMeasure~: (font: IFontBackend*, sizeLogical: f32, text: string) : font(font), sizeLogical(sizeLogical), text(text) { }
+
+    MeasureRange :: (start: usize, end: usize) -> f32 {
+        return this->font->MeasureText(this->text.substring(start, end - start), this->sizeLogical).x;
+    }
+
+private:
+    font: IFontBackend*;
+    sizeLogical: f32;
+    text: string;
+}
+
+TextWrap :: namespace {
+    IndexOf :: (text: string, byte: u8, from: usize) -> usize {
+        index~ usize = from;
+        while index < text.length() {
+            if text.byteAt(index) == byte {
+                return index;
+            }
+            index = index + 1;
+        }
+        return text.length();
+    }
+
+    WithFont :: (font: IFontBackend*?, sizeLogical: f32, text: string, wrapWidthLogical: f32) -> Array<TextLine>! {
+        if backend := font {
+            measure: FontRangeMeasure*! = new FontRangeMeasure(backend, sizeLogical, text);
+            defer delete measure;
+            return Wrap(text, wrapWidthLogical, measure);
+        }
+        return Wrap(text, wrapWidthLogical, null);
+    }
+
+    Wrap :: (text: string, wrapWidthLogical: f32, measure: ITextRangeMeasure*?) -> Array<TextLine>! {
+        lines~ Array<TextLine>! = [];
+        count: usize = text.length();
+        newline: u8 = 10;
+        space: u8 = 32;
+        if measurer := measure {
+            if wrapWidthLogical > 0.0f {
+                lineStart~ usize = 0;
+                while true {
+                    segmentEnd: usize = IndexOf(text, newline, lineStart);
+                    while true {
+                        fits~ usize = lineStart;
+                        over~ usize? = null;
+                        probe~ usize = lineStart + 1;
+                        while probe < segmentEnd {
+                            nextSpace: usize = IndexOf(text, space, probe);
+                            candidate~ usize = segmentEnd - 1;
+                            if nextSpace < segmentEnd {
+                                candidate = nextSpace;
+                            }
+                            if measurer->MeasureRange(lineStart, candidate + 1) > wrapWidthLogical {
+                                over = candidate;
+                                break;
+                            }
+                            fits = candidate;
+                            probe = candidate + 1;
+                        }
+                        guard over break;
+                        if fits > lineStart || text.byteAt(lineStart) == space {
+                            lines.push(TextLine { contentStart: lineStart, contentEnd: fits });
+                            lineStart = fits + 1;
+                        }
+                        else {
+                            cursor~ usize = Utf8:::NextCodePoint(text, lineStart);
+                            next~ usize = Utf8:::NextCodePoint(text, cursor);
+                            while cursor < over && measurer->MeasureRange(lineStart, next) <= wrapWidthLogical {
+                                cursor = next;
+                                next = Utf8:::NextCodePoint(text, cursor);
+                            }
+                            lines.push(TextLine { contentStart: lineStart, contentEnd: cursor });
+                            lineStart = cursor;
+                        }
+                    }
+                    lines.push(TextLine { contentStart: lineStart, contentEnd: segmentEnd });
+                    if segmentEnd == count {
+                        break;
+                    }
+                    lineStart = segmentEnd + 1;
+                }
+                return lines!;
+            }
+        }
+        lineStart~ usize = 0;
+        index~ usize = 0;
+        while index <= count {
+            if index == count || text.byteAt(index) == newline {
+                lines.push(TextLine { contentStart: lineStart, contentEnd: index });
+                lineStart = index + 1;
+            }
+            index = index + 1;
+        }
+        return lines!;
+    }
+}
