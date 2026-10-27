@@ -30,6 +30,9 @@ library_sources=(
     Penumbra/Widgets/ScrollablePanel.nox
     Penumbra/Widgets/TextInput.nox
     Penumbra/Widgets/SplitPanel.nox
+    Penumbra/Widgets/NumericDrag.nox
+    Penumbra/Widgets/Chevron.nox
+    Penumbra/Widgets/OverlayHost.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox

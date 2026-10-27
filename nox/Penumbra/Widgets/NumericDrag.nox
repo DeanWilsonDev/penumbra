@@ -1,0 +1,79 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Color :: import Color;
+IRenderer :: import IRenderer;
+IFontBackend :: import IFontBackend;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+StackingTracker :: import StackingTracker;
+Box :: import Box;
+
+NumericDrag :: class : Box {
+public:
+    fontSizeLogical~ f32 = 16.0f;
+    colorText~ Color = Color { };
+    value~ f32 = 0.0f;
+    sensitivity~ f32 = 0.0f;
+    preferredWidthLogical~ f32 = 0.0f;
+    onValueChanged~ ((value: f32) -> void)!? = null;
+
+    NumericDrag~: (font: IFontBackend*) : font(font) { }
+
+    !NumericDrag~: () {
+        delete this->onValueChanged;
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if !this->isEnabled {
+            this->dragging = false;
+            return false;
+        }
+        left: usize = MouseButton:::Left();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        down: bool = input.mouseButtonDown[left];
+        released: bool = input.mouseButtonReleasedThisFrame[left];
+        if pressed && hovered {
+            this->dragging = true;
+            this->lastMouseX = input.mousePosition.x;
+        }
+        if this->dragging && down {
+            deltaX: f32 = input.mousePosition.x - this->lastMouseX;
+            if deltaX != 0.0f {
+                this->value = this->value + deltaX * this->sensitivity;
+                this->lastMouseX = input.mousePosition.x;
+                if handler := this->onValueChanged {
+                    handler(this->value);
+                }
+            }
+        }
+        if released {
+            this->dragging = false;
+        }
+        return hovered || this->dragging;
+    }
+
+protected:
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        formatted: string! = this->FormatValue();
+        defer delete formatted;
+        measured: Point = this->font->MeasureText(formatted, this->fontSizeLogical);
+        return Point { x: Numbers:::Larger(this->preferredWidthLogical, measured.x), y: measured.y };
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        formatted: string! = this->FormatValue();
+        defer delete formatted;
+        renderer->DrawText(formatted, Point { x: contentRect.x, y: contentRect.y }, this->fontSizeLogical, this->colorText);
+    }
+
+private:
+    font: IFontBackend*;
+    dragging~ bool = false;
+    lastMouseX~ f32 = 0.0f;
+
+    FormatValue :: () -> string! {
+        return `${this->value:.2f}`;
+    }
+}

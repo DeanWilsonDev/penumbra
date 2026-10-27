@@ -1,0 +1,38 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+IRenderer :: import IRenderer;
+Box :: import Box;
+
+ChevronDirection :: enum {
+    Right,
+    Down
+}
+
+Chevron :: class : Box {
+public:
+    direction~ ChevronDirection = ChevronDirection:::Right;
+    color~ Color = Color { };
+    radiusLogical~ f32 = 0.0f;
+    thicknessLogical~ f32 = 0.0f;
+    contentSizeLogical~ Point = Point { };
+
+protected:
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        return this->contentSizeLogical;
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        center: Point = Point { x: contentRect.x + contentRect.width * 0.5f, y: contentRect.y + contentRect.height * 0.5f };
+        radius: f32 = this->radiusLogical;
+        if this->direction == ChevronDirection:::Down {
+            tip: Point = Point { x: center.x, y: center.y + radius * 0.5f };
+            renderer->DrawLine(Point { x: center.x - radius, y: center.y - radius * 0.3f }, tip, this->color, this->thicknessLogical);
+            renderer->DrawLine(tip, Point { x: center.x + radius, y: center.y - radius * 0.3f }, this->color, this->thicknessLogical);
+            return;
+        }
+        tip: Point = Point { x: center.x + radius * 0.5f, y: center.y };
+        renderer->DrawLine(Point { x: center.x - radius * 0.3f, y: center.y - radius }, tip, this->color, this->thicknessLogical);
+        renderer->DrawLine(tip, Point { x: center.x - radius * 0.3f, y: center.y + radius }, this->color, this->thicknessLogical);
+    }
+}

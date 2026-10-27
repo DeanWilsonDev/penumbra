@@ -977,3 +977,97 @@ fill
 60
 60
 255
+numeric drag
+40
+16
+press
+true
+drag right 50
+value changed
+2
+true
+drag left 125
+value changed
+0.75
+true
+release outside
+false
+text
+0.75
+0
+0
+16
+chevrons
+line
+4.8
+2
+8
+6
+1.5
+line
+8
+6
+4.8
+10
+1.5
+line
+22
+4.8
+26
+8
+1.5
+line
+26
+8
+30
+4.8
+1.5
+overlays
+false
+press the page
+page pressed
+true
+1
+release
+true
+1
+1
+2
+0
+
+0
+0
+200
+100
+1
+page
+0
+0
+200
+100
+1
+popup
+10
+10
+50
+30
+1
+sheet
+0
+0
+200
+100
+escape dismisses the top overlay
+true
+2
+press inside the popup
+popup pressed
+true
+2
+release
+true
+2
+press outside the popup
+true
+1
+false

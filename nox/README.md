@@ -30,6 +30,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   clipboard. Last it routes keys: a focused `TextInput` keeps the keys it uses, the root's
   `onKeyPressed` gets the rest, and a full-window modal takes every key while it's shown. Last it
   drags a `SplitPanel`'s handle past its minimum pane size, with a vertical split nested inside.
+  Then it drags a `NumericDrag`, draws both `Chevron`s, and opens and dismisses overlays on an
+  `OverlayHost` by Escape and by a press outside.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -57,6 +59,9 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/TextInput.h/.cpp` | `Penumbra/Widgets/TextInput.nox`: focus on click, typed text, caret and shift selection by code point, drag selection, backspace and delete, select all, copy, cut and paste, `onTextChanged` and `onFocusLost`. The text is an owned `string!` rebuilt from two substrings and the insertion on each edit |
 | `Widgets/KeyDispatch.h/.cpp` | `Penumbra/Widgets/KeyDispatch.nox`: the outermost `Box` or `ScrollablePanel` opens a pass, a focused `TextInput` marks the keys it used, the first child with `onKeyPressed` that saw keys (or the root) gets the rest, and a child covering the window withholds keys and text from everything after it. The `StackingTracker` owns the `KeyDispatch` the C++ keeps in a global, with the viewport it needs |
 | `Widgets/SplitPanel.h/.cpp` | `Penumbra/Widgets/SplitPanel.nox`: horizontal and vertical splits, the ratio clamped by the minimum pane size, handle drag and hover colours, and the panes as optional owners (`WidgetBase*!?`). `SplitPanelStyle` isn't a struct of its own, since Nox structs don't inherit: its handle colours are fields on the panel |
+| `Widgets/NumericDrag.h/.cpp` | `Penumbra/Widgets/NumericDrag.nox`, formatting its value with a template string (`${value:.2f}`) |
+| `Widgets/Chevron.h/.cpp` | `Penumbra/Widgets/Chevron.nox`; `IRenderer` gains `DrawLine` |
+| `Widgets/OverlayHost.h/.cpp` | `Penumbra/Widgets/OverlayHost.nox`: a root and a stack of overlays, Escape and outside-press dismissal, and dismissals deferred while the top overlay handles input. The overlays are parallel arrays (ids, owned contents, optional placements, dismiss flags), since a struct element can't own a widget |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
@@ -72,7 +77,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `BoxStyle.transform` so far.
 - Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
 - `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
-- Every widget beyond `Box`, `Label`, `Button`, `Checkbox`, `ScrollablePanel`, `TextInput` and `SplitPanel`.
+- `Dropdown`, `TextArea`, `InlineContainer`, the charts, `CanvasWidget`, `IconWidget`, `ImageWidget`
+  and `ViewportWidget`.
 
 ## Language friction found so far
 

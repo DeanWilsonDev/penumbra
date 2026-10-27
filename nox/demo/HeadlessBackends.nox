@@ -42,6 +42,16 @@ public:
         print(thicknessLogical);
     }
 
+    DrawLine~: (from: Point, to: Point, color: Color, thicknessLogical: f32) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("line");
+        print(from.x);
+        print(from.y);
+        print(to.x);
+        print(to.y);
+        print(thicknessLogical);
+    }
+
     DrawText~: (text: string, origin: Point, sizeLogical: f32, color: Color) -> void {
         this->commandCount = this->commandCount + 1;
         print("text");

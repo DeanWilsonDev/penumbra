@@ -1,0 +1,206 @@
+Point :: import Point;
+Rect :: import Rect;
+IRenderer :: import IRenderer;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+Key :: import Key;
+WidgetBase :: import WidgetBase;
+LayoutContext :: import LayoutContext;
+StackingTracker :: import StackingTracker;
+
+OverlayHost :: class : WidgetBase {
+public:
+    !OverlayHost~: () {
+        delete this->root;
+        this->contents.freeAll();
+        delete this->ids;
+        delete this->placements;
+        delete this->dismissesOutside;
+        delete this->pendingDismissals;
+    }
+
+    SetRoot~: (content: WidgetBase*!) -> void {
+        delete this->root;
+        this->root = content!;
+    }
+
+    ShowOverlay~: (content: WidgetBase*!, placementRectLogical: Rect?, dismissOnOutsideClick: bool) -> u64 {
+        id: u64 = this->nextId;
+        this->nextId = this->nextId + 1;
+        this->ids.push(id);
+        this->contents.push(content!);
+        this->placements.push(placementRectLogical);
+        this->dismissesOutside.push(dismissOnOutsideClick);
+        return id;
+    }
+
+    SetOverlayPlacement~: (id: u64, placementRectLogical: Rect?) -> void {
+        index~ usize = 0;
+        while index < this->ids.length() {
+            if this->ids[index] == id {
+                this->placements[index] = placementRectLogical;
+                return;
+            }
+            index = index + 1;
+        }
+    }
+
+    DismissOverlay~: (id: u64) -> void {
+        if this->dispatchingOverlayInput {
+            this->pendingDismissals.push(id);
+            return;
+        }
+        index~ usize = 0;
+        while index < this->ids.length() {
+            if this->ids[index] == id {
+                this->RemoveOverlayAt(index);
+                continue;
+            }
+            index = index + 1;
+        }
+    }
+
+    DismissAll~: () -> void {
+        while this->ids.length() > 0 {
+            this->RemoveOverlayAt(this->ids.length() - 1);
+        }
+    }
+
+    HasOverlays :: () -> bool {
+        return this->ids.length() > 0;
+    }
+
+    GetChildCount :: () -> usize override {
+        count~ usize = this->contents.length();
+        if this->root != null {
+            count = count + 1;
+        }
+        return count;
+    }
+
+    GetChildAt :: (index: usize) -> WidgetBase*? override {
+        remaining~ usize = index;
+        if content := this->root {
+            if remaining == 0 {
+                return content;
+            }
+            remaining = remaining - 1;
+        }
+        if remaining < this->contents.length() {
+            return this->contents[remaining];
+        }
+        return null;
+    }
+
+    GetMutableChildAt~: (index: usize) -> WidgetBase~*? override {
+        remaining~ usize = index;
+        if content ~= this->root {
+            if remaining == 0 {
+                return content;
+            }
+            remaining = remaining - 1;
+        }
+        if remaining < this->contents.length() {
+            return this->contents[remaining];
+        }
+        return null;
+    }
+
+    Measure~: (availableSizeLogical: Point) -> Point override {
+        if content ~= this->root {
+            return content->Measure(availableSizeLogical);
+        }
+        return availableSizeLogical;
+    }
+
+    Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
+        this->arrangedRect = finalRectLogical;
+        if content ~= this->root {
+            content->Arrange(finalRectLogical, layout);
+        }
+        index~ usize = 0;
+        while index < this->contents.length() {
+            placement: Rect = this->PlacementAt(index);
+            overlay: WidgetBase~* = this->contents[index];
+            overlay->Measure(Point { x: placement.width, y: placement.height });
+            overlay->Arrange(placement, layout);
+            index = index + 1;
+        }
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if this->ids.length() == 0 {
+            if content ~= this->root {
+                return content->UpdateInteractionState(input, stacking);
+            }
+            return false;
+        }
+        topIndex: usize = this->ids.length() - 1;
+        topId: u64 = this->ids[topIndex];
+        topPlacement: Rect = this->PlacementAt(topIndex);
+        topDismissesOutside: bool = this->dismissesOutside[topIndex];
+        escapePressed~ bool = false;
+        for key in input.keysPressedThisFrame {
+            if key == Key:::Escape {
+                escapePressed = true;
+            }
+        }
+        if escapePressed {
+            this->DismissOverlay(topId);
+        }
+        else {
+            this->dispatchingOverlayInput = true;
+            top: WidgetBase~* = this->contents[topIndex];
+            contentConsumed: bool = top->UpdateInteractionState(input, stacking);
+            this->dispatchingOverlayInput = false;
+            while this->pendingDismissals.length() > 0 {
+                pending: u64 = this->pendingDismissals.remove(0);
+                this->DismissOverlay(pending);
+            }
+            pressedOutside: bool = input.mouseButtonPressedThisFrame[MouseButton:::Left()] && !input.pointerOccluded
+                && !topPlacement.Contains(input.mousePosition);
+            if !contentConsumed && this->ids.length() > 0 && topDismissesOutside && pressedOutside {
+                this->DismissOverlay(topId);
+            }
+        }
+        if content ~= this->root {
+            beneath~ InputState = input;
+            beneath.pointerOccluded = true;
+            beneath.textInputThisFrame = "";
+            beneath.keysPressedThisFrame = [];
+            content->UpdateInteractionState(beneath, stacking);
+        }
+        return true;
+    }
+
+    Draw~: (renderer: IRenderer~*, stacking: StackingTracker~*) -> void override {
+        if content ~= this->root {
+            content->Draw(renderer, stacking);
+        }
+        for overlay in this->contents {
+            overlay->Draw(renderer, stacking);
+        }
+    }
+
+private:
+    root~ WidgetBase*!? = null;
+    ids~ Array<u64>! = [];
+    contents~ Array<WidgetBase*!>! = [];
+    placements~ Array<Rect?>! = [];
+    dismissesOutside~ Array<bool>! = [];
+    pendingDismissals~ Array<u64>! = [];
+    nextId~ u64 = 1;
+    dispatchingOverlayInput~ bool = false;
+
+    PlacementAt :: (index: usize) -> Rect {
+        return this->placements[index] ?? this->arrangedRect;
+    }
+
+    RemoveOverlayAt~: (index: usize) -> void {
+        this->ids.remove(index);
+        removed: WidgetBase*! = this->contents.remove(index);
+        delete removed;
+        this->placements.remove(index);
+        this->dismissesOutside.remove(index);
+    }
+}
