@@ -13,9 +13,11 @@ Label :: import Label;
 FixedAdvanceFont :: import FixedAdvanceFont;
 RecordingRenderer :: import RecordingRenderer;
 LayoutContext :: import LayoutContext;
+StackingTracker :: import StackingTracker;
 InputState :: import InputState;
 InteractionState :: import InteractionState;
 Position :: import Position;
+PointerEvents :: import PointerEvents;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -146,14 +148,14 @@ BuildToolbar :: () -> Box*! {
     return toolbar!;
 }
 
-RunFrame :: (toolbar: Box~*, frameName: string, x: f32, y: f32, down: bool, pressed: bool, released: bool) -> void {
+RunFrame :: (toolbar: Box~*, stacking: StackingTracker~*, frameName: string, x: f32, y: f32, down: bool, pressed: bool, released: bool) -> void {
     print(frameName);
     input~ InputState = InputState { };
     input.mousePosition = Point { x: x, y: y };
     input.mouseButtonDown[0] = down;
     input.mouseButtonPressedThisFrame[0] = pressed;
     input.mouseButtonReleasedThisFrame[0] = released;
-    consumed: bool = toolbar->UpdateInteractionState(input);
+    consumed: bool = toolbar->UpdateInteractionState(input, stacking);
     print(consumed);
     print(StateName(toolbar->GetInteractionState()));
     index~ usize = 0;
@@ -172,21 +174,23 @@ SimulateInput :: () -> void {
     layout: LayoutContext*! = new LayoutContext();
     defer delete layout;
     toolbar->Arrange(Rect { x: 0.0f, y: 0.0f, width: 400.0f, height: 32.0f }, layout);
-    RunFrame(toolbar, "frame outside", 300.0f, 200.0f, false, false, false);
-    RunFrame(toolbar, "frame over toolbar", 300.0f, 10.0f, false, false, false);
-    RunFrame(toolbar, "frame over button", 20.0f, 10.0f, false, false, false);
-    RunFrame(toolbar, "frame press", 20.0f, 10.0f, true, true, false);
-    RunFrame(toolbar, "frame hold", 21.0f, 11.0f, true, false, false);
-    RunFrame(toolbar, "frame release", 21.0f, 11.0f, false, false, true);
-    RunFrame(toolbar, "frame press disabled", 100.0f, 10.0f, true, true, false);
-    RunFrame(toolbar, "frame release disabled", 100.0f, 10.0f, false, false, true);
-    RunFrame(toolbar, "frame second press", 20.0f, 10.0f, true, true, false);
-    RunFrame(toolbar, "frame drag off", 300.0f, 10.0f, true, false, false);
-    RunFrame(toolbar, "frame release outside", 300.0f, 10.0f, false, false, true);
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    RunFrame(toolbar, stacking, "frame outside", 300.0f, 200.0f, false, false, false);
+    RunFrame(toolbar, stacking, "frame over toolbar", 300.0f, 10.0f, false, false, false);
+    RunFrame(toolbar, stacking, "frame over button", 20.0f, 10.0f, false, false, false);
+    RunFrame(toolbar, stacking, "frame press", 20.0f, 10.0f, true, true, false);
+    RunFrame(toolbar, stacking, "frame hold", 21.0f, 11.0f, true, false, false);
+    RunFrame(toolbar, stacking, "frame release", 21.0f, 11.0f, false, false, true);
+    RunFrame(toolbar, stacking, "frame press disabled", 100.0f, 10.0f, true, true, false);
+    RunFrame(toolbar, stacking, "frame release disabled", 100.0f, 10.0f, false, false, true);
+    RunFrame(toolbar, stacking, "frame second press", 20.0f, 10.0f, true, true, false);
+    RunFrame(toolbar, stacking, "frame drag off", 300.0f, 10.0f, true, false, false);
+    RunFrame(toolbar, stacking, "frame release outside", 300.0f, 10.0f, false, false, true);
 
     renderer: RecordingRenderer*! = new RecordingRenderer();
     defer delete renderer;
-    toolbar->Draw(renderer);
+    toolbar->Draw(renderer, stacking);
 }
 
 MakeSizedBox :: (name: string, width: f32, height: f32) -> Box*! {
@@ -256,6 +260,99 @@ ShowPositioning :: () -> void {
     PrintTree(panel, 0);
 }
 
+ClippingBox :: class : Box {
+public:
+    GetChildClipRect :: () -> Rect? override {
+        return this->ContentRectFrom(this->arrangedRect);
+    }
+}
+
+MakeLayer :: (name: string, red: u8, width: f32, height: f32) -> Box*! {
+    layer: Box*! = MakeSizedBox(name, width, height);
+    layer->style.colorBackground = Color { red: red, green: 0, blue: 0, alpha: 255 };
+    layer->style.colorBackgroundHovered = Color { red: red, green: 255, blue: 0, alpha: 255 };
+    return layer!;
+}
+
+BuildStage :: () -> ClippingBox*! {
+    stage: ClippingBox*! = new ClippingBox();
+    stage->className = "stage";
+    stage->layout = LayoutMode:::VerticalStack;
+    stage->style.positionMode = Position:::Relative;
+    stage->style.padding = Insets:::All(5.0f);
+    stage->style.colorBackground = Color { red: 1, green: 0, blue: 0, alpha: 255 };
+
+    low: Box*! = MakeLayer("low", 2, 50.0f, 50.0f);
+    low->style.positionMode = Position:::Absolute;
+    low->style.zIndex = -1;
+    low->style.left = Lengths:::Logical(0.0f);
+    low->style.top = Lengths:::Logical(0.0f);
+    stage->AddChild(low!);
+
+    stage->AddChild(MakeLayer("card", 3, 100.0f, 60.0f));
+
+    overlay: Box*! = MakeLayer("overlay", 4, 40.0f, 40.0f);
+    overlay->style.positionMode = Position:::Absolute;
+    overlay->style.zIndex = 2;
+    overlay->style.left = Lengths:::Logical(20.0f);
+    overlay->style.top = Lengths:::Logical(20.0f);
+    stage->AddChild(overlay!);
+
+    popup: Box*! = MakeLayer("popup", 5, 30.0f, 30.0f);
+    popup->style.positionMode = Position:::Fixed;
+    popup->style.zIndex = 1;
+    popup->style.right = Lengths:::Logical(0.0f);
+    popup->style.bottom = Lengths:::Logical(0.0f);
+    stage->AddChild(popup!);
+
+    badge: Box*! = MakeLayer("badge", 6, 20.0f, 10.0f);
+    badge->style.positionMode = Position:::Relative;
+    badge->style.left = Lengths:::Logical(90.0f);
+    badge->style.pointerEventsMode = PointerEvents:::None;
+    stage->AddChild(badge!);
+    return stage!;
+}
+
+PointAt :: (stage: Box~*, stacking: StackingTracker~*, x: f32, y: f32) -> void {
+    print("pointer");
+    print(x);
+    print(y);
+    input~ InputState = InputState { };
+    input.mousePosition = Point { x: x, y: y };
+    print(stage->UpdateInteractionState(input, stacking));
+    index~ usize = 0;
+    while index < stage->GetChildCount() {
+        if child := stage->GetChildAt(index) {
+            print(child->className);
+            print(StateName(child->GetInteractionState()));
+        }
+        index = index + 1;
+    }
+}
+
+ShowStacking :: () -> void {
+    print("stacking");
+    stage: ClippingBox*! = BuildStage();
+    defer delete stage;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    layout->viewportLogical = Point { x: 200.0f, y: 120.0f };
+    stage->Measure(Point { x: 150.0f, y: 100.0f });
+    stage->Arrange(Rect { x: 10.0f, y: 10.0f, width: 150.0f, height: 100.0f }, layout);
+    PrintTree(stage, 0);
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    renderer->printsDetail = false;
+    stage->Draw(renderer, stacking);
+    PointAt(stage, stacking, 40.0f, 40.0f);
+    PointAt(stage, stacking, 110.0f, 70.0f);
+    PointAt(stage, stacking, 110.0f, 80.0f);
+    PointAt(stage, stacking, 12.0f, 12.0f);
+    PointAt(stage, stacking, 190.0f, 110.0f);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -274,10 +371,13 @@ main :: () -> i32 {
 
     renderer: RecordingRenderer*! = new RecordingRenderer();
     defer delete renderer;
-    window->Draw(renderer);
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    window->Draw(renderer, stacking);
     print(renderer->commandCount);
 
     SimulateInput();
     ShowPositioning();
+    ShowStacking();
     return 0;
 }

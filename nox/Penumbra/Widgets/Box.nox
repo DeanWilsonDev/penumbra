@@ -17,6 +17,10 @@ MouseButton :: import MouseButton;
 Placement :: import Placement;
 LayoutContext :: import LayoutContext;
 Positioning :: import Positioning;
+StackingTracker :: import StackingTracker;
+StackingContext :: import StackingContext;
+StackingPass :: import StackingPass;
+Stacking :: import Stacking;
 
 CrossPlacement :: struct {
     position~ f32 = 0.0f;
@@ -72,6 +76,10 @@ public:
         return this->children[index];
     }
 
+    GetMutableChildAt~: (index: usize) -> WidgetBase~*? override {
+        return this->children[index];
+    }
+
     Measure~: (availableSizeLogical: Point) -> Point override {
         frame: Point = this->FrameSize();
         effectiveAvailable: Point = this->ConstrainAvailable(availableSizeLogical);
@@ -113,22 +121,36 @@ public:
         layout->LeaveBlocks(pushedBlocks);
     }
 
-    UpdateInteractionState~: (input: InputState) -> bool override {
-        childConsumed~ bool = false;
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if stacking->IsLayeredOut(this) {
+            return false;
+        }
+        effective~ InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, input);
+        context: StackingContext*! = new StackingContext(this, StackingPass:::Input, stacking);
+        defer delete context;
+        childConsumed~ bool = context->DispatchAbove(effective);
         index~ usize = this->children.length();
         while index > 0 {
             index = index - 1;
             child: WidgetBase~* = this->children[index];
-            if !child->GetIsVisible() {
+            if !child->GetIsVisible() || stacking->IsLayeredOut(child) {
                 continue;
             }
-            childInput~ InputState = input;
+            childInput~ InputState = effective;
             if childConsumed {
-                childInput = input.Occluded();
+                childInput = effective.Occluded();
             }
-            if child->UpdateInteractionState(childInput) {
+            given: InputState = Stacking:::ForPointerEvents(child->GetPlacement().pointerEventsMode, childInput);
+            if child->UpdateInteractionState(given, stacking) {
                 childConsumed = true;
             }
+        }
+        if context->DispatchBelow(effective, childConsumed) {
+            childConsumed = true;
+        }
+        if effective.pointerOccluded && stacking->IsOnPointerPath(this) {
+            effective.pointerOccluded = false;
+            childConsumed = true;
         }
 
         if !this->isEnabled {
@@ -151,10 +173,10 @@ public:
         }
 
         left: usize = MouseButton:::Left();
-        hovered: bool = input.IsPointerOver(this->arrangedRect);
-        pressed: bool = input.mouseButtonPressedThisFrame[left];
-        down: bool = input.mouseButtonDown[left];
-        released: bool = input.mouseButtonReleasedThisFrame[left];
+        hovered: bool = effective.IsPointerOver(this->arrangedRect);
+        pressed: bool = effective.mouseButtonPressedThisFrame[left];
+        down: bool = effective.mouseButtonDown[left];
+        released: bool = effective.mouseButtonReleasedThisFrame[left];
 
         if hovered {
             if handler := this->onHovered {
@@ -212,10 +234,15 @@ public:
         };
     }
 
-    Draw~: (renderer: IRenderer~*) -> void override {
+    Draw~: (renderer: IRenderer~*, stacking: StackingTracker~*) -> void override {
+        if stacking->IsLayeredOut(this) {
+            return;
+        }
         if !this->isVisible {
             return;
         }
+        context: StackingContext*! = new StackingContext(this, StackingPass:::Paint, stacking);
+        defer delete context;
         background: Color = this->BackgroundForState();
         if background.IsVisible() {
             renderer->FillRect(this->arrangedRect, background);
@@ -225,11 +252,13 @@ public:
             renderer->StrokeRect(this->arrangedRect, border, this->style.borderWidth);
         }
         this->DrawContent(renderer, this->ContentRectFrom(this->arrangedRect));
+        context->PaintBelow(renderer);
         for child in this->children {
-            if child->GetIsVisible() {
-                child->Draw(renderer);
+            if child->GetIsVisible() && !stacking->IsLayeredOut(child) {
+                child->Draw(renderer, stacking);
             }
         }
+        context->PaintAbove(renderer);
     }
 
 protected:

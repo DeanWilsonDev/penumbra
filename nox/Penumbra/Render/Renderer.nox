@@ -6,6 +6,9 @@ IRenderer :: interface {
     FillRect~ (rect: Rect, color: Color) -> void : 0;
     StrokeRect~ (rect: Rect, color: Color, thicknessLogical: f32) -> void : 0;
     DrawText~ (text: string, origin: Point, sizeLogical: f32, color: Color) -> void : 0;
+    PushClipRect~ (rect: Rect) -> void : 0;
+    PushClipRectUnbounded~ (rect: Rect?) -> void : 0;
+    PopClipRect~ () -> void : 0;
 }
 
 IFontBackend :: interface {
