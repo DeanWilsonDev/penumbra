@@ -1,0 +1,325 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Color :: import Color;
+IRenderer :: import IRenderer;
+IFontBackend :: import IFontBackend;
+Utf8 :: import Utf8;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+Key :: import Key;
+IClipboard :: import IClipboard;
+FocusState :: import FocusState;
+WidgetBase :: import WidgetBase;
+StackingTracker :: import StackingTracker;
+Box :: import Box;
+
+TextInput :: class : Box {
+public:
+    fontSizeLogical~ f32 = 16.0f;
+    colorText~ Color = Color { };
+    colorCaret~ Color = Color { };
+    colorSelection~ Color = Color { };
+    caretWidthLogical~ f32 = 0.0f;
+    preferredWidthLogical~ f32 = 0.0f;
+    focus~ FocusState~*? = null;
+    clipboard~ IClipboard~*? = null;
+    text~ string! = "";
+    onTextChanged~ ((text: string) -> void)!? = null;
+    onFocusLost~ (() -> void)!? = null;
+
+    TextInput~: (font: IFontBackend*) : font(font) { }
+
+    !TextInput~: () {
+        if this->IsFocused() {
+            if focusState := this->focus {
+                focusState->focused = null;
+            }
+        }
+        delete this->text;
+        delete this->onTextChanged;
+        delete this->onFocusLost;
+    }
+
+    SetText~: (replacement: string) -> void {
+        copied: string! = replacement.copy();
+        delete this->text;
+        this->text = copied!;
+        this->caretIndex = this->text.length();
+        this->selectionAnchor = this->caretIndex;
+    }
+
+    IsFocused :: () -> bool {
+        if focusState := this->focus {
+            if focusedWidget := focusState->focused {
+                return focusedWidget == this;
+            }
+        }
+        return false;
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        left: usize = MouseButton:::Left();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        down: bool = input.mouseButtonDown[left];
+        released: bool = input.mouseButtonReleasedThisFrame[left];
+        content: Rect = this->ContentRectFrom(this->arrangedRect);
+
+        if pressed && hovered {
+            if focusState := this->focus {
+                focusState->focused = this;
+                clickedIndex: usize = this->CaretIndexAtX(input.mousePosition.x - content.x);
+                this->caretIndex = clickedIndex;
+                this->selectionAnchor = clickedIndex;
+                this->dragging = true;
+            }
+        }
+        if this->dragging && down && this->IsFocused() {
+            this->caretIndex = this->CaretIndexAtX(input.mousePosition.x - content.x);
+        }
+        if released {
+            this->dragging = false;
+        }
+        focusedNow: bool = this->IsFocused();
+        if this->wasFocused && !focusedNow {
+            if handler := this->onFocusLost {
+                handler();
+            }
+        }
+        this->wasFocused = focusedNow;
+
+        if !focusedNow {
+            return hovered;
+        }
+
+        shortcut: bool = input.modifierState.shortcut;
+        shift: bool = input.modifierState.shift;
+        changed~ bool = false;
+
+        if input.textInputThisFrame.length() > 0 {
+            this->InsertAtCaret(input.textInputThisFrame);
+            changed = true;
+        }
+
+        for key in input.keysPressedThisFrame {
+            if shortcut {
+                if this->ApplyShortcut(key) {
+                    changed = true;
+                }
+                continue;
+            }
+            if this->ApplyEditingKey(key, shift) {
+                changed = true;
+            }
+        }
+
+        if changed {
+            if handler := this->onTextChanged {
+                handler(this->text);
+            }
+        }
+        return true;
+    }
+
+protected:
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        return Point { x: this->preferredWidthLogical, y: this->LineHeight() };
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        renderer->PushClipRect(contentRect);
+        lineHeight: f32 = this->LineHeight();
+        focused: bool = this->IsFocused();
+        if focused && this->HasSelection() {
+            selectionLeft: f32 = contentRect.x + this->TextWidthTo(this->SelectionStart());
+            selectionRight: f32 = contentRect.x + this->TextWidthTo(this->SelectionEnd());
+            renderer->FillRect(Rect { x: selectionLeft, y: contentRect.y, width: selectionRight - selectionLeft, height: lineHeight }, this->colorSelection);
+        }
+        renderer->DrawText(this->text, Point { x: contentRect.x, y: contentRect.y }, this->fontSizeLogical, this->colorText);
+        if focused {
+            caretX: f32 = contentRect.x + this->TextWidthTo(this->caretIndex);
+            renderer->FillRect(Rect { x: caretX, y: contentRect.y, width: this->caretWidthLogical, height: lineHeight }, this->colorCaret);
+        }
+        renderer->PopClipRect();
+    }
+
+private:
+    font: IFontBackend*;
+    caretIndex~ usize = 0;
+    selectionAnchor~ usize = 0;
+    dragging~ bool = false;
+    wasFocused~ bool = false;
+
+    LineHeight :: () -> f32 {
+        return this->font->MeasureText("Ag", this->fontSizeLogical).y;
+    }
+
+    HasSelection :: () -> bool {
+        return this->selectionAnchor != this->caretIndex;
+    }
+
+    SelectionStart :: () -> usize {
+        if this->selectionAnchor < this->caretIndex {
+            return this->selectionAnchor;
+        }
+        return this->caretIndex;
+    }
+
+    SelectionEnd :: () -> usize {
+        if this->selectionAnchor > this->caretIndex {
+            return this->selectionAnchor;
+        }
+        return this->caretIndex;
+    }
+
+    TextWidthTo :: (index: usize) -> f32 {
+        if index == 0 {
+            return 0.0f;
+        }
+        return this->font->MeasureText(this->text.substring(0, index), this->fontSizeLogical).x;
+    }
+
+    CaretIndexAtX :: (localX: f32) -> usize {
+        if this->text.length() == 0 || localX <= 0.0f {
+            return 0;
+        }
+        best~ usize = 0;
+        bestDistance~ f32 = localX;
+        index~ usize = 0;
+        while index < this->text.length() {
+            index = Utf8:::NextCodePoint(this->text, index);
+            offset: f32 = localX - this->TextWidthTo(index);
+            distance: f32 = Numbers:::Larger(offset, -offset);
+            if distance < bestDistance {
+                bestDistance = distance;
+                best = index;
+            }
+        }
+        return best;
+    }
+
+    ReplaceRange~: (start: usize, end: usize, inserted: string) -> void {
+        length: usize = this->text.length();
+        updated: string! = this->text.substring(0, start) + inserted + this->text.substring(end, length - end);
+        delete this->text;
+        this->text = updated!;
+    }
+
+    DeleteSelection~: () -> void {
+        start: usize = this->SelectionStart();
+        this->ReplaceRange(start, this->SelectionEnd(), "");
+        this->caretIndex = start;
+        this->selectionAnchor = start;
+    }
+
+    InsertAtCaret~: (inserted: string) -> void {
+        if this->HasSelection() {
+            this->DeleteSelection();
+        }
+        this->ReplaceRange(this->caretIndex, this->caretIndex, inserted);
+        this->caretIndex = this->caretIndex + inserted.length();
+        this->selectionAnchor = this->caretIndex;
+    }
+
+    CopySelection~: () -> void {
+        if board := this->clipboard {
+            start: usize = this->SelectionStart();
+            board->SetClipboardText(this->text.substring(start, this->SelectionEnd() - start));
+        }
+    }
+
+    ApplyShortcut~: (key: Key) -> bool {
+        if key == Key:::A {
+            this->selectionAnchor = 0;
+            this->caretIndex = this->text.length();
+            return false;
+        }
+        if key == Key:::C {
+            if this->HasSelection() {
+                this->CopySelection();
+            }
+            return false;
+        }
+        if key == Key:::X {
+            if this->HasSelection() && this->clipboard != null {
+                this->CopySelection();
+                this->DeleteSelection();
+                return true;
+            }
+            return false;
+        }
+        if key == Key:::V {
+            if board := this->clipboard {
+                pasted: string! = board->GetClipboardText();
+                defer delete pasted;
+                if pasted.length() > 0 {
+                    this->InsertAtCaret(pasted);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    ApplyEditingKey~: (key: Key, shift: bool) -> bool {
+        changed~ bool = false;
+        if key == Key:::Backspace {
+            if this->HasSelection() {
+                this->DeleteSelection();
+                changed = true;
+            }
+            else if this->caretIndex > 0 {
+                previous: usize = Utf8:::PreviousCodePoint(this->text, this->caretIndex);
+                this->ReplaceRange(previous, this->caretIndex, "");
+                this->caretIndex = previous;
+                changed = true;
+            }
+            this->selectionAnchor = this->caretIndex;
+        }
+        else if key == Key:::Delete {
+            if this->HasSelection() {
+                this->DeleteSelection();
+                changed = true;
+            }
+            else if this->caretIndex < this->text.length() {
+                this->ReplaceRange(this->caretIndex, Utf8:::NextCodePoint(this->text, this->caretIndex), "");
+                changed = true;
+            }
+            this->selectionAnchor = this->caretIndex;
+        }
+        else if key == Key:::Left {
+            if !shift && this->HasSelection() {
+                this->caretIndex = this->SelectionStart();
+            }
+            else {
+                this->caretIndex = Utf8:::PreviousCodePoint(this->text, this->caretIndex);
+            }
+            this->CollapseUnlessExtending(shift);
+        }
+        else if key == Key:::Right {
+            if !shift && this->HasSelection() {
+                this->caretIndex = this->SelectionEnd();
+            }
+            else {
+                this->caretIndex = Utf8:::NextCodePoint(this->text, this->caretIndex);
+            }
+            this->CollapseUnlessExtending(shift);
+        }
+        else if key == Key:::Home {
+            this->caretIndex = 0;
+            this->CollapseUnlessExtending(shift);
+        }
+        else if key == Key:::End {
+            this->caretIndex = this->text.length();
+            this->CollapseUnlessExtending(shift);
+        }
+        return changed;
+    }
+
+    CollapseUnlessExtending~: (shift: bool) -> void {
+        if !shift {
+            this->selectionAnchor = this->caretIndex;
+        }
+    }
+}

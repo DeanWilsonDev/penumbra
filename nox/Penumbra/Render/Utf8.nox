@@ -1,0 +1,31 @@
+Utf8 :: namespace {
+    IsContinuation :: (byte: u8) -> bool {
+        return byte >= 128 && byte < 192;
+    }
+
+    PreviousCodePoint :: (text: string, index: usize) -> usize {
+        previous~ usize = index;
+        if previous > text.length() {
+            previous = text.length();
+        }
+        if previous == 0 {
+            return 0;
+        }
+        previous = previous - 1;
+        while previous > 0 && IsContinuation(text.byteAt(previous)) {
+            previous = previous - 1;
+        }
+        return previous;
+    }
+
+    NextCodePoint :: (text: string, index: usize) -> usize {
+        if index >= text.length() {
+            return text.length();
+        }
+        next~ usize = index + 1;
+        while next < text.length() && IsContinuation(text.byteAt(next)) {
+            next = next + 1;
+        }
+        return next;
+    }
+}

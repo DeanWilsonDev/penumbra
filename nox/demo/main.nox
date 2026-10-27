@@ -22,6 +22,10 @@ Button :: import Button;
 Checkbox :: import Checkbox;
 Transform :: import Transform;
 ScrollablePanel :: import ScrollablePanel;
+TextInput :: import TextInput;
+FocusState :: import FocusState;
+Key :: import Key;
+RecordingClipboard :: import RecordingClipboard;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -513,6 +517,123 @@ ShowScrolling :: () -> void {
     panel->Draw(renderer, stacking);
 }
 
+PointerAt :: (x: f32, pressed: bool, down: bool, released: bool) -> InputState {
+    input~ InputState = InputState { };
+    input.mousePosition = Point { x: x, y: 10.0f };
+    input.mouseButtonPressedThisFrame[0] = pressed;
+    input.mouseButtonDown[0] = down;
+    input.mouseButtonReleasedThisFrame[0] = released;
+    return input;
+}
+
+EditFrame :: (field: TextInput~*, stacking: StackingTracker~*, label: string, input: InputState) -> void {
+    print(label);
+    print(field->UpdateInteractionState(input, stacking));
+    print(field->text);
+}
+
+ShowTextInput :: (font: IFontBackend*) -> void {
+    print("text input");
+    focusState: FocusState*! = new FocusState { };
+    defer delete focusState;
+    clipboard: RecordingClipboard*! = new RecordingClipboard();
+    defer delete clipboard;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    field: TextInput*! = new TextInput(font);
+    defer delete field;
+    field->className = "field";
+    field->style.padding = Insets:::All(4.0f);
+    field->preferredWidthLogical = 100.0f;
+    field->caretWidthLogical = 1.0f;
+    field->colorText = Color { red: 230, green: 230, blue: 230, alpha: 255 };
+    field->colorCaret = Color { red: 255, green: 255, blue: 255, alpha: 255 };
+    field->colorSelection = Color { red: 40, green: 80, blue: 160, alpha: 255 };
+    field->focus = focusState;
+    field->clipboard = clipboard;
+    field->onTextChanged = new (text: string) -> void {
+        print("text changed");
+    };
+    field->onFocusLost = new () -> void {
+        print("focus lost");
+    };
+    desired: Point = field->Measure(Point { x: 640.0f, y: 360.0f });
+    print(desired.x);
+    print(desired.y);
+    field->Arrange(Rect { x: 0.0f, y: 0.0f, width: desired.x, height: desired.y }, layout);
+    PrintTree(field, 0);
+
+    EditFrame(field, stacking, "type before focus", PointerAt(24.0f, false, false, false));
+    EditFrame(field, stacking, "click to focus", PointerAt(24.0f, true, true, false));
+    typed~ InputState = PointerAt(24.0f, false, false, true);
+    typed.textInputThisFrame = "héllo";
+    EditFrame(field, stacking, "type", typed);
+
+    stepBack: Key[2] = [Key:::Left, Key:::Left];
+    stepping~ InputState = PointerAt(24.0f, false, false, false);
+    stepping.keysPressedThisFrame = stepBack.borrow();
+    EditFrame(field, stacking, "left twice", stepping);
+
+    erase: Key[1] = [Key:::Backspace];
+    erasing~ InputState = PointerAt(24.0f, false, false, false);
+    erasing.keysPressedThisFrame = erase.borrow();
+    EditFrame(field, stacking, "backspace", erasing);
+
+    deleteWide: Key[2] = [Key:::Left, Key:::Delete];
+    deleting~ InputState = PointerAt(24.0f, false, false, false);
+    deleting.keysPressedThisFrame = deleteWide.borrow();
+    EditFrame(field, stacking, "left then delete a two-byte letter", deleting);
+
+    selectToEnd: Key[1] = [Key:::End];
+    selecting~ InputState = PointerAt(24.0f, false, false, false);
+    selecting.keysPressedThisFrame = selectToEnd.borrow();
+    selecting.modifierState.shift = true;
+    EditFrame(field, stacking, "shift end", selecting);
+    field->Draw(renderer, stacking);
+
+    copyKeys: Key[1] = [Key:::C];
+    copying~ InputState = PointerAt(24.0f, false, false, false);
+    copying.keysPressedThisFrame = copyKeys.borrow();
+    copying.modifierState.shortcut = true;
+    EditFrame(field, stacking, "copy", copying);
+
+    endKeys: Key[1] = [Key:::End];
+    ending~ InputState = PointerAt(24.0f, false, false, false);
+    ending.keysPressedThisFrame = endKeys.borrow();
+    EditFrame(field, stacking, "end", ending);
+
+    pasteKeys: Key[1] = [Key:::V];
+    pasting~ InputState = PointerAt(24.0f, false, false, false);
+    pasting.keysPressedThisFrame = pasteKeys.borrow();
+    pasting.modifierState.shortcut = true;
+    EditFrame(field, stacking, "paste", pasting);
+
+    dragStart: InputState = PointerAt(4.0f, true, true, false);
+    EditFrame(field, stacking, "press at the start", dragStart);
+    EditFrame(field, stacking, "drag", PointerAt(21.0f, false, true, false));
+    EditFrame(field, stacking, "release", PointerAt(21.0f, false, false, true));
+    field->Draw(renderer, stacking);
+
+    cutKeys: Key[2] = [Key:::A, Key:::X];
+    cutting~ InputState = PointerAt(24.0f, false, false, false);
+    cutting.keysPressedThisFrame = cutKeys.borrow();
+    cutting.modifierState.shortcut = true;
+    EditFrame(field, stacking, "select all and cut", cutting);
+
+    retyped~ InputState = PointerAt(24.0f, false, false, false);
+    retyped.textInputThisFrame = "ok";
+    EditFrame(field, stacking, "type again", retyped);
+    field->Draw(renderer, stacking);
+
+    focusState->focused = null;
+    EditFrame(field, stacking, "focus moves away", PointerAt(24.0f, false, false, false));
+    field->Draw(renderer, stacking);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -541,5 +662,6 @@ main :: () -> i32 {
     ShowStacking();
     ShowButtons();
     ShowScrolling();
+    ShowTextInput(font);
     return 0;
 }
