@@ -1,6 +1,7 @@
 Color :: import Color;
 Transform :: import Transform;
 Length :: import Length;
+Easing :: import Easing;
 
 EdgeInsets :: struct {
     left~ f32 = 0.0f;
@@ -74,6 +75,11 @@ Placement :: struct {
     pointerEventsMode~ PointerEvents = PointerEvents:::Inherit;
 }
 
+TransitionSpec :: struct {
+    durationSeconds~ f32 = 0.0f;
+    curve~ Easing = Easing:::Linear;
+}
+
 BoxStyle :: struct {
     colorBackground~ Color = Color { };
     colorBorder~ Color = Color { };
@@ -109,6 +115,11 @@ BoxStyle :: struct {
     zIndex~ i32? = null;
     pointerEventsMode~ PointerEvents = PointerEvents:::Inherit;
     transform~ Transform = Transform { };
+    widthTransition~ TransitionSpec? = null;
+    heightTransition~ TransitionSpec? = null;
+    flexGrowTransition~ TransitionSpec? = null;
+    backgroundColorTransition~ TransitionSpec? = null;
+    opacityTransition~ TransitionSpec? = null;
 
     PlacementOf :: () -> Placement {
         return Placement {
@@ -122,6 +133,11 @@ BoxStyle :: struct {
             zIndex: zIndex,
             pointerEventsMode: pointerEventsMode
         };
+    }
+
+    HasTransitions :: () -> bool {
+        return widthTransition != null || heightTransition != null || flexGrowTransition != null
+            || backgroundColorTransition != null || opacityTransition != null;
     }
 
     HasInteractionColors :: () -> bool {

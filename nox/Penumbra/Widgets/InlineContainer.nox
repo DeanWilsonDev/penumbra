@@ -23,6 +23,7 @@ public:
     }
 
     Measure~: (availableSizeLogical: Point) -> Point override {
+        this->SyncLayoutTransitions();
         frame: Point = this->FrameSize();
         contentAvailable: Point = Point {
             x: Numbers:::NonNegative(availableSizeLogical.x - frame.x),

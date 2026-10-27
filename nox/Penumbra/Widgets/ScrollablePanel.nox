@@ -57,6 +57,7 @@ public:
     }
 
     Measure~: (availableSizeLogical: Point) -> Point override {
+        this->SyncLayoutTransitions();
         frame: Point = this->FrameSize();
         viewport: Point = this->ConstrainAvailable(availableSizeLogical);
         contentAvailable: Point = Point {
@@ -257,9 +258,13 @@ public:
         if !this->isVisible {
             return;
         }
+        this->AdvanceTransitions(renderer);
+        if this->DisplayedOpacity() <= 0.0f {
+            return;
+        }
         context: StackingContext*! = new StackingContext(this, StackingPass:::Paint, stacking);
         defer delete context;
-        background: Color = this->BackgroundForState();
+        background: Color = this->DisplayedBackground();
         if background.IsVisible() {
             RoundedRects:::Fill(renderer, this->arrangedRect, background, this->style.borderRadius);
         }

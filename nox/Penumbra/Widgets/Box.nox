@@ -22,7 +22,25 @@ StackingContext :: import StackingContext;
 StackingPass :: import StackingPass;
 Stacking :: import Stacking;
 RoundedRects :: import RoundedRects;
+TransitionSpec :: import TransitionSpec;
+Easing :: import Easing;
+EasedTrack :: import EasedTrack;
+Anim :: import Anim;
+Lengths :: import Lengths;
+Tween :: import Tween;
 TextSelection :: import TextSelection;
+
+BoxTransitionState :: struct {
+    width~ EasedTrack<Length> = EasedTrack<Length> { from: Length { }, target: Length { } };
+    height~ EasedTrack<Length> = EasedTrack<Length> { from: Length { }, target: Length { } };
+    flexGrow~ EasedTrack<f32> = EasedTrack<f32> { from: 0.0f, target: 0.0f };
+    background~ EasedTrack<Color> = EasedTrack<Color> { from: Color { }, target: Color { } };
+    opacity~ EasedTrack<f32> = EasedTrack<f32> { from: 0.0f, target: 0.0f };
+    lastWidthLogical~ f32 = -1.0f;
+    lastHeightLogical~ f32 = -1.0f;
+    entered~ bool = false;
+    lastAdvancedFrame~ u64 = 0;
+}
 
 CrossPlacement :: struct {
     position~ f32 = 0.0f;
@@ -31,6 +49,7 @@ CrossPlacement :: struct {
 
 Box :: class : WidgetBase {
 public:
+    startingStyle~ BoxStyle? = null;
     style~ BoxStyle = BoxStyle { };
     children~ Array<WidgetBase*!>! = [];
     layout~ LayoutMode = LayoutMode:::None;
@@ -86,7 +105,15 @@ public:
     }
 
     GetFlexGrow :: () -> f32 override {
-        return this->style.flexGrow;
+        if !this->easing || !this->eased.flexGrow.known || this->style.flexGrowTransition == null {
+            return this->style.flexGrow;
+        }
+        track: EasedTrack<f32> = this->eased.flexGrow;
+        return BoxTransitions:::Lerp(track.from, track.target, track.Progress());
+    }
+
+    OnShown~: () -> void override {
+        this->eased.entered = false;
     }
 
     GetChildCount :: () -> usize override {
@@ -102,6 +129,7 @@ public:
     }
 
     Measure~: (availableSizeLogical: Point) -> Point override {
+        this->SyncLayoutTransitions();
         frame: Point = this->FrameSize();
         effectiveAvailable: Point = this->ConstrainAvailable(availableSizeLogical);
         contentAvailable: Point = Point {
@@ -284,13 +312,17 @@ public:
         if !this->isVisible {
             return;
         }
+        this->AdvanceTransitions(renderer);
+        if this->DisplayedOpacity() <= 0.0f {
+            return;
+        }
         context: StackingContext*! = new StackingContext(this, StackingPass:::Paint, stacking);
         defer delete context;
         radius: f32 = this->style.borderRadius;
         if this->style.shadowBlurRadiusLogical > 0.0f {
             renderer->DrawDropShadow(this->arrangedRect, this->style.shadowColor, this->style.shadowBlurRadiusLogical, radius);
         }
-        background: Color = this->BackgroundForState();
+        background: Color = this->DisplayedBackground();
         gradientTop: Color = this->GradientTopForState();
         if gradientTop.IsVisible() {
             renderer->FillGradientRect(this->arrangedRect, gradientTop, this->GradientBottomForState(), radius);
@@ -317,6 +349,116 @@ public:
 
 protected:
     selection~ TextSelection*!? = null;
+    easing~ bool = false;
+    eased~ BoxTransitionState = BoxTransitionState { };
+
+    SyncLayoutTransitions~: () -> void {
+        if !this->style.HasTransitions() {
+            this->easing = false;
+            this->eased = BoxTransitionState { };
+            return;
+        }
+        this->easing = true;
+        widthSpec: TransitionSpec? = this->style.widthTransition;
+        heightSpec: TransitionSpec? = this->style.heightTransition;
+        growSpec: TransitionSpec? = this->style.flexGrowTransition;
+        widthTarget: Length = this->style.width;
+        heightTarget: Length = this->style.height;
+
+        if !this->eased.entered {
+            this->eased.entered = true;
+            this->eased.lastWidthLogical = -1.0f;
+            this->eased.lastHeightLogical = -1.0f;
+            starting~ BoxStyle = this->style;
+            hasStart~ bool = false;
+            if start := this->startingStyle {
+                starting = start;
+                hasStart = true;
+            }
+            backgroundSpec: TransitionSpec? = this->style.backgroundColorTransition;
+            opacitySpec: TransitionSpec? = this->style.opacityTransition;
+            this->eased.width.Start(starting.width, widthTarget, BoxTransitions:::Duration(widthSpec), BoxTransitions:::Curve(widthSpec), hasStart && starting.width.IsSet() && widthTarget.IsSet());
+            this->eased.height.Start(starting.height, heightTarget, BoxTransitions:::Duration(heightSpec), BoxTransitions:::Curve(heightSpec), hasStart && starting.height.IsSet() && heightTarget.IsSet());
+            this->eased.flexGrow.Start(starting.flexGrow, this->style.flexGrow, BoxTransitions:::Duration(growSpec), BoxTransitions:::Curve(growSpec), hasStart);
+            this->eased.background.Start(starting.colorBackground, this->BackgroundForState(), BoxTransitions:::Duration(backgroundSpec), BoxTransitions:::Curve(backgroundSpec), hasStart);
+            this->eased.opacity.Start(starting.opacity, this->style.opacity, BoxTransitions:::Duration(opacitySpec), BoxTransitions:::Curve(opacitySpec), hasStart);
+            return;
+        }
+
+        widthNow~ Length = Length { };
+        if this->eased.lastWidthLogical >= 0.0f {
+            widthNow = Lengths:::Logical(this->eased.lastWidthLogical);
+        }
+        heightNow~ Length = Length { };
+        if this->eased.lastHeightLogical >= 0.0f {
+            heightNow = Lengths:::Logical(this->eased.lastHeightLogical);
+        }
+        if !this->eased.width.known || !BoxTransitions:::SameLength(this->eased.width.target, widthTarget) {
+            canEase: bool = this->eased.width.known && widthTarget.IsSet() && widthNow.IsSet();
+            this->eased.width.Start(widthNow, widthTarget, BoxTransitions:::Duration(widthSpec), BoxTransitions:::Curve(widthSpec), canEase);
+        }
+        if !this->eased.height.known || !BoxTransitions:::SameLength(this->eased.height.target, heightTarget) {
+            canEase: bool = this->eased.height.known && heightTarget.IsSet() && heightNow.IsSet();
+            this->eased.height.Start(heightNow, heightTarget, BoxTransitions:::Duration(heightSpec), BoxTransitions:::Curve(heightSpec), canEase);
+        }
+        grow: EasedTrack<f32> = this->eased.flexGrow;
+        if !grow.known || grow.target != this->style.flexGrow {
+            growNow: f32 = BoxTransitions:::Lerp(grow.from, grow.target, grow.Progress());
+            this->eased.flexGrow.Start(growNow, this->style.flexGrow, BoxTransitions:::Duration(growSpec), BoxTransitions:::Curve(growSpec), grow.known);
+        }
+    }
+
+    AdvanceTransitions~: (renderer: IRenderer~*) -> void {
+        if !this->easing {
+            return;
+        }
+        frame: u64 = renderer->GetFrameIndex();
+        if frame == 0 {
+            this->eased.width.timeline = Tween { };
+            this->eased.height.timeline = Tween { };
+            this->eased.flexGrow.timeline = Tween { };
+            this->eased.background.timeline = Tween { };
+            this->eased.opacity.timeline = Tween { };
+        }
+        else if frame != this->eased.lastAdvancedFrame {
+            delta: f32 = renderer->GetFrameDeltaSeconds();
+            this->eased.width.timeline.Update(delta);
+            this->eased.height.timeline.Update(delta);
+            this->eased.flexGrow.timeline.Update(delta);
+            this->eased.background.timeline.Update(delta);
+            this->eased.opacity.timeline.Update(delta);
+        }
+        this->eased.lastAdvancedFrame = frame;
+
+        backgroundSpec: TransitionSpec? = this->style.backgroundColorTransition;
+        backgroundTarget: Color = this->BackgroundForState();
+        if !this->eased.background.known || !BoxTransitions:::SameColor(this->eased.background.target, backgroundTarget) {
+            backgroundNow: Color = this->DisplayedBackground();
+            this->eased.background.Start(backgroundNow, backgroundTarget, BoxTransitions:::Duration(backgroundSpec), BoxTransitions:::Curve(backgroundSpec), this->eased.background.known);
+        }
+        opacitySpec: TransitionSpec? = this->style.opacityTransition;
+        if !this->eased.opacity.known || this->eased.opacity.target != this->style.opacity {
+            opacityNow: f32 = this->DisplayedOpacity();
+            this->eased.opacity.Start(opacityNow, this->style.opacity, BoxTransitions:::Duration(opacitySpec), BoxTransitions:::Curve(opacitySpec), this->eased.opacity.known);
+        }
+    }
+
+    DisplayedBackground :: () -> Color {
+        if !this->easing || !this->eased.background.known || this->style.backgroundColorTransition == null {
+            return this->BackgroundForState();
+        }
+        track: EasedTrack<Color> = this->eased.background;
+        return Anim:::LerpColor(track.from, track.target, track.Progress());
+    }
+
+    DisplayedOpacity :: () -> f32 {
+        if !this->easing || !this->eased.opacity.known || this->style.opacityTransition == null {
+            return this->style.opacity;
+        }
+        track: EasedTrack<f32> = this->eased.opacity;
+        return BoxTransitions:::Lerp(track.from, track.target, track.Progress());
+    }
+
     PlaceCross :: (contentStart: f32, contentExtent: f32, childExtent: f32, marginLead: f32, marginTrail: f32) -> CrossPlacement {
         available: f32 = Numbers:::NonNegative(contentExtent - marginLead - marginTrail);
         return when this->crossAlignment {
@@ -361,14 +503,14 @@ protected:
         };
     }
 
-    ConstrainAvailable :: (availableSizeLogical: Point) -> Point {
+    ConstrainAvailable~: (availableSizeLogical: Point) -> Point {
         return Point {
             x: this->ConstrainLength(true, availableSizeLogical.x, availableSizeLogical.x),
             y: this->ConstrainLength(false, availableSizeLogical.y, availableSizeLogical.y)
         };
     }
 
-    ConstrainDesired :: (desiredSizeLogical: Point, availableSizeLogical: Point) -> Point {
+    ConstrainDesired~: (desiredSizeLogical: Point, availableSizeLogical: Point) -> Point {
         return Point {
             x: this->ConstrainLength(true, desiredSizeLogical.x, availableSizeLogical.x),
             y: this->ConstrainLength(false, desiredSizeLogical.y, availableSizeLogical.y)
@@ -379,14 +521,31 @@ private:
     pressedInside~ bool = false;
     wasHovered~ bool = false;
 
-    ConstrainLength :: (isWidth: bool, value: f32, availableLogical: f32) -> f32 {
+    ConstrainLength~: (isWidth: bool, value: f32, availableLogical: f32) -> f32 {
         size~ Length = this->style.height;
+        track~ EasedTrack<Length> = this->eased.height;
         if isWidth {
             size = this->style.width;
+            track = this->eased.width;
         }
         result~ f32 = value;
         if size.IsSet() {
             result = size.Resolve(availableLogical);
+            if this->easing && track.known && BoxTransitions:::SameLength(track.target, size) && track.from.IsSet() {
+                result = BoxTransitions:::Lerp(track.from.Resolve(availableLogical), result, track.Progress());
+            }
+        }
+        if this->easing {
+            laidOut~ f32 = -1.0f;
+            if size.IsSet() {
+                laidOut = result;
+            }
+            if isWidth {
+                this->eased.lastWidthLogical = laidOut;
+            }
+            else {
+                this->eased.lastHeightLogical = laidOut;
+            }
         }
         if isWidth && this->style.maxWidth.IsSet() {
             result = Numbers:::Smaller(result, this->style.maxWidth.Resolve(availableLogical));
@@ -681,5 +840,33 @@ private:
             }
             anyVisible = true;
         }
+    }
+}
+
+BoxTransitions :: namespace {
+    Lerp :: (from: f32, to: f32, amount: f32) -> f32 {
+        return from + (to - from) * amount;
+    }
+
+    Duration :: (spec: TransitionSpec?) -> f32 {
+        if chosen := spec {
+            return chosen.durationSeconds;
+        }
+        return 0.0f;
+    }
+
+    Curve :: (spec: TransitionSpec?) -> Easing {
+        if chosen := spec {
+            return chosen.curve;
+        }
+        return Easing:::Linear;
+    }
+
+    SameLength :: (first: Length, second: Length) -> bool {
+        return first.value == second.value && first.unit == second.unit;
+    }
+
+    SameColor :: (first: Color, second: Color) -> bool {
+        return first.red == second.red && first.green == second.green && first.blue == second.blue && first.alpha == second.alpha;
     }
 }

@@ -52,12 +52,12 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/Length.h` | `Penumbra/Widgets/Length.nox` (logical and percent units) |
 | `Widgets/Styles.h` | `Penumbra/Widgets/Styles.nox` (`EdgeInsets`, the layout enums, the layout half of `BoxStyle`, its hovered, pressed and disabled colours, `borderRadius`, the two-stop gradient with hovered and pressed overrides, and the drop shadow). `IRenderer` has `FillRoundedRect`, `StrokeRoundedRect`, `FillGradientRect` and `DrawDropShadow`, and `RoundedRects:::Fill`/`Stroke` pick the square call when the radius is 0, as the C++ renderer does |
 | `Widgets/WidgetBase.h` | `Penumbra/Widgets/WidgetBase.nox` (abstract class, with the seven callbacks as `(() -> void)!?` fields) |
-| `Widgets/Box.h/.cpp` | `Penumbra/Widgets/Box.nox`: children as `Array<WidgetBase*!>!`, the None, vertical, horizontal and fixed-leading layouts, flex grow, cross alignment, justify, width, height, min-width and max-width, drawing the background, border and children in their interaction-state colours, and `UpdateInteractionState` (children in reverse order, occluded input after one consumes it, hover, press, release and disabled) |
+| `Widgets/Box.h/.cpp` | `Penumbra/Widgets/Box.nox`: children as `Array<WidgetBase*!>!`, the None, vertical, horizontal and fixed-leading layouts, flex grow, cross alignment, justify, width, height, min-width and max-width, drawing the background, border and children in their interaction-state colours, and `UpdateInteractionState` (children in reverse order, occluded input after one consumes it, hover, press, release and disabled). `BoxStyle` transitions ease width, height, flex grow, background colour and opacity, each with its own optional `TransitionSpec` (duration and curve); `startingStyle` is where a box eases from when it's first laid out or shown again. Opacity below 1 isn't drawn translucent yet, since groups aren't ported, but a box at 0 isn't drawn |
 | `Widgets/Positioning.h/.cpp` | `Penumbra/Widgets/Positioning.nox` and `LayoutContext.nox`: relative, absolute, fixed and sticky positioning, with the containing-block and scrollport stacks held by a `LayoutContext` passed to `Arrange` |
 | `Widgets/Stacking.h/.cpp` | `Penumbra/Widgets/Stacking.nox`: z-index stacking contexts for paint and input, clip regions from `GetChildClipRect`, pointer-events and the pointer path. A `StackingTracker` passed to `Draw` and `UpdateInteractionState` holds what the C++ keeps in globals |
 | `Widgets/Label.h/.cpp` | `Penumbra/Widgets/Label.nox`, measured through `IFontBackend`: word wrapping (cached per width, size and text), ellipsis truncation or clipping at `maxWidthLogical`, selection highlight, `IndexAtPoint` and `CaretRectAt`. It owns its text as a `string!`, set through `SetText` |
 | `<cmath>` | `Penumbra/Maths.nox`: a `CMath` foreign block over libm (`expf`, `cosf`, `sinf`, `lroundf`) behind the safe `Maths` namespace |
-| `Anim/Animation.h` | `Penumbra/Anim/Animation.nox`: `Approach`, `LerpColor`, the cubic and back easings, `Easing`, `AnimatedColor`, `Tween` and `TweenedValues` |
+| `Anim/Animation.h` | `Penumbra/Anim/Animation.nox`: `Approach`, `LerpColor`, the cubic and back easings, `Easing`, `AnimatedColor`, `Tween`, `TweenedValues` and the generic `EasedTrack<T>` (one eased property: from, target, timeline and curve) |
 | `Widgets/Button.h/.cpp` | `Penumbra/Widgets/Button.nox`: click on release inside, an eased state background (Box's `BackgroundForState` is virtual for it), and hit testing through `BoxStyle.transform` |
 | `Widgets/ScrollablePanel.h/.cpp` | `Penumbra/Widgets/ScrollablePanel.nox`: vertical and horizontal scrolling by wheel, the scrollbar track and thumb drag, the scrollport for sticky children, and the child clip. `Positioning:::OffsetInFlow` gained the C++'s optional sticky block |
 | `Platform/IClipboard.h` | `Penumbra/Platform/Clipboard.nox`, the `IClipboard` interface; `GetClipboardText` returns an owned `string!` |
@@ -91,7 +91,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   stop its scrolling ancestor from using it too.
 - Transforms as containing blocks, and drawing through a transform: only `Button`'s hit test reads
   `BoxStyle.transform` so far.
-- `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
+- The layout-pass measure memo, and viewport units.
 
 ## Language friction found so far
 
@@ -133,3 +133,6 @@ The Nox board's Penumbra card tracks this list:
   field defaults, optional owned callables, arrays of borrows and arrays of structs holding borrows,
   owned strings with substrings, pointer identity across a class hierarchy, and `~=` unwraps that
   borrow an optional owner mutably.
+- **GCC 13.3 miscompiled the emitted C.** At `-O1`, it dropped the stores building a large struct
+  temporary that was also zero-initialised at the top of `Box`'s constructor. Nox now leaves
+  aggregate temporaries uninitialised (nox #42), since each is assigned before it's read.
