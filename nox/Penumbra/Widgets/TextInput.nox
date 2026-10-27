@@ -103,6 +103,9 @@ public:
         }
 
         for key in input.keysPressedThisFrame {
+            if this->UsesKey(key, shortcut) {
+                stacking->keys->MarkUsed(key);
+            }
             if shortcut {
                 if this->ApplyShortcut(key) {
                     changed = true;
@@ -315,6 +318,13 @@ private:
             this->CollapseUnlessExtending(shift);
         }
         return changed;
+    }
+
+    UsesKey :: (key: Key, shortcut: bool) -> bool {
+        if shortcut {
+            return key == Key:::A || key == Key:::C || key == Key:::X || key == Key:::V;
+        }
+        return key != Key:::Escape && key != Key:::Tab && key != Key:::Enter && key != Key:::Up && key != Key:::Down;
     }
 
     CollapseUnlessExtending~: (shift: bool) -> void {

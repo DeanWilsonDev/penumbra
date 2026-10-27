@@ -20,6 +20,7 @@ library_sources=(
     Penumbra/Widgets/WidgetBase.nox
     Penumbra/Widgets/FocusState.nox
     Penumbra/Widgets/Positioning.nox
+    Penumbra/Widgets/KeyDispatch.nox
     Penumbra/Widgets/Stacking.nox
     Penumbra/Widgets/Box.nox
     Penumbra/Widgets/Label.nox

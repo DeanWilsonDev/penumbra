@@ -126,6 +126,8 @@ public:
             return false;
         }
         effective~ InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, input);
+        outermostKeys: bool = stacking->keys->Begin(this, effective);
+        defer stacking->keys->End(outermostKeys);
         context: StackingContext*! = new StackingContext(this, StackingPass:::Input, stacking);
         defer delete context;
         childConsumed~ bool = context->DispatchAbove(effective);
@@ -140,8 +142,7 @@ public:
             if childConsumed {
                 childInput = effective.Occluded();
             }
-            given: InputState = Stacking:::ForPointerEvents(child->GetPlacement().pointerEventsMode, childInput);
-            if child->UpdateInteractionState(given, stacking) {
+            if stacking->DispatchToChild(child, childInput) {
                 childConsumed = true;
             }
         }

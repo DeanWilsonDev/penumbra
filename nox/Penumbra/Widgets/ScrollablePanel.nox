@@ -181,6 +181,8 @@ public:
         content: Rect = this->ContentRectFrom(this->arrangedRect);
         scrollbarTook: bool = this->UpdateScrollbar(handed, content);
         occluded: InputState = handed.Occluded();
+        outermostKeys: bool = stacking->keys->Begin(this, handed);
+        defer stacking->keys->End(outermostKeys);
         context: StackingContext*! = new StackingContext(this, StackingPass:::Input, stacking);
         defer delete context;
         layeredInput~ InputState = handed;
@@ -202,8 +204,7 @@ public:
             if pointerTaken {
                 childInput = occluded;
             }
-            given: InputState = Stacking:::ForPointerEvents(child->GetPlacement().pointerEventsMode, childInput);
-            if child->UpdateInteractionState(given, stacking) && !pointerTaken {
+            if stacking->DispatchToChild(child, childInput) && !pointerTaken {
                 pointerTaken = true;
                 consumed = true;
                 childConsumedWheel = child->ConsumedWheelThisFrame();

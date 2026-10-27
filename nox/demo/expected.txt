@@ -829,3 +829,56 @@ ok
 4
 16
 unclip
+key dispatch
+0
+root
+0
+0
+640
+360
+1
+field
+0
+0
+100
+16
+1
+modal
+0
+0
+0
+0
+focus the field
+type, left and escape
+field text
+ab
+root key
+escape
+0
+root
+0
+0
+640
+360
+1
+field
+0
+0
+100
+16
+1
+modal
+0
+0
+640
+360
+the modal takes every key
+modal key
+left
+modal key
+escape
+backspace and tab
+field text
+b
+root key
+tab

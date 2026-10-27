@@ -3,6 +3,7 @@ Rect :: import Rect;
 EdgeInsets :: import EdgeInsets;
 IRenderer :: import IRenderer;
 InputState :: import InputState;
+Key :: import Key;
 Placement :: import Placement;
 LayoutContext :: import LayoutContext;
 StackingTracker :: import StackingTracker;
@@ -26,6 +27,7 @@ public:
     onFocused~ (() -> void)!? = null;
     onChanged~ (() -> void)!? = null;
     onDestroyed~ (() -> void)!? = null;
+    onKeyPressed~ ((key: Key) -> void)!? = null;
 
     !WidgetBase~: () {
         if handler := this->onDestroyed {
@@ -38,6 +40,7 @@ public:
         delete this->onFocused;
         delete this->onChanged;
         delete this->onDestroyed;
+        delete this->onKeyPressed;
     }
 
     Measure~ (availableSizeLogical: Point) -> Point : 0;
