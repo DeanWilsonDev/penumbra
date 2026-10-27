@@ -61,12 +61,12 @@ Stacking :: namespace {
         return given;
     }
 
-    FormsContext :: (placement: Placement) -> bool {
-        return placement.zIndex != null || placement.positionMode == Position:::Fixed || placement.positionMode == Position:::Sticky;
+    FormsContext :: (placement: Placement, paintsAsGroup: bool) -> bool {
+        return placement.zIndex != null || placement.positionMode == Position:::Fixed || placement.positionMode == Position:::Sticky || paintsAsGroup;
     }
 
-    IsLayered :: (placement: Placement) -> bool {
-        return placement.positionMode != Position:::Static || placement.zIndex != null;
+    IsLayered :: (placement: Placement, paintsAsGroup: bool) -> bool {
+        return placement.positionMode != Position:::Static || placement.zIndex != null || paintsAsGroup;
     }
 }
 
@@ -270,7 +270,8 @@ private:
                 own = walk.blockChildren ?? ClipRegion { };
             }
 
-            if Stacking:::IsLayered(placement) {
+            paintsAsGroup: bool = child->PaintsAsGroup();
+            if Stacking:::IsLayered(placement, paintsAsGroup) {
                 this->entries.push(StackingEntry {
                     widget: child,
                     z: placement.zIndex ?? 0,
@@ -285,7 +286,7 @@ private:
                     this->ancestorPool.push(ancestor);
                 }
                 child->layeredBy = this->serial;
-                child->layeredAsContext = Stacking:::FormsContext(placement);
+                child->layeredAsContext = Stacking:::FormsContext(placement, paintsAsGroup);
                 if child->layeredAsContext {
                     continue;
                 }

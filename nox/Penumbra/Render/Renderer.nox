@@ -1,6 +1,7 @@
 Point :: import Point;
 Rect :: import Rect;
 Color :: import Color;
+Transform :: import Transform;
 
 LineJoin :: enum {
     Miter,
@@ -26,6 +27,8 @@ IRenderer :: interface {
     PushClipRect~ (rect: Rect) -> void : 0;
     PushClipRectUnbounded~ (rect: Rect?) -> void : 0;
     PopClipRect~ () -> void : 0;
+    PushTransform~ (subjectRectLogical: Rect, transform: Transform, opacity: f32) -> void : 0;
+    PopTransform~ () -> void : 0;
     DrawFilledCircle~ (centre: Point, radiusLogical: f32, color: Color) -> void : 0;
     DrawArc~ (centre: Point, innerRadiusLogical: f32, outerRadiusLogical: f32, startDegrees: f32, sweepDegrees: f32, color: Color) -> void : 0;
     DrawPolyline~ (points: Array<Point>, color: Color, thicknessLogical: f32, join: LineJoin, cap: LineCap) -> void : 0;

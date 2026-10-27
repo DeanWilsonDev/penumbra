@@ -87,6 +87,10 @@ public:
         return null;
     }
 
+    virtual PaintsAsGroup :: () -> bool {
+        return false;
+    }
+
     virtual ConsumedWheelThisFrame :: () -> bool {
         return false;
     }

@@ -73,6 +73,7 @@ Placement :: struct {
     hasHeight~ bool = false;
     zIndex~ i32? = null;
     pointerEventsMode~ PointerEvents = PointerEvents:::Inherit;
+    transformed~ bool = false;
 }
 
 TransitionSpec :: struct {
@@ -131,7 +132,8 @@ BoxStyle :: struct {
             hasWidth: width.IsSet(),
             hasHeight: height.IsSet(),
             zIndex: zIndex,
-            pointerEventsMode: pointerEventsMode
+            pointerEventsMode: pointerEventsMode,
+            transformed: !transform.IsIdentity()
         };
     }
 

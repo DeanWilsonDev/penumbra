@@ -8,6 +8,7 @@ IIconBackend :: import IIconBackend;
 IImageBackend :: import IImageBackend;
 LineJoin :: import LineJoin;
 LineCap :: import LineCap;
+Transform :: import Transform;
 
 FixedAdvanceFont :: class {
     implements:
@@ -211,6 +212,21 @@ public:
     PopClipRect~: () -> void {
         this->commandCount = this->commandCount + 1;
         print("unclip");
+    }
+
+    PushTransform~: (subjectRectLogical: Rect, transform: Transform, opacity: f32) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("push transform");
+        this->PrintRect(subjectRectLogical);
+        print(transform.scaleX);
+        print(transform.rotationDegrees);
+        print(transform.translateXLogical);
+        print(opacity);
+    }
+
+    PopTransform~: () -> void {
+        this->commandCount = this->commandCount + 1;
+        print("pop transform");
     }
 
 private:
