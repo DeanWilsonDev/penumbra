@@ -23,6 +23,8 @@ Checkbox :: import Checkbox;
 Transform :: import Transform;
 ScrollablePanel :: import ScrollablePanel;
 TextInput :: import TextInput;
+SplitPanel :: import SplitPanel;
+SplitAxis :: import SplitAxis;
 FocusState :: import FocusState;
 Key :: import Key;
 RecordingClipboard :: import RecordingClipboard;
@@ -729,6 +731,62 @@ ShowKeyDispatch :: (font: IFontBackend*) -> void {
     KeyFrame(root, stacking, "backspace and tab", erasing);
 }
 
+SplitFrame :: (panel: SplitPanel~*, stacking: StackingTracker~*, layout: LayoutContext~*, label: string, x: f32, pressed: bool, down: bool, released: bool) -> void {
+    print(label);
+    input~ InputState = PointerAt(x, pressed, down, released);
+    input.mousePosition.y = 50.0f;
+    print(panel->UpdateInteractionState(input, stacking));
+    panel->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 100.0f }, layout);
+    print(panel->splitRatio);
+    handle: Rect = panel->GetHandleRect();
+    print(handle.x);
+    print(handle.width);
+}
+
+ShowSplitPanel :: () -> void {
+    print("split panel");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    panel: SplitPanel*! = new SplitPanel();
+    defer delete panel;
+    panel->className = "split";
+    panel->handleThicknessLogical = 4.0f;
+    panel->minPaneSizeLogical = 30.0f;
+    panel->colorHandle = Color { red: 60, green: 60, blue: 60, alpha: 255 };
+    panel->colorHandleHovered = Color { red: 90, green: 90, blue: 90, alpha: 255 };
+    panel->colorHandleDragged = Color { red: 120, green: 120, blue: 120, alpha: 255 };
+    left: Box*! = MakeBox("left pane", LayoutMode:::None);
+    left->style.margin = Insets:::All(2.0f);
+    panel->SetFirst(left!);
+    right: SplitPanel*! = new SplitPanel();
+    right->className = "right split";
+    right->axis = SplitAxis:::Vertical;
+    right->splitRatio = 0.25f;
+    right->handleThicknessLogical = 2.0f;
+    top: Box*! = MakeBox("top pane", LayoutMode:::None);
+    right->SetFirst(top!);
+    bottom: Box*! = MakeBox("bottom pane", LayoutMode:::None);
+    right->SetSecond(bottom!);
+    panel->SetSecond(right!);
+
+    panel->Measure(Point { x: 200.0f, y: 100.0f });
+    panel->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 100.0f }, layout);
+    PrintTree(panel, 0);
+
+    SplitFrame(panel, stacking, layout, "hover the handle", 100.0f, false, false, false);
+    SplitFrame(panel, stacking, layout, "press the handle", 100.0f, true, true, false);
+    SplitFrame(panel, stacking, layout, "drag right", 150.0f, false, true, false);
+    SplitFrame(panel, stacking, layout, "drag past the minimum pane", 195.0f, false, true, false);
+    SplitFrame(panel, stacking, layout, "release", 195.0f, false, false, true);
+    PrintTree(panel, 0);
+
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    panel->Draw(renderer, stacking);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -759,5 +817,6 @@ main :: () -> i32 {
     ShowScrolling();
     ShowTextInput(font);
     ShowKeyDispatch(font);
+    ShowSplitPanel();
     return 0;
 }

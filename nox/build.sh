@@ -29,6 +29,7 @@ library_sources=(
     Penumbra/Widgets/Checkbox.nox
     Penumbra/Widgets/ScrollablePanel.nox
     Penumbra/Widgets/TextInput.nox
+    Penumbra/Widgets/SplitPanel.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox

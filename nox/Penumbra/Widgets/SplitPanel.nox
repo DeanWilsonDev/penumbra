@@ -1,0 +1,270 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Maths :: import Maths;
+Color :: import Color;
+IRenderer :: import IRenderer;
+EdgeInsets :: import EdgeInsets;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+WidgetBase :: import WidgetBase;
+LayoutContext :: import LayoutContext;
+StackingTracker :: import StackingTracker;
+StackingContext :: import StackingContext;
+StackingPass :: import StackingPass;
+Stacking :: import Stacking;
+Box :: import Box;
+
+SplitAxis :: enum {
+    Horizontal,
+    Vertical
+}
+
+SplitPanel :: class : Box {
+public:
+    axis~ SplitAxis = SplitAxis:::Horizontal;
+    splitRatio~ f32 = 0.5f;
+    handleThicknessLogical~ f32 = 0.0f;
+    minPaneSizeLogical~ f32 = 0.0f;
+    colorHandle~ Color = Color { };
+    colorHandleHovered~ Color = Color { };
+    colorHandleDragged~ Color = Color { };
+
+    !SplitPanel~: () {
+        delete this->first;
+        delete this->second;
+    }
+
+    SetFirst~: (child: WidgetBase*!) -> void {
+        delete this->first;
+        this->first = child!;
+    }
+
+    SetSecond~: (child: WidgetBase*!) -> void {
+        delete this->second;
+        this->second = child!;
+    }
+
+    GetHandleRect :: () -> Rect {
+        return this->handleRect;
+    }
+
+    GetChildCount :: () -> usize override {
+        count~ usize = 0;
+        if this->first != null {
+            count = count + 1;
+        }
+        if this->second != null {
+            count = count + 1;
+        }
+        return count;
+    }
+
+    GetChildAt :: (index: usize) -> WidgetBase*? override {
+        remaining~ usize = index;
+        if pane := this->first {
+            if remaining == 0 {
+                return pane;
+            }
+            remaining = remaining - 1;
+        }
+        if pane := this->second {
+            if remaining == 0 {
+                return pane;
+            }
+        }
+        return null;
+    }
+
+    GetMutableChildAt~: (index: usize) -> WidgetBase~*? override {
+        remaining~ usize = index;
+        if pane ~= this->first {
+            if remaining == 0 {
+                return pane;
+            }
+            remaining = remaining - 1;
+        }
+        if pane ~= this->second {
+            if remaining == 0 {
+                return pane;
+            }
+        }
+        return null;
+    }
+
+    Measure~: (availableSizeLogical: Point) -> Point override {
+        return availableSizeLogical;
+    }
+
+    Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
+        this->arrangedRect = finalRectLogical;
+        pushedBlocks: usize = layout->EnterBlock(this->style.PlacementOf(), this->PaddingRectFrom(finalRectLogical));
+        vertical: bool = this->axis == SplitAxis:::Vertical;
+        mainExtent~ f32 = finalRectLogical.width;
+        if vertical {
+            mainExtent = finalRectLogical.height;
+        }
+        available: f32 = Numbers:::NonNegative(mainExtent - this->handleThicknessLogical);
+        minRatio~ f32 = 0.0f;
+        maxRatio~ f32 = 1.0f;
+        if available > 0.0f {
+            minRatio = Maths:::Clamp(this->minPaneSizeLogical / available, 0.0f, 1.0f);
+            maxRatio = Maths:::Clamp(1.0f - this->minPaneSizeLogical / available, 0.0f, 1.0f);
+        }
+        if minRatio > maxRatio {
+            minRatio = 0.5f;
+            maxRatio = 0.5f;
+        }
+        this->splitRatio = Maths:::Clamp(this->splitRatio, minRatio, maxRatio);
+        firstMain: f32 = available * this->splitRatio;
+        secondMain: f32 = available - firstMain;
+
+        firstRect~ Rect = Rect { x: finalRectLogical.x, y: finalRectLogical.y, width: firstMain, height: finalRectLogical.height };
+        this->handleRect = Rect { x: finalRectLogical.x + firstMain, y: finalRectLogical.y, width: this->handleThicknessLogical, height: finalRectLogical.height };
+        secondRect~ Rect = Rect {
+            x: finalRectLogical.x + firstMain + this->handleThicknessLogical,
+            y: finalRectLogical.y,
+            width: secondMain,
+            height: finalRectLogical.height
+        };
+        if vertical {
+            firstRect = Rect { x: finalRectLogical.x, y: finalRectLogical.y, width: finalRectLogical.width, height: firstMain };
+            this->handleRect = Rect { x: finalRectLogical.x, y: finalRectLogical.y + firstMain, width: finalRectLogical.width, height: this->handleThicknessLogical };
+            secondRect = Rect {
+                x: finalRectLogical.x,
+                y: finalRectLogical.y + firstMain + this->handleThicknessLogical,
+                width: finalRectLogical.width,
+                height: secondMain
+            };
+        }
+        if pane ~= this->first {
+            ArrangePane(pane, firstRect, layout);
+        }
+        if pane ~= this->second {
+            ArrangePane(pane, secondRect, layout);
+        }
+        layout->LeaveBlocks(pushedBlocks);
+    }
+
+    UpdateInteractionState~: (given: InputState, stacking: StackingTracker~*) -> bool override {
+        if stacking->IsLayeredOut(this) {
+            return false;
+        }
+        input: InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, given);
+        outermostKeys: bool = stacking->keys->Begin(this, input);
+        defer stacking->keys->End(outermostKeys);
+        context: StackingContext*! = new StackingContext(this, StackingPass:::Input, stacking);
+        defer delete context;
+        occluded: InputState = input.Occluded();
+        layeredTook: bool = context->DispatchAbove(input);
+        unlayered~ InputState = input;
+        if layeredTook {
+            unlayered = occluded;
+        }
+
+        left: usize = MouseButton:::Left();
+        hovered: bool = unlayered.IsPointerOver(this->handleRect);
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        down: bool = input.mouseButtonDown[left];
+        released: bool = input.mouseButtonReleasedThisFrame[left];
+        vertical: bool = this->axis == SplitAxis:::Vertical;
+        pointerMain~ f32 = input.mousePosition.x;
+        mainExtent~ f32 = this->arrangedRect.width;
+        if vertical {
+            pointerMain = input.mousePosition.y;
+            mainExtent = this->arrangedRect.height;
+        }
+
+        if pressed && hovered {
+            this->dragging = true;
+            this->lastPointerMain = pointerMain;
+        }
+        if this->dragging && down {
+            delta: f32 = pointerMain - this->lastPointerMain;
+            if delta != 0.0f && mainExtent > 0.0f {
+                this->splitRatio = Maths:::Clamp(this->splitRatio + delta / mainExtent, 0.0f, 1.0f);
+                this->lastPointerMain = pointerMain;
+            }
+        }
+        if released {
+            this->dragging = false;
+        }
+        this->handleHovered = hovered;
+
+        paneConsumed~ bool = layeredTook;
+        if pane ~= this->second {
+            if this->DispatchToPane(pane, input, occluded, paneConsumed, stacking) {
+                paneConsumed = true;
+            }
+        }
+        if pane ~= this->first {
+            if this->DispatchToPane(pane, input, occluded, paneConsumed, stacking) {
+                paneConsumed = true;
+            }
+        }
+        if context->DispatchBelow(input, paneConsumed || hovered) {
+            paneConsumed = true;
+        }
+        return paneConsumed || this->dragging || hovered;
+    }
+
+    Draw~: (renderer: IRenderer~*, stacking: StackingTracker~*) -> void override {
+        if stacking->IsLayeredOut(this) {
+            return;
+        }
+        context: StackingContext*! = new StackingContext(this, StackingPass:::Paint, stacking);
+        defer delete context;
+        context->PaintBelow(renderer);
+        if pane ~= this->first {
+            if !stacking->IsLayeredOut(pane) {
+                pane->Draw(renderer, stacking);
+            }
+        }
+        if pane ~= this->second {
+            if !stacking->IsLayeredOut(pane) {
+                pane->Draw(renderer, stacking);
+            }
+        }
+        handleColor~ Color = this->colorHandle;
+        if this->dragging {
+            handleColor = this->colorHandleDragged;
+        }
+        else if this->handleHovered {
+            handleColor = this->colorHandleHovered;
+        }
+        if handleColor.alpha != 0 {
+            renderer->FillRect(this->handleRect, handleColor);
+        }
+        context->PaintAbove(renderer);
+    }
+
+private:
+    first~ WidgetBase*!? = null;
+    second~ WidgetBase*!? = null;
+    handleRect~ Rect = Rect { };
+    dragging~ bool = false;
+    handleHovered~ bool = false;
+    lastPointerMain~ f32 = 0.0f;
+
+    DispatchToPane~: (pane: WidgetBase~*, input: InputState, occluded: InputState, paneConsumed: bool, stacking: StackingTracker~*) -> bool {
+        if stacking->IsLayeredOut(pane) {
+            return false;
+        }
+        if paneConsumed {
+            return stacking->DispatchToChild(pane, occluded);
+        }
+        return stacking->DispatchToChild(pane, input);
+    }
+}
+
+ArrangePane :: (pane: WidgetBase~*, outer: Rect, layout: LayoutContext~*) -> void {
+    margin: EdgeInsets = pane->GetMarginLogical();
+    inset: Rect = Rect {
+        x: outer.x + margin.left,
+        y: outer.y + margin.top,
+        width: Numbers:::NonNegative(outer.width - margin.left - margin.right),
+        height: Numbers:::NonNegative(outer.height - margin.top - margin.bottom)
+    };
+    pane->Measure(Point { x: inset.width, y: inset.height });
+    pane->Arrange(inset, layout);
+}
