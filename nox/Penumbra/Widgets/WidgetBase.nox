@@ -54,7 +54,7 @@ public:
         delete this->onKeyPressed;
     }
 
-    Measure~ (availableSizeLogical: Point) -> Point : 0;
+    Measure~ (availableSizeLogical: Point, layout: LayoutContext~*) -> Point : 0;
     Arrange~ (finalRectLogical: Rect, layout: LayoutContext~*) -> void : 0;
     Draw~ (renderer: IRenderer~*, stacking: StackingTracker~*) -> void : 0;
     UpdateInteractionState~ (input: InputState, stacking: StackingTracker~*) -> bool : 0;

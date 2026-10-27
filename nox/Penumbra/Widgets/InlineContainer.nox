@@ -22,14 +22,14 @@ public:
         return true;
     }
 
-    Measure~: (availableSizeLogical: Point) -> Point override {
+    Measure~: (availableSizeLogical: Point, layout: LayoutContext~*) -> Point override {
         this->SyncLayoutTransitions();
         frame: Point = this->FrameSize();
         contentAvailable: Point = Point {
             x: Numbers:::NonNegative(availableSizeLogical.x - frame.x),
             y: Numbers:::NonNegative(availableSizeLogical.y - frame.y)
         };
-        items: Array<InlineLineItem>! = this->BuildLines(contentAvailable);
+        items: Array<InlineLineItem>! = this->BuildLines(contentAvailable, layout);
         defer delete items;
         lineHeights: Array<f32>! = LineHeights(items);
         defer delete lineHeights;
@@ -68,7 +68,7 @@ public:
     Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
         this->arrangedRect = finalRectLogical;
         content: Rect = this->ContentRectFrom(finalRectLogical);
-        items: Array<InlineLineItem>! = this->BuildLines(Point { x: content.width, y: content.height });
+        items: Array<InlineLineItem>! = this->BuildLines(Point { x: content.width, y: content.height }, layout);
         defer delete items;
         lineHeights: Array<f32>! = LineHeights(items);
         defer delete lineHeights;
@@ -96,7 +96,7 @@ public:
     }
 
 private:
-    BuildLines~: (contentAvailable: Point) -> Array<InlineLineItem>! {
+    BuildLines~: (contentAvailable: Point, layout: LayoutContext~*) -> Array<InlineLineItem>! {
         items~ Array<InlineLineItem>! = [];
         cursorX~ f32 = 0.0f;
         lineIndex~ usize = 0;
@@ -113,7 +113,7 @@ private:
                 x: Numbers:::NonNegative(contentAvailable.x - margin.left - margin.right),
                 y: Numbers:::NonNegative(contentAvailable.y - margin.top - margin.bottom)
             };
-            desired~ Point = child->Measure(childAvailable);
+            desired~ Point = child->Measure(childAvailable, layout);
             if childAvailable.x > 0.0f {
                 desired.x = Numbers:::Smaller(desired.x, childAvailable.x);
             }

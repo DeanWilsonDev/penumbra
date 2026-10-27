@@ -24,7 +24,7 @@ public:
         delete this->onSceneInput;
     }
 
-    Measure~: (availableSizeLogical: Point) -> Point override {
+    Measure~: (availableSizeLogical: Point, layout: LayoutContext~*) -> Point override {
         return availableSizeLogical;
     }
 

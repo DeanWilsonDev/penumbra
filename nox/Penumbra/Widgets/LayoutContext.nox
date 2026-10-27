@@ -11,6 +11,25 @@ ContainingBlock :: struct {
 LayoutContext :: class {
 public:
     viewportLogical~ Point = Point { };
+    passId~ u64 = 0;
+
+    BeginPass~: () -> void {
+        if this->passDepth == 0 {
+            this->lastPassId = this->lastPassId + 1;
+            this->passId = this->lastPassId;
+        }
+        this->passDepth = this->passDepth + 1;
+    }
+
+    EndPass~: () -> void {
+        if this->passDepth == 0 {
+            return;
+        }
+        this->passDepth = this->passDepth - 1;
+        if this->passDepth == 0 {
+            this->passId = 0;
+        }
+    }
 
     !LayoutContext~: () {
         delete this->blocks;
@@ -70,6 +89,8 @@ public:
     }
 
 private:
+    lastPassId~ u64 = 0;
+    passDepth~ u32 = 0;
     blocks~ Array<ContainingBlock>! = [];
     scrollports~ Array<Rect>! = [];
 

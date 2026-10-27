@@ -18,9 +18,9 @@ Positioning :: namespace {
         return child->GetIsVisible() && !Positioning:::IsOutOfFlow(child);
     }
 
-    ResolveOffset :: (offset: Length?, basisLogical: f32) -> f32? {
+    ResolveOffset :: (offset: Length?, basisLogical: f32, viewportLogical: Point) -> f32? {
         if length := offset {
-            return length.Resolve(basisLogical);
+            return length.Resolve(basisLogical, viewportLogical);
         }
         return null;
     }
@@ -52,25 +52,25 @@ Positioning :: namespace {
             margin: EdgeInsets = child->GetMarginLogical();
             placed.y = Positioning:::StickAlong(placed.y, placed.height, port.y, port.height,
                 bounds.y + margin.top, bounds.y + bounds.height - margin.bottom,
-                Positioning:::ResolveOffset(placement.top, port.height), Positioning:::ResolveOffset(placement.bottom, port.height));
+                Positioning:::ResolveOffset(placement.top, port.height, layout->viewportLogical), Positioning:::ResolveOffset(placement.bottom, port.height, layout->viewportLogical));
             placed.x = Positioning:::StickAlong(placed.x, placed.width, port.x, port.width,
                 bounds.x + margin.left, bounds.x + bounds.width - margin.right,
-                Positioning:::ResolveOffset(placement.left, port.width), Positioning:::ResolveOffset(placement.right, port.width));
+                Positioning:::ResolveOffset(placement.left, port.width, layout->viewportLogical), Positioning:::ResolveOffset(placement.right, port.width, layout->viewportLogical));
             return placed;
         }
         if placement.positionMode != Position:::Relative {
             return placed;
         }
-        if left := Positioning:::ResolveOffset(placement.left, parentContent.width) {
+        if left := Positioning:::ResolveOffset(placement.left, parentContent.width, layout->viewportLogical) {
             placed.x = placed.x + left;
         }
-        else if right := Positioning:::ResolveOffset(placement.right, parentContent.width) {
+        else if right := Positioning:::ResolveOffset(placement.right, parentContent.width, layout->viewportLogical) {
             placed.x = placed.x - right;
         }
-        if top := Positioning:::ResolveOffset(placement.top, parentContent.height) {
+        if top := Positioning:::ResolveOffset(placement.top, parentContent.height, layout->viewportLogical) {
             placed.y = placed.y + top;
         }
-        else if bottom := Positioning:::ResolveOffset(placement.bottom, parentContent.height) {
+        else if bottom := Positioning:::ResolveOffset(placement.bottom, parentContent.height, layout->viewportLogical) {
             placed.y = placed.y - bottom;
         }
         return placed;
@@ -81,10 +81,10 @@ Positioning :: namespace {
         block: Rect = layout->ContainingBlockFor(placement.positionMode == Position:::Fixed);
         margin: EdgeInsets = child->GetMarginLogical();
 
-        left: f32? = Positioning:::ResolveOffset(placement.left, block.width);
-        right: f32? = Positioning:::ResolveOffset(placement.right, block.width);
-        top: f32? = Positioning:::ResolveOffset(placement.top, block.height);
-        bottom: f32? = Positioning:::ResolveOffset(placement.bottom, block.height);
+        left: f32? = Positioning:::ResolveOffset(placement.left, block.width, layout->viewportLogical);
+        right: f32? = Positioning:::ResolveOffset(placement.right, block.width, layout->viewportLogical);
+        top: f32? = Positioning:::ResolveOffset(placement.top, block.height, layout->viewportLogical);
+        bottom: f32? = Positioning:::ResolveOffset(placement.bottom, block.height, layout->viewportLogical);
 
         stretchX: bool = left != null && right != null && !placement.hasWidth;
         stretchY: bool = top != null && bottom != null && !placement.hasHeight;
@@ -99,7 +99,7 @@ Positioning :: namespace {
             availableY = spaceY;
         }
 
-        desired: Point = child->Measure(Point { x: availableX, y: availableY });
+        desired: Point = child->Measure(Point { x: availableX, y: availableY }, layout);
         width~ f32 = desired.x;
         if stretchX {
             width = availableX;

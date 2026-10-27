@@ -1,3 +1,4 @@
+LayoutContext :: import LayoutContext;
 Point :: import Point;
 Rect :: import Rect;
 Color :: import Color;
@@ -50,7 +51,7 @@ public:
     }
 
 protected:
-    MeasureContent~: (availableContentSize: Point) -> Point override {
+    MeasureContent~: (availableContentSize: Point, layout: LayoutContext~*) -> Point override {
         return Point { x: this->glyphSizeLogical, y: this->glyphSizeLogical };
     }
 

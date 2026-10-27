@@ -30,7 +30,7 @@ public:
         this->iconName = copied!;
     }
 
-    Measure~: (availableSizeLogical: Point) -> Point override {
+    Measure~: (availableSizeLogical: Point, layout: LayoutContext~*) -> Point override {
         return Point { x: this->sizeLogical, y: this->sizeLogical };
     }
 

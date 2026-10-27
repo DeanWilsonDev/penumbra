@@ -1,3 +1,4 @@
+LayoutContext :: import LayoutContext;
 Point :: import Point;
 Rect :: import Rect;
 IRenderer :: import IRenderer;
@@ -14,7 +15,7 @@ public:
     }
 
 protected:
-    MeasureContent~: (availableContentSize: Point) -> Point override {
+    MeasureContent~: (availableContentSize: Point, layout: LayoutContext~*) -> Point override {
         return Point { x: this->preferredWidthLogical, y: this->preferredHeightLogical };
     }
 

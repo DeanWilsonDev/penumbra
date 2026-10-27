@@ -205,9 +205,9 @@ RunFrame :: (toolbar: Box~*, stacking: StackingTracker~*, frameName: string, x: 
 SimulateInput :: () -> void {
     toolbar: Box*! = BuildToolbar();
     defer delete toolbar;
-    toolbar->Measure(Point { x: 400.0f, y: 100.0f });
     layout: LayoutContext*! = new LayoutContext();
     defer delete layout;
+    toolbar->Measure(Point { x: 400.0f, y: 100.0f }, layout);
     toolbar->Arrange(Rect { x: 0.0f, y: 0.0f, width: 400.0f, height: 32.0f }, layout);
     stacking: StackingTracker*! = new StackingTracker();
     defer delete stacking;
@@ -288,7 +288,7 @@ ShowPositioning :: () -> void {
     layout: LayoutContext*! = new LayoutContext();
     defer delete layout;
     layout->viewportLogical = Point { x: 640.0f, y: 360.0f };
-    desired: Point = panel->Measure(Point { x: 300.0f, y: 200.0f });
+    desired: Point = panel->Measure(Point { x: 300.0f, y: 200.0f }, layout);
     print(desired.x);
     print(desired.y);
     panel->Arrange(Rect { x: 20.0f, y: -120.0f, width: 300.0f, height: 200.0f }, layout);
@@ -372,7 +372,7 @@ ShowStacking :: () -> void {
     layout: LayoutContext*! = new LayoutContext();
     defer delete layout;
     layout->viewportLogical = Point { x: 200.0f, y: 120.0f };
-    stage->Measure(Point { x: 150.0f, y: 100.0f });
+    stage->Measure(Point { x: 150.0f, y: 100.0f }, layout);
     stage->Arrange(Rect { x: 10.0f, y: 10.0f, width: 150.0f, height: 100.0f }, layout);
     PrintTree(stage, 0);
     stacking: StackingTracker*! = new StackingTracker();
@@ -436,7 +436,7 @@ ShowButtons :: () -> void {
         print("clicked");
         print(counter->clicks);
     };
-    button->Measure(Point { x: 200.0f, y: 100.0f });
+    button->Measure(Point { x: 200.0f, y: 100.0f }, layout);
     button->Arrange(Rect { x: 0.0f, y: 0.0f, width: 80.0f, height: 24.0f }, layout);
     ButtonFrame(button, stacking, renderer, "away", 200.0f, 200.0f, false, false, false);
     ButtonFrame(button, stacking, renderer, "hover", 10.0f, 10.0f, false, false, false);
@@ -452,7 +452,7 @@ ShowButtons :: () -> void {
     rotated: Button*! = MakeButton("rotated", 0.0f);
     defer delete rotated;
     rotated->style.transform = Transform { rotationDegrees: 90.0f };
-    rotated->Measure(Point { x: 200.0f, y: 100.0f });
+    rotated->Measure(Point { x: 200.0f, y: 100.0f }, layout);
     rotated->Arrange(Rect { x: 0.0f, y: 40.0f, width: 80.0f, height: 24.0f }, layout);
     ButtonFrame(rotated, stacking, renderer, "rotated: inside the turned box", 40.0f, 20.0f, false, false, false);
     ButtonFrame(rotated, stacking, renderer, "rotated: inside the unturned box only", 5.0f, 52.0f, false, false, false);
@@ -467,7 +467,7 @@ ShowButtons :: () -> void {
         print("checked changed");
         print(checked);
     };
-    measured: Point = checkbox->Measure(Point { x: 200.0f, y: 100.0f });
+    measured: Point = checkbox->Measure(Point { x: 200.0f, y: 100.0f }, layout);
     print(measured.x);
     checkbox->Arrange(Rect { x: 0.0f, y: 80.0f, width: measured.x, height: measured.y }, layout);
     clickAt: InputState = InputState { mousePosition: Point { x: 5.0f, y: 85.0f } };
@@ -524,7 +524,7 @@ ShowScrolling :: () -> void {
         panel->AddChild(row!);
         rowIndex = rowIndex + 1;
     }
-    desired: Point = panel->Measure(Point { x: 100.0f, y: 60.0f });
+    desired: Point = panel->Measure(Point { x: 100.0f, y: 60.0f }, layout);
     print(desired.x);
     print(desired.y);
     panel->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: 60.0f }, layout);
@@ -588,7 +588,7 @@ ShowTextInput :: (font: IFontBackend*) -> void {
     field->onFocusLost = new () -> void {
         print("focus lost");
     };
-    desired: Point = field->Measure(Point { x: 640.0f, y: 360.0f });
+    desired: Point = field->Measure(Point { x: 640.0f, y: 360.0f }, layout);
     print(desired.x);
     print(desired.y);
     field->Arrange(Rect { x: 0.0f, y: 0.0f, width: desired.x, height: desired.y }, layout);
@@ -728,7 +728,7 @@ ShowKeyDispatch :: (font: IFontBackend*) -> void {
     root->AddChild(overlay!);
     SetOverlayVisible(root, false);
 
-    root->Measure(viewport);
+    root->Measure(viewport, layout);
     root->Arrange(Rect { x: 0.0f, y: 0.0f, width: viewport.x, height: viewport.y }, layout);
     PrintTree(root, 0);
 
@@ -796,7 +796,7 @@ ShowSplitPanel :: () -> void {
     right->SetSecond(bottom!);
     panel->SetSecond(right!);
 
-    panel->Measure(Point { x: 200.0f, y: 100.0f });
+    panel->Measure(Point { x: 200.0f, y: 100.0f }, layout);
     panel->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 100.0f }, layout);
     PrintTree(panel, 0);
 
@@ -835,7 +835,7 @@ ShowSmallWidgets :: (font: IFontBackend*) -> void {
         print("value changed");
         print(value);
     };
-    measured: Point = drag->Measure(Point { x: 200.0f, y: 100.0f });
+    measured: Point = drag->Measure(Point { x: 200.0f, y: 100.0f }, layout);
     print(measured.x);
     print(measured.y);
     drag->Arrange(Rect { x: 0.0f, y: 0.0f, width: measured.x, height: measured.y }, layout);
@@ -851,7 +851,7 @@ ShowSmallWidgets :: (font: IFontBackend*) -> void {
     right->radiusLogical = 4.0f;
     right->thicknessLogical = 1.5f;
     right->contentSizeLogical = Point { x: 12.0f, y: 12.0f };
-    rightSize: Point = right->Measure(Point { x: 100.0f, y: 100.0f });
+    rightSize: Point = right->Measure(Point { x: 100.0f, y: 100.0f }, layout);
     right->Arrange(Rect { x: 0.0f, y: 0.0f, width: rightSize.x, height: rightSize.y }, layout);
     right->Draw(renderer, stacking);
     down: Chevron*! = new Chevron();
@@ -884,7 +884,7 @@ ShowOverlays :: () -> void {
         print("page pressed");
     };
     host->SetRoot(page!);
-    host->Measure(Point { x: 200.0f, y: 100.0f });
+    host->Measure(Point { x: 200.0f, y: 100.0f }, layout);
     host->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 100.0f }, layout);
     print(host->HasOverlays());
     OverlayFrame(host, stacking, layout, "press the page", PointerAt(150.0f, true, true, false));
@@ -921,7 +921,7 @@ PointerAtPoint :: (x: f32, y: f32, pressed: bool, down: bool, released: bool) ->
 DropdownFrame :: (dropdown: Dropdown~*, stacking: StackingTracker~*, layout: LayoutContext~*, label: string, input: InputState) -> void {
     print(label);
     print(dropdown->UpdateInteractionState(input, stacking));
-    dropdown->Measure(Point { x: 200.0f, y: 100.0f });
+    dropdown->Measure(Point { x: 200.0f, y: 100.0f }, layout);
     dropdown->Arrange(Rect { x: 100.0f, y: 10.0f, width: 80.0f, height: 20.0f }, layout);
     print(dropdown->GetIsOpen());
 }
@@ -962,7 +962,7 @@ ShowDropdown :: (font: IFontBackend*) -> void {
         print("selection changed");
         print(index);
     };
-    dropdown->Measure(Point { x: 200.0f, y: 100.0f });
+    dropdown->Measure(Point { x: 200.0f, y: 100.0f }, layout);
     dropdown->Arrange(Rect { x: 100.0f, y: 10.0f, width: 80.0f, height: 20.0f }, layout);
     dropdown->Draw(renderer, stacking);
 
@@ -1003,7 +1003,7 @@ ShowInlineFlow :: () -> void {
     flow->AddChild(hidden!);
     flow->AddChild(MakeSizedBox("d", 90.0f, 8.0f));
     flow->AddChild(MakeSizedBox("too wide", 150.0f, 4.0f));
-    desired: Point = flow->Measure(Point { x: 100.0f, y: 200.0f });
+    desired: Point = flow->Measure(Point { x: 100.0f, y: 200.0f }, layout);
     print(desired.x);
     print(desired.y);
     flow->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: desired.y }, layout);
@@ -1038,7 +1038,7 @@ ShowIcon :: () -> void {
     icon->onPressed = new () -> void {
         print("icon pressed");
     };
-    desired: Point = icon->Measure(Point { x: 100.0f, y: 100.0f });
+    desired: Point = icon->Measure(Point { x: 100.0f, y: 100.0f }, layout);
     print(desired.x);
     icon->Arrange(Rect { x: 2.0f, y: 2.0f, width: desired.x, height: desired.y }, layout);
     IconFrame(icon, stacking, renderer, "away", PointerAtPoint(50.0f, 50.0f, false, false, false));
@@ -1091,7 +1091,7 @@ ShowBarCharts :: (font: IFontBackend*) -> void {
         print("hovered category");
         print(index);
     };
-    desired: Point = week->Measure(Point { x: 400.0f, y: 400.0f });
+    desired: Point = week->Measure(Point { x: 400.0f, y: 400.0f }, layout);
     print(desired.x);
     print(desired.y);
     week->Arrange(Rect { x: 0.0f, y: 0.0f, width: desired.x, height: desired.y }, layout);
@@ -1193,7 +1193,7 @@ ShowLabels :: (font: IFontBackend*) -> void {
     defer delete wrapped;
     wrapped->fontSizeLogical = 10.0f;
     wrapped->wrap = true;
-    wrappedSize: Point = wrapped->Measure(Point { x: 52.0f, y: 100.0f });
+    wrappedSize: Point = wrapped->Measure(Point { x: 52.0f, y: 100.0f }, layout);
     print(wrappedSize.x);
     print(wrappedSize.y);
     wrapped->Arrange(Rect { x: 10.0f, y: 20.0f, width: 52.0f, height: wrappedSize.y }, layout);
@@ -1211,7 +1211,7 @@ ShowLabels :: (font: IFontBackend*) -> void {
     truncated->fontSizeLogical = 10.0f;
     truncated->maxWidthLogical = 32.0f;
     truncated->truncateWithEllipsis = true;
-    truncatedSize: Point = truncated->Measure(Point { x: 100.0f, y: 100.0f });
+    truncatedSize: Point = truncated->Measure(Point { x: 100.0f, y: 100.0f }, layout);
     print(truncatedSize.x);
     truncated->Arrange(Rect { x: 0.0f, y: 0.0f, width: 32.0f, height: 10.0f }, layout);
     truncated->Draw(renderer, stacking);
@@ -1272,7 +1272,7 @@ ShowTextArea :: (font: IFontBackend*) -> void {
         TextAreaSpan { start: 4, end: 7, fontSizeLogical: 20.0f, colorBackground: Color { red: 90, green: 0, blue: 0, alpha: 255 } }
     ];
     area->SetSpans(spans.borrow());
-    desired: Point = area->Measure(Point { x: 640.0f, y: 360.0f });
+    desired: Point = area->Measure(Point { x: 640.0f, y: 360.0f }, layout);
     print(desired.x);
     print(desired.y);
     area->Arrange(Rect { x: 0.0f, y: 0.0f, width: desired.x, height: desired.y }, layout);
@@ -1331,7 +1331,7 @@ ShowSurfaces :: () -> void {
     canvas->onDraw = new (target: IRenderer~*, contentRectLogical: Rect) -> void {
         target->FillRect(Rect { x: contentRectLogical.x + 1.0f, y: contentRectLogical.y + 1.0f, width: 4.0f, height: 4.0f }, Color { red: 140, green: 0, blue: 0, alpha: 255 });
     };
-    canvasSize: Point = canvas->Measure(Point { x: 640.0f, y: 360.0f });
+    canvasSize: Point = canvas->Measure(Point { x: 640.0f, y: 360.0f }, layout);
     print(canvasSize.x);
     print(canvasSize.y);
     canvas->Arrange(Rect { x: 5.0f, y: 5.0f, width: canvasSize.x, height: canvasSize.y }, layout);
@@ -1344,7 +1344,7 @@ ShowSurfaces :: () -> void {
     defer delete image;
     image->SetFilePath("logo.png");
     image->LoadFrom(images);
-    imageSize: Point = image->Measure(Point { x: 640.0f, y: 360.0f });
+    imageSize: Point = image->Measure(Point { x: 640.0f, y: 360.0f }, layout);
     print(imageSize.x);
     print(imageSize.y);
     image->Arrange(Rect { x: 0.0f, y: 0.0f, width: imageSize.x, height: imageSize.y }, layout);
@@ -1358,7 +1358,7 @@ ShowSurfaces :: () -> void {
     image->SetFilePath("missing.png");
     image->LoadFrom(images);
     print(image->GetTexture());
-    missingSize: Point = image->Measure(Point { x: 640.0f, y: 360.0f });
+    missingSize: Point = image->Measure(Point { x: 640.0f, y: 360.0f }, layout);
     print(missingSize.x);
     image->Draw(renderer, stacking);
     image->SetFilePath("logo.png");
@@ -1380,7 +1380,7 @@ ShowSurfaces :: () -> void {
         print(input.mousePosition.x - contentRect.x);
         return false;
     };
-    viewportSize: Point = viewport->Measure(Point { x: 50.0f, y: 40.0f });
+    viewportSize: Point = viewport->Measure(Point { x: 50.0f, y: 40.0f }, layout);
     print(viewportSize.x);
     print(viewportSize.y);
     renderer->dpiScaleFactor = 2.0f;
@@ -1433,7 +1433,7 @@ ShowTextSelection :: (font: IFontBackend*) -> void {
     selection->focus = focusState;
     selection->clipboard = clipboard;
     selection->colorSelection = Color { red: 170, green: 0, blue: 0, alpha: 85 };
-    desired: Point = page->Measure(Point { x: 30.0f, y: 200.0f });
+    desired: Point = page->Measure(Point { x: 30.0f, y: 200.0f }, layout);
     page->Arrange(Rect { x: 0.0f, y: 0.0f, width: 30.0f, height: desired.y }, layout);
     PrintTree(page, 0);
 
@@ -1499,7 +1499,7 @@ TransitionFrame :: (box: Box~*, renderer: RecordingRenderer~*, stacking: Stackin
     renderer->frameIndex = frame;
     print("frame");
     print(frame);
-    measured: Point = box->Measure(Point { x: 400.0f, y: 300.0f });
+    measured: Point = box->Measure(Point { x: 400.0f, y: 300.0f }, layout);
     print(measured.x);
     box->Arrange(Rect { x: 0.0f, y: 0.0f, width: measured.x, height: 20.0f }, layout);
     box->Draw(renderer, stacking);
@@ -1509,7 +1509,7 @@ GrowFrame :: (grower: Box~*, renderer: RecordingRenderer~*, stacking: StackingTr
     renderer->frameIndex = frame;
     print("grow frame");
     print(frame);
-    grower->Measure(Point { x: 200.0f, y: 20.0f });
+    grower->Measure(Point { x: 200.0f, y: 20.0f }, layout);
     print(grower->GetFlexGrow());
     grower->Arrange(Rect { x: 0.0f, y: 0.0f, width: 50.0f, height: 20.0f }, layout);
     grower->Draw(renderer, stacking);
@@ -1578,6 +1578,74 @@ ShowTransitions :: () -> void {
     }
 }
 
+CountingBox :: class : Box {
+public:
+    measureCount~ i32 = 0;
+
+protected:
+    MeasureContent~: (availableContentSize: Point, layout: LayoutContext~*) -> Point override {
+        this->measureCount = this->measureCount + 1;
+        return Point { x: 10.0f, y: 10.0f };
+    }
+}
+
+ShowViewportUnitsAndMemo :: () -> void {
+    print("viewport units");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    layout->viewportLogical = Point { x: 640.0f, y: 360.0f };
+
+    sized: Box*! = MakeBox("sized", LayoutMode:::None);
+    defer delete sized;
+    sized->style.width = Lengths:::ViewportWidth(50.0f);
+    sized->style.height = Lengths:::ViewportHeight(10.0f);
+    sizedDesired: Point = sized->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    print(sizedDesired.x);
+    print(sizedDesired.y);
+
+    host: Box*! = MakeBox("host", LayoutMode:::None);
+    defer delete host;
+    host->style.positionMode = Position:::Relative;
+    pinned: Box*! = MakeBox("pinned", LayoutMode:::None);
+    pinned->style.positionMode = Position:::Absolute;
+    pinned->style.left = Lengths:::ViewportWidth(10.0f);
+    pinned->style.top = Lengths:::ViewportHeight(50.0f);
+    pinned->style.width = Lengths:::Logical(20.0f);
+    pinned->style.height = Lengths:::Logical(20.0f);
+    host->AddChild(pinned!);
+    host->Measure(Point { x: 200.0f, y: 200.0f }, layout);
+    host->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 200.0f }, layout);
+    PrintTree(host, 0);
+
+    print("measure memo");
+    column: Box*! = MakeBox("column", LayoutMode:::VerticalStack);
+    defer delete column;
+    counted: CountingBox*! = new CountingBox();
+    counter: CountingBox~* = counted;
+    column->AddChild(counted!);
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    print(counter->measureCount);
+    layout->BeginPass();
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    layout->BeginPass();
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    layout->EndPass();
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    print(counter->measureCount);
+    column->Measure(Point { x: 80.0f, y: 100.0f }, layout);
+    print(counter->measureCount);
+    layout->EndPass();
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    print(counter->measureCount);
+    layout->BeginPass();
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    column->Measure(Point { x: 100.0f, y: 100.0f }, layout);
+    layout->EndPass();
+    print(counter->measureCount);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1585,12 +1653,12 @@ main :: () -> i32 {
     defer delete window;
 
     viewport: Point = Point { x: 640.0f, y: 360.0f };
-    desired: Point = window->Measure(viewport);
-    print(desired.x);
-    print(desired.y);
     layout: LayoutContext*! = new LayoutContext();
     defer delete layout;
     layout->viewportLogical = viewport;
+    desired: Point = window->Measure(viewport, layout);
+    print(desired.x);
+    print(desired.y);
     window->Arrange(Rect { x: 0.0f, y: 0.0f, width: viewport.x, height: viewport.y }, layout);
     PrintTree(window, 0);
 
@@ -1622,5 +1690,6 @@ main :: () -> i32 {
     ShowTextSelection(font);
     ShowRoundedStyles();
     ShowTransitions();
+    ShowViewportUnitsAndMemo();
     return 0;
 }
