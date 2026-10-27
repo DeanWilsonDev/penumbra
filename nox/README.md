@@ -28,7 +28,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   dragging its scrollbar thumb. Last it focuses a `TextInput`, types UTF-8 text, moves and deletes
   by code point, selects with shift and by dragging, and copies, pastes and cuts through a recording
   clipboard. Last it routes keys: a focused `TextInput` keeps the keys it uses, the root's
-  `onKeyPressed` gets the rest, and a full-window modal takes every key while it's shown.
+  `onKeyPressed` gets the rest, and a full-window modal takes every key while it's shown. Last it
+  drags a `SplitPanel`'s handle past its minimum pane size, with a vertical split nested inside.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -55,6 +56,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/FocusState.h` | `Penumbra/Widgets/FocusState.nox` |
 | `Widgets/TextInput.h/.cpp` | `Penumbra/Widgets/TextInput.nox`: focus on click, typed text, caret and shift selection by code point, drag selection, backspace and delete, select all, copy, cut and paste, `onTextChanged` and `onFocusLost`. The text is an owned `string!` rebuilt from two substrings and the insertion on each edit |
 | `Widgets/KeyDispatch.h/.cpp` | `Penumbra/Widgets/KeyDispatch.nox`: the outermost `Box` or `ScrollablePanel` opens a pass, a focused `TextInput` marks the keys it used, the first child with `onKeyPressed` that saw keys (or the root) gets the rest, and a child covering the window withholds keys and text from everything after it. The `StackingTracker` owns the `KeyDispatch` the C++ keeps in a global, with the viewport it needs |
+| `Widgets/SplitPanel.h/.cpp` | `Penumbra/Widgets/SplitPanel.nox`: horizontal and vertical splits, the ratio clamped by the minimum pane size, handle drag and hover colours, and the panes as optional owners (`WidgetBase*!?`). `SplitPanelStyle` isn't a struct of its own, since Nox structs don't inherit: its handle colours are fields on the panel |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
@@ -70,7 +72,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `BoxStyle.transform` so far.
 - Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
 - `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
-- Every widget beyond `Box`, `Label`, `Button`, `Checkbox`, `ScrollablePanel` and `TextInput`.
+- Every widget beyond `Box`, `Label`, `Button`, `Checkbox`, `ScrollablePanel`, `TextInput` and `SplitPanel`.
 
 ## Language friction found so far
 
@@ -109,4 +111,5 @@ The Nox board's Penumbra card tracks this list:
 - **Prototype features added for this port:** foreign C calls inside `unsafe` blocks, interfaces, arrays of owners
   (`Array<WidgetBase*!>!` with `freeAll()`), struct constructions and fixed array literals as
   field defaults, optional owned callables, arrays of borrows and arrays of structs holding borrows,
-  owned strings with substrings, and pointer identity across a class hierarchy.
+  owned strings with substrings, pointer identity across a class hierarchy, and `~=` unwraps that
+  borrow an optional owner mutably.

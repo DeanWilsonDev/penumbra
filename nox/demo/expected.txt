@@ -882,3 +882,98 @@ field text
 b
 root key
 tab
+split panel
+0
+split
+0
+0
+200
+100
+1
+left pane
+2
+2
+94
+96
+1
+right split
+102
+0
+98
+100
+2
+top pane
+102
+0
+98
+24.5
+2
+bottom pane
+102
+26.5
+98
+73.5
+hover the handle
+true
+0.5
+98
+4
+press the handle
+true
+0.5
+98
+4
+drag right
+true
+0.75
+147
+4
+drag past the minimum pane
+true
+0.8469388
+166
+4
+release
+false
+0.8469388
+166
+4
+0
+split
+0
+0
+200
+100
+1
+left pane
+2
+2
+162
+96
+1
+right split
+170
+0
+30
+100
+2
+top pane
+170
+0
+30
+24.5
+2
+bottom pane
+170
+26.5
+30
+73.5
+fill
+166
+0
+4
+100
+60
+60
+60
+255
