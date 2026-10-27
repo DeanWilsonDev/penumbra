@@ -1,0 +1,348 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+IRenderer :: import IRenderer;
+InputState :: import InputState;
+Position :: import Position;
+PointerEvents :: import PointerEvents;
+Placement :: import Placement;
+WidgetBase :: import WidgetBase;
+
+StackingPass :: enum {
+    Paint,
+    Input
+}
+
+ClipRegion :: struct {
+    replace~ bool = false;
+    area~ Rect? = null;
+}
+
+StackingEntry :: struct {
+    widget: WidgetBase~*;
+    z~ i32 = 0;
+    order~ usize = 0;
+    clipping~ ClipRegion = ClipRegion { };
+    passThroughAbove~ bool? = null;
+    ancestorStart~ usize = 0;
+    ancestorCount~ usize = 0;
+}
+
+StackingWalk :: struct {
+    forChildren~ ClipRegion = ClipRegion { };
+    blockChildren~ ClipRegion? = null;
+    passThrough~ bool? = null;
+}
+
+Stacking :: namespace {
+    Intersect :: (first: Rect?, second: Rect?) -> Rect? {
+        guard a := first return second;
+        guard b := second return first;
+        left: f32 = Numbers:::Larger(a.x, b.x);
+        top: f32 = Numbers:::Larger(a.y, b.y);
+        right: f32 = Numbers:::Smaller(a.x + a.width, b.x + b.width);
+        bottom: f32 = Numbers:::Smaller(a.y + a.height, b.y + b.height);
+        return Rect { x: left, y: top, width: Numbers:::NonNegative(right - left), height: Numbers:::NonNegative(bottom - top) };
+    }
+
+    PassThroughFor :: (mode: PointerEvents, inherited: bool?) -> bool? {
+        return when mode {
+            PointerEvents:::None -> true,
+            PointerEvents:::Auto -> false,
+            PointerEvents:::Inherit -> inherited
+        };
+    }
+
+    ForPointerEvents :: (mode: PointerEvents, input: InputState) -> InputState {
+        passThrough: bool = mode == PointerEvents:::None || (mode == PointerEvents:::Inherit && input.pointerPassThrough);
+        given~ InputState = input;
+        given.pointerPassThrough = passThrough;
+        return given;
+    }
+
+    FormsContext :: (placement: Placement) -> bool {
+        return placement.zIndex != null || placement.positionMode == Position:::Fixed || placement.positionMode == Position:::Sticky;
+    }
+
+    IsLayered :: (placement: Placement) -> bool {
+        return placement.positionMode != Position:::Static || placement.zIndex != null;
+    }
+}
+
+StackingTracker :: class {
+public:
+    !StackingTracker~: () {
+        delete this->active;
+    }
+
+    NextSerial~: () -> u64 {
+        serial: u64 = this->nextSerial;
+        this->nextSerial = this->nextSerial + 1;
+        return serial;
+    }
+
+    Push~: (context: StackingContext~*) -> void {
+        this->active.push(context);
+    }
+
+    Pop~: () -> void {
+        this->active.pop();
+    }
+
+    Innermost :: () -> StackingContext*? {
+        if this->active.length() == 0 {
+            return null;
+        }
+        return this->active[this->active.length() - 1];
+    }
+
+    IsLayeredOut :: (widget: WidgetBase*) -> bool {
+        guard innermost := this->Innermost() return false;
+        return widget->layeredBy == innermost->GetSerial() && !innermost->IsCurrent(widget);
+    }
+
+    IsOnPointerPath :: (widget: WidgetBase*) -> bool {
+        guard innermost := this->Innermost() return false;
+        return innermost->PointerPathHolds(widget);
+    }
+
+private:
+    active~ Array<StackingContext~*>! = [];
+    nextSerial~ u64 = 1;
+}
+
+StackingContext :: class {
+public:
+    StackingContext~: (root: WidgetBase~*, kind: StackingPass, tracker: StackingTracker~*) : root(root), kind(kind), tracker(tracker) {
+        if enclosing := tracker->Innermost() {
+            if root->layeredBy != enclosing->GetSerial() || !root->layeredAsContext {
+                return;
+            }
+        }
+        this->active = true;
+        this->serial = tracker->NextSerial();
+        rootPlacement: Placement = root->GetPlacement();
+        walk~ StackingWalk = StackingWalk {
+            forChildren: ClipRegion { area: root->GetChildClipRect() },
+            passThrough: Stacking:::PassThroughFor(rootPlacement.pointerEventsMode, null)
+        };
+        if rootPlacement.positionMode != Position:::Static {
+            walk.blockChildren = walk.forChildren;
+        }
+        this->Collect(root, walk);
+        this->SortByZ();
+        tracker->Push(this);
+    }
+
+    !StackingContext~: () {
+        if this->active {
+            this->tracker->Pop();
+        }
+        delete this->entries;
+        delete this->ancestorStack;
+        delete this->ancestorPool;
+        delete this->pointerPath;
+    }
+
+    GetSerial :: () -> u64 {
+        return this->serial;
+    }
+
+    IsActive :: () -> bool {
+        return this->active;
+    }
+
+    IsCurrent :: (widget: WidgetBase*) -> bool {
+        if current := this->current {
+            return current == widget;
+        }
+        return false;
+    }
+
+    PointerPathHolds :: (widget: WidgetBase*) -> bool {
+        for step in this->pointerPath {
+            if step == widget {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    PaintBelow~: (renderer: IRenderer~*) -> void {
+        index~ usize = 0;
+        while index < this->entries.length() {
+            entry: StackingEntry = this->entries[index];
+            if entry.z < 0 {
+                this->Paint(renderer, entry);
+            }
+            index = index + 1;
+        }
+    }
+
+    PaintAbove~: (renderer: IRenderer~*) -> void {
+        index~ usize = 0;
+        while index < this->entries.length() {
+            entry: StackingEntry = this->entries[index];
+            if entry.z >= 0 {
+                this->Paint(renderer, entry);
+            }
+            index = index + 1;
+        }
+    }
+
+    DispatchAbove~: (input: InputState) -> bool {
+        taken~ bool = false;
+        index~ usize = this->entries.length();
+        while index > 0 {
+            index = index - 1;
+            entry: StackingEntry = this->entries[index];
+            if entry.z >= 0 && this->Dispatch(entry, input, taken) {
+                taken = true;
+            }
+        }
+        return taken;
+    }
+
+    DispatchBelow~: (input: InputState, pointerTaken: bool) -> bool {
+        taken~ bool = false;
+        index~ usize = this->entries.length();
+        while index > 0 {
+            index = index - 1;
+            entry: StackingEntry = this->entries[index];
+            if entry.z < 0 && this->Dispatch(entry, input, pointerTaken || taken) {
+                taken = true;
+            }
+        }
+        return taken;
+    }
+
+private:
+    root: WidgetBase~*;
+    kind: StackingPass;
+    tracker: StackingTracker~*;
+    active~ bool = false;
+    serial~ u64 = 0;
+    nextOrder~ usize = 0;
+    current~ WidgetBase*? = null;
+    entries~ Array<StackingEntry>! = [];
+    ancestorStack~ Array<WidgetBase*>! = [];
+    ancestorPool~ Array<WidgetBase*>! = [];
+    pointerPath~ Array<WidgetBase*>! = [];
+
+    Collect~: (parent: WidgetBase~*, walk: StackingWalk) -> void {
+        index~ usize = 0;
+        while index < parent->GetChildCount() {
+            childIndex: usize = index;
+            index = index + 1;
+            guard child := parent->GetMutableChildAt(childIndex) continue;
+            if !child->GetIsVisible() {
+                continue;
+            }
+            placement: Placement = child->GetPlacement();
+            own~ ClipRegion = walk.forChildren;
+            if placement.positionMode == Position:::Fixed {
+                own = ClipRegion { replace: true };
+            }
+            else if placement.positionMode == Position:::Absolute {
+                own = walk.blockChildren ?? ClipRegion { };
+            }
+
+            if Stacking:::IsLayered(placement) {
+                this->entries.push(StackingEntry {
+                    widget: child,
+                    z: placement.zIndex ?? 0,
+                    order: this->nextOrder,
+                    clipping: own,
+                    passThroughAbove: walk.passThrough,
+                    ancestorStart: this->ancestorPool.length(),
+                    ancestorCount: this->ancestorStack.length()
+                });
+                this->nextOrder = this->nextOrder + 1;
+                for ancestor in this->ancestorStack {
+                    this->ancestorPool.push(ancestor);
+                }
+                child->layeredBy = this->serial;
+                child->layeredAsContext = Stacking:::FormsContext(placement);
+                if child->layeredAsContext {
+                    continue;
+                }
+            }
+
+            inner~ StackingWalk = walk;
+            inner.forChildren = ClipRegion { replace: own.replace, area: Stacking:::Intersect(own.area, child->GetChildClipRect()) };
+            if placement.positionMode != Position:::Static {
+                inner.blockChildren = inner.forChildren;
+            }
+            inner.passThrough = Stacking:::PassThroughFor(placement.pointerEventsMode, walk.passThrough);
+            this->ancestorStack.push(child);
+            this->Collect(child, inner);
+            this->ancestorStack.pop();
+        }
+    }
+
+    SortByZ~: () -> void {
+        index~ usize = 1;
+        while index < this->entries.length() {
+            moving: StackingEntry = this->entries[index];
+            position~ usize = index;
+            while position > 0 && this->entries[position - 1].z > moving.z {
+                this->entries[position] = this->entries[position - 1];
+                position = position - 1;
+            }
+            this->entries[position] = moving;
+            index = index + 1;
+        }
+    }
+
+    Paint~: (renderer: IRenderer~*, entry: StackingEntry) -> void {
+        pushed~ bool = true;
+        if entry.clipping.replace {
+            renderer->PushClipRectUnbounded(entry.clipping.area);
+        }
+        else if area := entry.clipping.area {
+            renderer->PushClipRect(area);
+        }
+        else {
+            pushed = false;
+        }
+        previous: WidgetBase*? = this->current;
+        this->current = entry.widget;
+        entry.widget->Draw(renderer, this->tracker);
+        this->current = previous;
+        if pushed {
+            renderer->PopClipRect();
+        }
+    }
+
+    Dispatch~: (entry: StackingEntry, input: InputState, pointerTaken: bool) -> bool {
+        given~ InputState = input;
+        if pointerTaken {
+            given.pointerOccluded = true;
+        }
+        else if area := entry.clipping.area {
+            if !area.Contains(input.mousePosition) {
+                given.pointerOccluded = true;
+            }
+        }
+        placement: Placement = entry.widget->GetPlacement();
+        inherited: bool = entry.passThroughAbove ?? input.pointerPassThrough;
+        given.pointerPassThrough = Stacking:::PassThroughFor(placement.pointerEventsMode, inherited) ?? false;
+
+        previous: WidgetBase*? = this->current;
+        this->current = entry.widget;
+        took~ bool = entry.widget->UpdateInteractionState(given, this->tracker);
+        this->current = previous;
+
+        if given.IsPointerOver(entry.widget->GetArrangedRect()) {
+            took = true;
+        }
+        if took && !given.pointerOccluded && this->pointerPath.length() == 0 && placement.positionMode != Position:::Fixed {
+            step~ usize = 0;
+            while step < entry.ancestorCount {
+                this->pointerPath.push(this->ancestorPool[entry.ancestorStart + step]);
+                step = step + 1;
+            }
+        }
+        return took;
+    }
+}

@@ -20,10 +20,15 @@ RecordingRenderer :: class {
         IRenderer;
 public:
     commandCount~ i32 = 0;
+    printsDetail~ bool = true;
 
     FillRect~: (rect: Rect, color: Color) -> void {
         this->commandCount = this->commandCount + 1;
         print("fill");
+        if !this->printsDetail {
+            print(color.red);
+            return;
+        }
         this->PrintRect(rect);
         this->PrintColor(color);
     }
@@ -43,6 +48,28 @@ public:
         print(origin.x);
         print(origin.y);
         print(sizeLogical);
+    }
+
+    PushClipRect~: (rect: Rect) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("clip");
+        this->PrintRect(rect);
+    }
+
+    PushClipRectUnbounded~: (rect: Rect?) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("clip unbounded");
+        if area := rect {
+            this->PrintRect(area);
+        }
+        else {
+            print("none");
+        }
+    }
+
+    PopClipRect~: () -> void {
+        this->commandCount = this->commandCount + 1;
+        print("unclip");
     }
 
 private:

@@ -21,6 +21,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   by hand against the C++ layout rules. It then runs eleven frames of simulated mouse input over a
   toolbar holding a button and a disabled box, printing each frame's callbacks and interaction
   states. Last it arranges a positioned panel with relative, absolute, fixed and sticky children.
+  Then it paints and probes a stage whose children use z-index, absolute, fixed and relative
+  positioning, a child clip rect and pointer-events none.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -36,6 +38,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/WidgetBase.h` | `Penumbra/Widgets/WidgetBase.nox` (abstract class, with the seven callbacks as `(() -> void)!?` fields) |
 | `Widgets/Box.h/.cpp` | `Penumbra/Widgets/Box.nox`: children as `Array<WidgetBase*!>!`, the None, vertical, horizontal and fixed-leading layouts, flex grow, cross alignment, justify, width, height, min-width and max-width, drawing the background, border and children in their interaction-state colours, and `UpdateInteractionState` (children in reverse order, occluded input after one consumes it, hover, press, release and disabled) |
 | `Widgets/Positioning.h/.cpp` | `Penumbra/Widgets/Positioning.nox` and `LayoutContext.nox`: relative, absolute, fixed and sticky positioning, with the containing-block and scrollport stacks held by a `LayoutContext` passed to `Arrange` |
+| `Widgets/Stacking.h/.cpp` | `Penumbra/Widgets/Stacking.nox`: z-index stacking contexts for paint and input, clip regions from `GetChildClipRect`, pointer-events and the pointer path. A `StackingTracker` passed to `Draw` and `UpdateInteractionState` holds what the C++ keeps in globals |
 | `Widgets/Label.h/.cpp` | `Penumbra/Widgets/Label.nox`, measured through `IFontBackend` |
 
 ## Not ported yet
@@ -43,7 +46,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 - The SDL platform layer, the SDL renderer and the SDL_ttf font backend. These need foreign
   calls into C, which the prototype doesn't have yet.
 - Keyboard input, text input and key dispatch, pointer-events modes, and focus.
-- Stacking contexts and z-index, clipping, pointer-events modes and the scroll containers.
+- The scroll containers, and groups painted through a transform or opacity (`PaintsAsGroup`).
 - Transforms as containing blocks (Penumbra's `Transform` style isn't ported yet).
 - Transitions, animation, the layout-pass measure memo, and viewport units.
 - Every widget beyond `Box` and `Label`.
@@ -66,8 +69,12 @@ The Nox board's Penumbra card tracks this list:
   C++ callbacks capture `this` or app objects by reference; in Nox the demo's button owns its
   counter. Wiring a callback to state the app also uses needs shared ownership or an unsafe
   escape, which the language hasn't designed yet.
+- **Lists of borrowed widgets.** Stacking contexts keep the widgets they paint, so the prototype
+  gained arrays of borrows (`Array<WidgetBase~*>!`) and arrays of structs that hold borrows. An
+  entry's ancestors live in one pool array on the context, indexed by start and count, because a
+  struct element can't own an array.
 - **No dereference copy.** `UpdateInteractionState` takes `InputState` by value, and
   `InputState.Occluded()` rebuilds the copy field by field.
 - **Prototype features added for this port:** interfaces, arrays of owners
   (`Array<WidgetBase*!>!` with `freeAll()`), struct constructions and fixed array literals as
-  field defaults, and optional owned callables.
+  field defaults, optional owned callables, arrays of borrows and arrays of structs holding borrows.

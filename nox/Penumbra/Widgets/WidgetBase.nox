@@ -5,6 +5,7 @@ IRenderer :: import IRenderer;
 InputState :: import InputState;
 Placement :: import Placement;
 LayoutContext :: import LayoutContext;
+StackingTracker :: import StackingTracker;
 
 InteractionState :: enum {
     Default,
@@ -16,6 +17,8 @@ InteractionState :: enum {
 WidgetBase :: class {
 public:
     className~ string = "";
+    layeredBy~ u64 = 0;
+    layeredAsContext~ bool = false;
     onPressed~ (() -> void)!? = null;
     onReleased~ (() -> void)!? = null;
     onHovered~ (() -> void)!? = null;
@@ -39,8 +42,8 @@ public:
 
     Measure~ (availableSizeLogical: Point) -> Point : 0;
     Arrange~ (finalRectLogical: Rect, layout: LayoutContext~*) -> void : 0;
-    Draw~ (renderer: IRenderer~*) -> void : 0;
-    UpdateInteractionState~ (input: InputState) -> bool : 0;
+    Draw~ (renderer: IRenderer~*, stacking: StackingTracker~*) -> void : 0;
+    UpdateInteractionState~ (input: InputState, stacking: StackingTracker~*) -> bool : 0;
 
     virtual GetMarginLogical :: () -> EdgeInsets {
         return EdgeInsets { };
@@ -59,6 +62,14 @@ public:
     }
 
     virtual GetChildAt :: (index: usize) -> WidgetBase*? {
+        return null;
+    }
+
+    virtual GetMutableChildAt~: (index: usize) -> WidgetBase~*? {
+        return null;
+    }
+
+    virtual GetChildClipRect :: () -> Rect? {
         return null;
     }
 

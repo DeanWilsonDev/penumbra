@@ -16,6 +16,7 @@ library_sources=(
     Penumbra/Widgets/LayoutContext.nox
     Penumbra/Widgets/WidgetBase.nox
     Penumbra/Widgets/Positioning.nox
+    Penumbra/Widgets/Stacking.nox
     Penumbra/Widgets/Box.nox
     Penumbra/Widgets/Label.nox
 )

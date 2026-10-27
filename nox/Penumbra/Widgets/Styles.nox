@@ -55,6 +55,12 @@ Position :: enum {
     Sticky
 }
 
+PointerEvents :: enum {
+    Inherit,
+    Auto,
+    None
+}
+
 Placement :: struct {
     positionMode~ Position = Position:::Static;
     top~ Length? = null;
@@ -63,6 +69,8 @@ Placement :: struct {
     left~ Length? = null;
     hasWidth~ bool = false;
     hasHeight~ bool = false;
+    zIndex~ i32? = null;
+    pointerEventsMode~ PointerEvents = PointerEvents:::Inherit;
 }
 
 BoxStyle :: struct {
@@ -88,6 +96,8 @@ BoxStyle :: struct {
     right~ Length? = null;
     bottom~ Length? = null;
     left~ Length? = null;
+    zIndex~ i32? = null;
+    pointerEventsMode~ PointerEvents = PointerEvents:::Inherit;
 
     PlacementOf :: () -> Placement {
         return Placement {
@@ -97,7 +107,9 @@ BoxStyle :: struct {
             bottom: bottom,
             left: left,
             hasWidth: width.IsSet(),
-            hasHeight: height.IsSet()
+            hasHeight: height.IsSet(),
+            zIndex: zIndex,
+            pointerEventsMode: pointerEventsMode
         };
     }
 
