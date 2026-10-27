@@ -1,0 +1,62 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+IRenderer :: import IRenderer;
+IFontBackend :: import IFontBackend;
+
+FixedAdvanceFont :: class {
+    implements:
+        IFontBackend;
+public:
+    advancePerSize~ f32 = 0.5f;
+
+    MeasureText :: (text: string, sizeLogical: f32) -> Point {
+        return Point { x: f32(text.length()) * sizeLogical * this->advancePerSize, y: sizeLogical };
+    }
+}
+
+RecordingRenderer :: class {
+    implements:
+        IRenderer;
+public:
+    commandCount~ i32 = 0;
+
+    FillRect~: (rect: Rect, color: Color) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("fill");
+        this->PrintRect(rect);
+        this->PrintColor(color);
+    }
+
+    StrokeRect~: (rect: Rect, color: Color, thicknessLogical: f32) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("stroke");
+        this->PrintRect(rect);
+        this->PrintColor(color);
+        print(thicknessLogical);
+    }
+
+    DrawText~: (text: string, origin: Point, sizeLogical: f32, color: Color) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("text");
+        print(text);
+        print(origin.x);
+        print(origin.y);
+        print(sizeLogical);
+    }
+
+private:
+    PrintRect :: (rect: Rect) -> void {
+        print(rect.x);
+        print(rect.y);
+        print(rect.width);
+        print(rect.height);
+    }
+
+    PrintColor :: (color: Color) -> void {
+        print(color.red);
+        print(color.green);
+        print(color.blue);
+        print(color.alpha);
+    }
+}

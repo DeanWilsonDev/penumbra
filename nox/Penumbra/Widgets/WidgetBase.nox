@@ -1,0 +1,61 @@
+Point :: import Point;
+Rect :: import Rect;
+EdgeInsets :: import EdgeInsets;
+IRenderer :: import IRenderer;
+
+InteractionState :: enum {
+    Default,
+    Hovered,
+    Pressed,
+    Disabled
+}
+
+WidgetBase :: class {
+public:
+    className~ string = "";
+
+    Measure~ (availableSizeLogical: Point) -> Point : 0;
+    Arrange~ (finalRectLogical: Rect) -> void : 0;
+    Draw~ (renderer: IRenderer~*) -> void : 0;
+
+    virtual GetMarginLogical :: () -> EdgeInsets {
+        return EdgeInsets { };
+    }
+
+    virtual GetFlexGrow :: () -> f32 {
+        return 0.0f;
+    }
+
+    virtual GetChildCount :: () -> usize {
+        return 0;
+    }
+
+    virtual GetChildAt :: (index: usize) -> WidgetBase*? {
+        return null;
+    }
+
+    SetIsEnabled~: (enabled: bool) -> void {
+        this->isEnabled = enabled;
+    }
+
+    GetIsEnabled :: () -> bool {
+        return this->isEnabled;
+    }
+
+    SetIsVisible~: (visible: bool) -> void {
+        this->isVisible = visible;
+    }
+
+    GetIsVisible :: () -> bool {
+        return this->isVisible;
+    }
+
+    GetArrangedRect :: () -> Rect {
+        return this->arrangedRect;
+    }
+
+protected:
+    isEnabled~ bool = true;
+    isVisible~ bool = true;
+    arrangedRect~ Rect = Rect { };
+}

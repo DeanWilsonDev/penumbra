@@ -1,0 +1,13 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+
+IRenderer :: interface {
+    FillRect~ (rect: Rect, color: Color) -> void : 0;
+    StrokeRect~ (rect: Rect, color: Color, thicknessLogical: f32) -> void : 0;
+    DrawText~ (text: string, origin: Point, sizeLogical: f32, color: Color) -> void : 0;
+}
+
+IFontBackend :: interface {
+    MeasureText : (text: string, sizeLogical: f32) -> Point : 0;
+}

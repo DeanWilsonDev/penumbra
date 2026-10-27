@@ -1,0 +1,10 @@
+Color :: struct {
+    red~ u8 = 0;
+    green~ u8 = 0;
+    blue~ u8 = 0;
+    alpha~ u8 = 0;
+
+    IsVisible :: () -> bool {
+        return alpha > 0;
+    }
+}

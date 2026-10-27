@@ -1,0 +1,444 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Color :: import Color;
+IRenderer :: import IRenderer;
+EdgeInsets :: import EdgeInsets;
+LayoutMode :: import LayoutMode;
+CrossAlign :: import CrossAlign;
+Justify :: import Justify;
+BoxStyle :: import BoxStyle;
+Length :: import Length;
+WidgetBase :: import WidgetBase;
+
+CrossPlacement :: struct {
+    position~ f32 = 0.0f;
+    extent~ f32 = 0.0f;
+}
+
+Box :: class : WidgetBase {
+public:
+    style~ BoxStyle = BoxStyle { };
+    children~ Array<WidgetBase*!>! = [];
+    layout~ LayoutMode = LayoutMode:::None;
+    childGap~ f32 = 0.0f;
+    crossAlignment~ CrossAlign = CrossAlign:::Start;
+    justifyContentMode~ Justify = Justify:::Start;
+    leadingExtentLogical~ f32 = -1.0f;
+
+    !Box~: () {
+        this->children.freeAll();
+    }
+
+    AddChild~: (child: WidgetBase*!) -> WidgetBase~* {
+        this->children.push(child!);
+        return this->children[this->children.length() - 1];
+    }
+
+    InsertChildAt~: (index: usize, child: WidgetBase*!) -> WidgetBase~* {
+        this->children.insert(index, child!);
+        return this->children[index];
+    }
+
+    RemoveChildAt~: (index: usize) -> void {
+        removed: WidgetBase*! = this->children.remove(index);
+        delete removed;
+    }
+
+    GetMarginLogical :: () -> EdgeInsets override {
+        return this->style.margin;
+    }
+
+    GetFlexGrow :: () -> f32 override {
+        return this->style.flexGrow;
+    }
+
+    GetChildCount :: () -> usize override {
+        return this->children.length();
+    }
+
+    GetChildAt :: (index: usize) -> WidgetBase*? override {
+        return this->children[index];
+    }
+
+    Measure~: (availableSizeLogical: Point) -> Point override {
+        frame: Point = this->FrameSize();
+        effectiveAvailable: Point = this->ConstrainAvailable(availableSizeLogical);
+        contentAvailable: Point = Point {
+            x: Numbers:::NonNegative(effectiveAvailable.x - frame.x),
+            y: Numbers:::NonNegative(effectiveAvailable.y - frame.y)
+        };
+        contentDesired~ Point = Point { };
+        if this->layout == LayoutMode:::None {
+            contentDesired = this->MeasureContent(contentAvailable);
+        }
+        else if this->layout == LayoutMode:::FixedLeadingStack {
+            this->MeasureFixedLeading(contentAvailable);
+            contentDesired = contentAvailable;
+        }
+        else {
+            contentDesired = this->MeasureStack(contentAvailable);
+        }
+        return this->ConstrainDesired(Point { x: contentDesired.x + frame.x, y: contentDesired.y + frame.y }, availableSizeLogical);
+    }
+
+    Arrange~: (finalRectLogical: Rect) -> void override {
+        this->arrangedRect = finalRectLogical;
+        content: Rect = this->ContentRectFrom(finalRectLogical);
+        if this->layout == LayoutMode:::None {
+            return;
+        }
+        if this->layout == LayoutMode:::FixedLeadingStack {
+            this->ArrangeFixedLeading(content);
+            return;
+        }
+        this->ArrangeStack(content);
+    }
+
+    Draw~: (renderer: IRenderer~*) -> void override {
+        if !this->isVisible {
+            return;
+        }
+        if this->style.colorBackground.IsVisible() {
+            renderer->FillRect(this->arrangedRect, this->style.colorBackground);
+        }
+        if this->style.borderWidth > 0.0f && this->style.colorBorder.IsVisible() {
+            renderer->StrokeRect(this->arrangedRect, this->style.colorBorder, this->style.borderWidth);
+        }
+        this->DrawContent(renderer, this->ContentRectFrom(this->arrangedRect));
+        for child in this->children {
+            if child->GetIsVisible() {
+                child->Draw(renderer);
+            }
+        }
+    }
+
+protected:
+    virtual MeasureContent~: (availableContentSize: Point) -> Point {
+        return Point { };
+    }
+
+    virtual DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void {
+    }
+
+    FrameSize :: () -> Point {
+        return Point {
+            x: this->style.padding.Horizontal() + 2.0f * this->style.borderWidth,
+            y: this->style.padding.Vertical() + 2.0f * this->style.borderWidth
+        };
+    }
+
+    ContentRectFrom :: (outerRect: Rect) -> Rect {
+        border: f32 = this->style.borderWidth;
+        return Rect {
+            x: outerRect.x + border + this->style.padding.left,
+            y: outerRect.y + border + this->style.padding.top,
+            width: Numbers:::NonNegative(outerRect.width - 2.0f * border - this->style.padding.Horizontal()),
+            height: Numbers:::NonNegative(outerRect.height - 2.0f * border - this->style.padding.Vertical())
+        };
+    }
+
+    ConstrainAvailable :: (availableSizeLogical: Point) -> Point {
+        return Point {
+            x: this->ConstrainLength(true, availableSizeLogical.x, availableSizeLogical.x),
+            y: this->ConstrainLength(false, availableSizeLogical.y, availableSizeLogical.y)
+        };
+    }
+
+    ConstrainDesired :: (desiredSizeLogical: Point, availableSizeLogical: Point) -> Point {
+        return Point {
+            x: this->ConstrainLength(true, desiredSizeLogical.x, availableSizeLogical.x),
+            y: this->ConstrainLength(false, desiredSizeLogical.y, availableSizeLogical.y)
+        };
+    }
+
+private:
+    ConstrainLength :: (isWidth: bool, value: f32, availableLogical: f32) -> f32 {
+        size~ Length = this->style.height;
+        if isWidth {
+            size = this->style.width;
+        }
+        result~ f32 = value;
+        if size.IsSet() {
+            result = size.Resolve(availableLogical);
+        }
+        if isWidth && this->style.maxWidth.IsSet() {
+            result = Numbers:::Smaller(result, this->style.maxWidth.Resolve(availableLogical));
+        }
+        if isWidth && this->style.minWidth.IsSet() {
+            result = Numbers:::Larger(result, this->style.minWidth.Resolve(availableLogical));
+        }
+        return result;
+    }
+
+    MainOf :: (vertical: bool, size: Point) -> f32 {
+        if vertical {
+            return size.y;
+        }
+        return size.x;
+    }
+
+    CrossOf :: (vertical: bool, size: Point) -> f32 {
+        if vertical {
+            return size.x;
+        }
+        return size.y;
+    }
+
+    MainMargin :: (vertical: bool, margin: EdgeInsets) -> f32 {
+        if vertical {
+            return margin.Vertical();
+        }
+        return margin.Horizontal();
+    }
+
+    CrossMargin :: (vertical: bool, margin: EdgeInsets) -> f32 {
+        if vertical {
+            return margin.Horizontal();
+        }
+        return margin.Vertical();
+    }
+
+    ChildAvailable :: (contentSize: Point, margin: EdgeInsets, vertical: bool, growExtent: f32) -> Point {
+        available~ Point = Point {
+            x: Numbers:::NonNegative(contentSize.x - margin.Horizontal()),
+            y: Numbers:::NonNegative(contentSize.y - margin.Vertical())
+        };
+        if growExtent >= 0.0f {
+            if vertical {
+                available.y = growExtent;
+            }
+            else {
+                available.x = growExtent;
+            }
+        }
+        return available;
+    }
+
+    GrowExtents~: (vertical: bool, contentSize: Point) -> Array<f32>! {
+        extents~ Array<f32>! = [];
+        totalGrow~ f32 = 0.0f;
+        for child in this->children {
+            if child->GetIsVisible() && child->GetFlexGrow() > 0.0f {
+                totalGrow = totalGrow + child->GetFlexGrow();
+            }
+        }
+        if totalGrow <= 0.0f {
+            return extents!;
+        }
+        fixedMain~ f32 = 0.0f;
+        visibleCount~ usize = 0;
+        for child in this->children {
+            if !child->GetIsVisible() {
+                continue;
+            }
+            visibleCount = visibleCount + 1;
+            margin: EdgeInsets = child->GetMarginLogical();
+            fixedMain = fixedMain + this->MainMargin(vertical, margin);
+            if child->GetFlexGrow() > 0.0f {
+                continue;
+            }
+            desired: Point = child->Measure(Point {
+                x: Numbers:::NonNegative(contentSize.x - margin.Horizontal()),
+                y: Numbers:::NonNegative(contentSize.y - margin.Vertical())
+            });
+            fixedMain = fixedMain + this->MainOf(vertical, desired);
+        }
+        gaps~ f32 = 0.0f;
+        if visibleCount > 1 {
+            gaps = f32(visibleCount - 1) * this->childGap;
+        }
+        remaining: f32 = Numbers:::NonNegative(this->MainOf(vertical, contentSize) - fixedMain - gaps);
+        for child in this->children {
+            if child->GetIsVisible() && child->GetFlexGrow() > 0.0f {
+                extents.push(remaining * child->GetFlexGrow() / totalGrow);
+            }
+            else {
+                extents.push(-1.0f);
+            }
+        }
+        return extents!;
+    }
+
+    GrowExtentAt :: (extents: Array<f32>, index: usize) -> f32 {
+        if extents.length() == 0 {
+            return -1.0f;
+        }
+        return extents[index];
+    }
+
+    MeasureFixedLeading~: (contentAvailable: Point) -> void {
+        leadingExtent: f32 = Numbers:::NonNegative(this->leadingExtentLogical);
+        fillHeight: f32 = Numbers:::NonNegative(contentAvailable.y - leadingExtent - this->childGap);
+        leadingSeen~ bool = false;
+        for child in this->children {
+            if !child->GetIsVisible() {
+                continue;
+            }
+            margin: EdgeInsets = child->GetMarginLogical();
+            slotHeight~ f32 = leadingExtent;
+            if leadingSeen {
+                slotHeight = fillHeight;
+            }
+            child->Measure(Point {
+                x: Numbers:::NonNegative(contentAvailable.x - margin.Horizontal()),
+                y: Numbers:::NonNegative(slotHeight - margin.Vertical())
+            });
+            leadingSeen = true;
+        }
+    }
+
+    MeasureStack~: (contentAvailable: Point) -> Point {
+        vertical: bool = this->layout == LayoutMode:::VerticalStack;
+        mainTotal~ f32 = 0.0f;
+        crossMax~ f32 = 0.0f;
+        anyVisible~ bool = false;
+        growExtents~ Array<f32>! = this->GrowExtents(vertical, contentAvailable);
+        defer delete growExtents;
+        index~ usize = 0;
+        for child in this->children {
+            childIndex: usize = index;
+            index = index + 1;
+            if !child->GetIsVisible() {
+                continue;
+            }
+            margin: EdgeInsets = child->GetMarginLogical();
+            desired: Point = child->Measure(this->ChildAvailable(contentAvailable, margin, vertical, this->GrowExtentAt(growExtents, childIndex)));
+            if anyVisible {
+                mainTotal = mainTotal + this->childGap;
+            }
+            mainTotal = mainTotal + this->MainOf(vertical, desired) + this->MainMargin(vertical, margin);
+            crossMax = Numbers:::Larger(crossMax, this->CrossOf(vertical, desired) + this->CrossMargin(vertical, margin));
+            anyVisible = true;
+        }
+        if vertical {
+            return Point { x: crossMax, y: mainTotal };
+        }
+        return Point { x: mainTotal, y: crossMax };
+    }
+
+    PlaceCross :: (contentStart: f32, contentExtent: f32, childExtent: f32, marginLead: f32, marginTrail: f32) -> CrossPlacement {
+        available: f32 = Numbers:::NonNegative(contentExtent - marginLead - marginTrail);
+        return when this->crossAlignment {
+            CrossAlign:::Start -> CrossPlacement { position: contentStart + marginLead, extent: childExtent },
+            CrossAlign:::Center -> CrossPlacement { position: contentStart + marginLead + (available - childExtent) / 2.0f, extent: childExtent },
+            CrossAlign:::End -> CrossPlacement { position: contentStart + contentExtent - marginTrail - childExtent, extent: childExtent },
+            CrossAlign:::Stretch -> CrossPlacement { position: contentStart + marginLead, extent: available }
+        };
+    }
+
+    ArrangeFixedLeading~: (content: Rect) -> void {
+        leadingExtent: f32 = Numbers:::Smaller(Numbers:::NonNegative(this->leadingExtentLogical), content.height);
+        fillTop: f32 = Numbers:::Smaller(content.height, leadingExtent + this->childGap);
+        fillHeight: f32 = Numbers:::NonNegative(content.height - fillTop);
+        leadingSeen~ bool = false;
+        for child in this->children {
+            if !child->GetIsVisible() {
+                continue;
+            }
+            margin: EdgeInsets = child->GetMarginLogical();
+            slotTop~ f32 = content.y;
+            slotHeight~ f32 = leadingExtent;
+            if leadingSeen {
+                slotTop = content.y + fillTop;
+                slotHeight = fillHeight;
+            }
+            desired: Point = child->Measure(Point {
+                x: Numbers:::NonNegative(content.width - margin.Horizontal()),
+                y: Numbers:::NonNegative(slotHeight - margin.Vertical())
+            });
+            cross: CrossPlacement = this->PlaceCross(content.x, content.width, desired.x, margin.left, margin.right);
+            child->Arrange(Rect {
+                x: cross.position,
+                y: slotTop + margin.top,
+                width: cross.extent,
+                height: Numbers:::NonNegative(slotHeight - margin.Vertical())
+            });
+            leadingSeen = true;
+        }
+    }
+
+    ArrangeStack~: (content: Rect) -> void {
+        vertical: bool = this->layout == LayoutMode:::VerticalStack;
+        contentSize: Point = Point { x: content.width, y: content.height };
+        growExtents~ Array<f32>! = this->GrowExtents(vertical, contentSize);
+        defer delete growExtents;
+        startOffset~ f32 = 0.0f;
+        extraGapPerGap~ f32 = 0.0f;
+        if this->justifyContentMode != Justify:::Start && growExtents.length() == 0 {
+            totalChildrenMain~ f32 = 0.0f;
+            visibleCount~ usize = 0;
+            for child in this->children {
+                if !child->GetIsVisible() {
+                    continue;
+                }
+                margin: EdgeInsets = child->GetMarginLogical();
+                desired: Point = child->Measure(Point {
+                    x: Numbers:::NonNegative(content.width - margin.Horizontal()),
+                    y: Numbers:::NonNegative(content.height - margin.Vertical())
+                });
+                totalChildrenMain = totalChildrenMain + this->MainOf(vertical, desired) + this->MainMargin(vertical, margin);
+                visibleCount = visibleCount + 1;
+            }
+            totalGaps~ f32 = 0.0f;
+            if visibleCount > 1 {
+                totalGaps = f32(visibleCount - 1) * this->childGap;
+            }
+            freeSpace: f32 = Numbers:::NonNegative(this->MainOf(vertical, contentSize) - totalChildrenMain - totalGaps);
+            when this->justifyContentMode {
+                Justify:::Start -> { },
+                Justify:::Center -> {
+                    startOffset = freeSpace / 2.0f;
+                },
+                Justify:::End -> {
+                    startOffset = freeSpace;
+                },
+                Justify:::SpaceBetween -> {
+                    if visibleCount > 1 {
+                        extraGapPerGap = freeSpace / f32(visibleCount - 1);
+                    }
+                }
+            }
+        }
+        cursor~ f32 = content.x + startOffset;
+        if vertical {
+            cursor = content.y + startOffset;
+        }
+        anyVisible~ bool = false;
+        index~ usize = 0;
+        for child in this->children {
+            childIndex: usize = index;
+            index = index + 1;
+            if !child->GetIsVisible() {
+                continue;
+            }
+            margin: EdgeInsets = child->GetMarginLogical();
+            growExtent: f32 = this->GrowExtentAt(growExtents, childIndex);
+            desired: Point = child->Measure(this->ChildAvailable(contentSize, margin, vertical, growExtent));
+            if anyVisible {
+                cursor = cursor + this->childGap + extraGapPerGap;
+            }
+            if vertical {
+                cross: CrossPlacement = this->PlaceCross(content.x, content.width, desired.x, margin.left, margin.right);
+                top: f32 = cursor + margin.top;
+                height~ f32 = desired.y;
+                if growExtent >= 0.0f {
+                    height = growExtent;
+                }
+                child->Arrange(Rect { x: cross.position, y: top, width: cross.extent, height: height });
+                cursor = top + height + margin.bottom;
+            }
+            else {
+                cross: CrossPlacement = this->PlaceCross(content.y, content.height, desired.y, margin.top, margin.bottom);
+                left: f32 = cursor + margin.left;
+                width~ f32 = desired.x;
+                if growExtent >= 0.0f {
+                    width = growExtent;
+                }
+                child->Arrange(Rect { x: left, y: cross.position, width: width, height: cross.extent });
+                cursor = left + width + margin.right;
+            }
+            anyVisible = true;
+        }
+    }
+}
