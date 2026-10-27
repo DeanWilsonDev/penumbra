@@ -31,6 +31,9 @@ library_sources=(
     Penumbra/Widgets/ScrollablePanel.nox
     Penumbra/Widgets/TextInput.nox
     Penumbra/Widgets/TextArea.nox
+    Penumbra/Widgets/CanvasWidget.nox
+    Penumbra/Widgets/ImageWidget.nox
+    Penumbra/Widgets/ViewportWidget.nox
     Penumbra/Widgets/SplitPanel.nox
     Penumbra/Widgets/NumericDrag.nox
     Penumbra/Widgets/Chevron.nox

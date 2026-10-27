@@ -2118,3 +2118,130 @@ unclip
 8
 area focus lost
 false
+canvas image viewport
+30
+20
+clip
+7
+7
+26
+16
+fill
+8
+8
+4
+4
+140
+0
+0
+255
+unclip
+collapsed canvas drew nothing
+load image
+logo.png
+24
+16
+texture
+101
+0
+0
+24
+16
+false
+image pressed
+true
+true
+release image
+101
+load image
+missing.png
+0
+0
+load image
+logo.png
+102
+50
+40
+create target
+80
+60
+begin target
+1
+150
+render scene
+40
+30
+fill
+0
+0
+40
+1
+160
+0
+0
+255
+end target
+texture
+1
+5
+5
+40
+30
+begin target
+1
+150
+render scene
+40
+30
+fill
+0
+0
+40
+1
+160
+0
+0
+255
+end target
+texture
+1
+5
+5
+40
+30
+destroy texture
+1
+create target
+100
+60
+begin target
+2
+150
+render scene
+50
+30
+fill
+0
+0
+50
+1
+160
+0
+0
+255
+end target
+texture
+2
+5
+5
+50
+30
+scene input
+15
+false
+true
+false
+destroy texture
+2
+release image
+102

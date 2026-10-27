@@ -28,6 +28,18 @@ IRenderer :: interface {
     DrawFilledPolygon~ (points: Array<Point>, color: Color) -> void : 0;
     GetFrameIndex : () -> u64 : 0;
     GetFrameDeltaSeconds : () -> f32 : 0;
+    GetDpiScaleFactor : () -> f32 : 0;
+    CreateTargetTexture~ (widthPhysical: i32, heightPhysical: i32) -> u64 : 0;
+    DestroyTexture~ (texture: u64) -> void : 0;
+    BeginTextureTarget~ (texture: u64, clearColor: Color) -> void : 0;
+    EndTextureTarget~ () -> void : 0;
+    DrawTexture~ (texture: u64, destinationLogical: Rect) -> void : 0;
+}
+
+IImageBackend :: interface {
+    LoadTexture~ (filePath: string) -> u64 : 0;
+    TextureSizeLogical : (texture: u64) -> Point : 0;
+    ReleaseTexture~ (texture: u64) -> void : 0;
 }
 
 IFontBackend :: interface {

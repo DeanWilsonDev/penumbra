@@ -1,0 +1,140 @@
+Point :: import Point;
+Rect :: import Rect;
+Maths :: import Maths;
+Color :: import Color;
+IRenderer :: import IRenderer;
+InputState :: import InputState;
+LayoutContext :: import LayoutContext;
+StackingTracker :: import StackingTracker;
+StackingContext :: import StackingContext;
+StackingPass :: import StackingPass;
+Stacking :: import Stacking;
+WidgetBase :: import WidgetBase;
+Box :: import Box;
+
+ViewportWidget :: class : Box {
+public:
+    onRenderScene~ ((renderer: IRenderer~*, sceneSizeLogical: Point) -> void)!? = null;
+    onSceneInput~ ((input: InputState, contentRect: Rect) -> bool)!? = null;
+    sceneClearColor~ Color = Color { red: 0, green: 0, blue: 0, alpha: 255 };
+
+    !ViewportWidget~: () {
+        this->DestroySceneTexture();
+        delete this->onRenderScene;
+        delete this->onSceneInput;
+    }
+
+    Measure~: (availableSizeLogical: Point) -> Point override {
+        return availableSizeLogical;
+    }
+
+    Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
+        Box:::Arrange(finalRectLogical, layout);
+        content: Rect = this->ContentRectFrom(finalRectLogical);
+        this->contentSizeLogical = Point { x: content.width, y: content.height };
+    }
+
+    UpdateInteractionState~: (given: InputState, stacking: StackingTracker~*) -> bool override {
+        if stacking->IsLayeredOut(this) {
+            return false;
+        }
+        input: InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, given);
+        outermostKeys: bool = stacking->keys->Begin(this, input);
+        defer stacking->keys->End(outermostKeys);
+        context: StackingContext*! = new StackingContext(this, StackingPass:::Input, stacking);
+        defer delete context;
+        over: bool = input.IsPointerOver(this->arrangedRect);
+        layeredTook: bool = context->DispatchAbove(input);
+        childConsumed~ bool = layeredTook;
+        index~ usize = this->children.length();
+        while index > 0 {
+            index = index - 1;
+            child: WidgetBase~* = this->children[index];
+            if !child->GetIsVisible() || stacking->IsLayeredOut(child) {
+                continue;
+            }
+            occlude: bool = !over || childConsumed;
+            childInput~ InputState = input;
+            if occlude {
+                childInput = input.Occluded();
+            }
+            if stacking->DispatchToChild(child, childInput) && !occlude {
+                childConsumed = true;
+            }
+        }
+        if context->DispatchBelow(input, childConsumed) {
+            childConsumed = true;
+        }
+
+        if layeredTook {
+            return true;
+        }
+        if !over {
+            return false;
+        }
+        if childConsumed {
+            return true;
+        }
+        content: Rect = this->ContentRectFrom(this->arrangedRect);
+        if input.IsPointerOver(content) {
+            if handler := this->onSceneInput {
+                return handler(input, content);
+            }
+        }
+        return true;
+    }
+
+protected:
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        physical: Point = PhysicalSizeFor(this->contentSizeLogical, renderer->GetDpiScaleFactor());
+        if physical.x != this->sceneTextureSizePhysical.x || physical.y != this->sceneTextureSizePhysical.y {
+            this->RecreateSceneTexture(renderer, physical);
+        }
+        if this->sceneTexture == 0 {
+            return;
+        }
+        renderer->BeginTextureTarget(this->sceneTexture, this->sceneClearColor);
+        if handler := this->onRenderScene {
+            handler(renderer, this->contentSizeLogical);
+        }
+        renderer->EndTextureTarget();
+        renderer->DrawTexture(this->sceneTexture, contentRect);
+    }
+
+private:
+    sceneTexture~ u64 = 0;
+    textureOwner~ IRenderer~*? = null;
+    sceneTextureSizePhysical~ Point = Point { };
+    contentSizeLogical~ Point = Point { };
+
+    DestroySceneTexture~: () -> void {
+        if owner := this->textureOwner {
+            if this->sceneTexture != 0 {
+                owner->DestroyTexture(this->sceneTexture);
+            }
+        }
+        this->sceneTexture = 0;
+        this->textureOwner = null;
+    }
+
+    RecreateSceneTexture~: (renderer: IRenderer~*, physical: Point) -> void {
+        this->DestroySceneTexture();
+        this->sceneTextureSizePhysical = physical;
+        width: i32 = i32(physical.x);
+        height: i32 = i32(physical.y);
+        if width <= 0 || height <= 0 {
+            return;
+        }
+        this->sceneTexture = renderer->CreateTargetTexture(width, height);
+        if this->sceneTexture != 0 {
+            this->textureOwner = renderer;
+        }
+    }
+}
+
+PhysicalSizeFor :: (contentSizeLogical: Point, dpiScale: f32) -> Point {
+    return Point {
+        x: f32(Maths:::RoundToInteger(contentSizeLogical.x * dpiScale)),
+        y: f32(Maths:::RoundToInteger(contentSizeLogical.y * dpiScale))
+    };
+}

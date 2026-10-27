@@ -24,6 +24,11 @@ Transform :: import Transform;
 ScrollablePanel :: import ScrollablePanel;
 TextInput :: import TextInput;
 TextArea :: import TextArea;
+IRenderer :: import IRenderer;
+CanvasWidget :: import CanvasWidget;
+ImageWidget :: import ImageWidget;
+ViewportWidget :: import ViewportWidget;
+RecordingImageBackend :: import RecordingImageBackend;
 TextAreaSpan :: import TextAreaSpan;
 SplitPanel :: import SplitPanel;
 SplitAxis :: import SplitAxis;
@@ -1304,6 +1309,88 @@ ShowTextArea :: (font: IFontBackend*) -> void {
     print(area->UpdateInteractionState(PointerAtPoint(60.0f, 60.0f, false, false, false), stacking));
 }
 
+ShowSurfaces :: () -> void {
+    print("canvas image viewport");
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    images: RecordingImageBackend*! = new RecordingImageBackend();
+    defer delete images;
+
+    canvas: CanvasWidget*! = new CanvasWidget();
+    defer delete canvas;
+    canvas->style.padding = Insets:::All(2.0f);
+    canvas->preferredWidthLogical = 26.0f;
+    canvas->preferredHeightLogical = 16.0f;
+    canvas->onDraw = new (target: IRenderer~*, contentRectLogical: Rect) -> void {
+        target->FillRect(Rect { x: contentRectLogical.x + 1.0f, y: contentRectLogical.y + 1.0f, width: 4.0f, height: 4.0f }, Color { red: 140, green: 0, blue: 0, alpha: 255 });
+    };
+    canvasSize: Point = canvas->Measure(Point { x: 640.0f, y: 360.0f });
+    print(canvasSize.x);
+    print(canvasSize.y);
+    canvas->Arrange(Rect { x: 5.0f, y: 5.0f, width: canvasSize.x, height: canvasSize.y }, layout);
+    canvas->Draw(renderer, stacking);
+    canvas->Arrange(Rect { x: 5.0f, y: 5.0f, width: 4.0f, height: 20.0f }, layout);
+    canvas->Draw(renderer, stacking);
+    print("collapsed canvas drew nothing");
+
+    image: ImageWidget*! = new ImageWidget();
+    defer delete image;
+    image->SetFilePath("logo.png");
+    image->LoadFrom(images);
+    imageSize: Point = image->Measure(Point { x: 640.0f, y: 360.0f });
+    print(imageSize.x);
+    print(imageSize.y);
+    image->Arrange(Rect { x: 0.0f, y: 0.0f, width: imageSize.x, height: imageSize.y }, layout);
+    image->Draw(renderer, stacking);
+    print(image->UpdateInteractionState(PointerAtPoint(5.0f, 5.0f, false, false, false), stacking));
+    image->onPressed = new () -> void {
+        print("image pressed");
+    };
+    print(image->UpdateInteractionState(PointerAtPoint(5.0f, 5.0f, true, true, false), stacking));
+    print(image->UpdateInteractionState(PointerAtPoint(50.0f, 5.0f, false, true, false), stacking));
+    image->SetFilePath("missing.png");
+    image->LoadFrom(images);
+    print(image->GetTexture());
+    missingSize: Point = image->Measure(Point { x: 640.0f, y: 360.0f });
+    print(missingSize.x);
+    image->Draw(renderer, stacking);
+    image->SetFilePath("logo.png");
+    image->LoadFrom(images);
+    print(image->GetTexture());
+
+    viewport: ViewportWidget*! = new ViewportWidget();
+    defer delete viewport;
+    viewport->style.padding = Insets:::All(5.0f);
+    viewport->sceneClearColor = Color { red: 150, green: 0, blue: 0, alpha: 255 };
+    viewport->onRenderScene = new (target: IRenderer~*, sceneSizeLogical: Point) -> void {
+        print("render scene");
+        print(sceneSizeLogical.x);
+        print(sceneSizeLogical.y);
+        target->FillRect(Rect { x: 0.0f, y: 0.0f, width: sceneSizeLogical.x, height: 1.0f }, Color { red: 160, green: 0, blue: 0, alpha: 255 });
+    };
+    viewport->onSceneInput = new (input: InputState, contentRect: Rect) -> bool {
+        print("scene input");
+        print(input.mousePosition.x - contentRect.x);
+        return false;
+    };
+    viewportSize: Point = viewport->Measure(Point { x: 50.0f, y: 40.0f });
+    print(viewportSize.x);
+    print(viewportSize.y);
+    renderer->dpiScaleFactor = 2.0f;
+    viewport->Arrange(Rect { x: 0.0f, y: 0.0f, width: 50.0f, height: 40.0f }, layout);
+    viewport->Draw(renderer, stacking);
+    viewport->Draw(renderer, stacking);
+    viewport->Arrange(Rect { x: 0.0f, y: 0.0f, width: 60.0f, height: 40.0f }, layout);
+    viewport->Draw(renderer, stacking);
+    print(viewport->UpdateInteractionState(PointerAtPoint(20.0f, 20.0f, false, false, false), stacking));
+    print(viewport->UpdateInteractionState(PointerAtPoint(2.0f, 2.0f, false, false, false), stacking));
+    print(viewport->UpdateInteractionState(PointerAtPoint(100.0f, 100.0f, false, false, false), stacking));
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1344,5 +1431,6 @@ main :: () -> i32 {
     ShowLineAndDonut(font);
     ShowLabels(font);
     ShowTextArea(font);
+    ShowSurfaces();
     return 0;
 }
