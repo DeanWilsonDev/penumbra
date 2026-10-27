@@ -24,7 +24,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   Then it paints and probes a stage whose children use z-index, absolute, fixed and relative
   positioning, a child clip rect and pointer-events none. Last it drives a `Button` whose background
   eases between state colours, a rotated `Button` hit-tested through its transform, and a `Checkbox`
-  toggled by two clicks.
+  toggled by two clicks. Then it scrolls a `ScrollablePanel` of five rows by the wheel and by
+  dragging its scrollbar thumb.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -45,6 +46,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `<cmath>` | `Penumbra/Maths.nox`: a `CMath` foreign block over libm (`expf`, `cosf`, `sinf`, `lroundf`) behind the safe `Maths` namespace |
 | `Anim/Animation.h` | `Penumbra/Anim/Animation.nox`: `Approach`, `LerpColor`, the cubic and back easings, `Easing`, `AnimatedColor`, `Tween` and `TweenedValues` |
 | `Widgets/Button.h/.cpp` | `Penumbra/Widgets/Button.nox`: click on release inside, an eased state background (Box's `BackgroundForState` is virtual for it), and hit testing through `BoxStyle.transform` |
+| `Widgets/ScrollablePanel.h/.cpp` | `Penumbra/Widgets/ScrollablePanel.nox`: vertical and horizontal scrolling by wheel, the scrollbar track and thumb drag, the scrollport for sticky children, and the child clip. `Positioning:::OffsetInFlow` gained the C++'s optional sticky block |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
@@ -52,12 +54,15 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 - The SDL platform layer, the SDL renderer and the SDL_ttf font backend. Foreign calls exist now,
   but only over bools, integers and floats: SDL needs opaque handles, raw pointers and C strings.
 - Keyboard input, text input and key dispatch, pointer-events modes, and focus.
-- The scroll containers, and groups painted through a transform or opacity (`PaintsAsGroup`).
+- Groups painted through a transform or opacity (`PaintsAsGroup`), and text selection inside a
+  `ScrollablePanel`.
+- `StackingContext::PointerTakerUsedWheel`: a layered descendant that took the wheel doesn't yet
+  stop its scrolling ancestor from using it too.
 - Transforms as containing blocks, and drawing through a transform: only `Button`'s hit test reads
   `BoxStyle.transform` so far.
 - Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
 - `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
-- Every widget beyond `Box`, `Label`, `Button` and `Checkbox`.
+- Every widget beyond `Box`, `Label`, `Button`, `Checkbox` and `ScrollablePanel`.
 
 ## Language friction found so far
 

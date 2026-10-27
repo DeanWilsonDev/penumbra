@@ -1,0 +1,394 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Maths :: import Maths;
+Color :: import Color;
+IRenderer :: import IRenderer;
+EdgeInsets :: import EdgeInsets;
+CrossAlign :: import CrossAlign;
+WidgetBase :: import WidgetBase;
+InputState :: import InputState;
+LayoutContext :: import LayoutContext;
+Positioning :: import Positioning;
+StackingTracker :: import StackingTracker;
+StackingContext :: import StackingContext;
+StackingPass :: import StackingPass;
+Stacking :: import Stacking;
+Box :: import Box;
+
+ScrollDirection :: enum {
+    Vertical,
+    Horizontal
+}
+
+ScrollbarLayout :: struct {
+    shown~ bool = false;
+    track~ Rect = Rect { };
+    thumb~ Rect = Rect { };
+    travel~ f32 = 0.0f;
+    maxScroll~ f32 = 0.0f;
+}
+
+ScrollablePanel :: class : Box {
+public:
+    direction~ ScrollDirection = ScrollDirection:::Vertical;
+    wheelStepLogical~ f32 = 0.0f;
+    horizontalWheelStepLogical~ f32 = 0.0f;
+    scrollbarWidthLogical~ f32 = 0.0f;
+    colorScrollbarThumb~ Color = Color { };
+    colorScrollbarThumbHovered~ Color = Color { };
+    colorScrollbarTrack~ Color = Color { };
+
+    GetScrollOffset :: () -> f32 {
+        return this->scrollOffsetY;
+    }
+
+    GetScrollOffsetX :: () -> f32 {
+        return this->scrollOffsetX;
+    }
+
+    ConsumedWheelThisFrame :: () -> bool override {
+        return this->wheelHandledThisFrame;
+    }
+
+    GetChildClipRect :: () -> Rect? override {
+        return this->ContentRectFrom(this->arrangedRect);
+    }
+
+    Measure~: (availableSizeLogical: Point) -> Point override {
+        frame: Point = this->FrameSize();
+        viewport: Point = this->ConstrainAvailable(availableSizeLogical);
+        contentAvailable: Point = Point {
+            x: Numbers:::NonNegative(viewport.x - frame.x),
+            y: Numbers:::NonNegative(viewport.y - frame.y)
+        };
+        total~ f32 = 0.0f;
+        widest~ f32 = 0.0f;
+        anyVisible~ bool = false;
+        index~ usize = 0;
+        while index < this->children.length() {
+            child: WidgetBase~* = this->children[index];
+            index = index + 1;
+            if !child->GetIsVisible() || Positioning:::IsOutOfFlow(child) {
+                continue;
+            }
+            margin: EdgeInsets = child->GetMarginLogical();
+            desired: Point = child->Measure(Point {
+                x: Numbers:::NonNegative(contentAvailable.x - margin.Horizontal()),
+                y: Numbers:::NonNegative(contentAvailable.y - margin.Vertical())
+            });
+            if anyVisible {
+                total = total + this->childGap;
+            }
+            total = total + desired.y + margin.Vertical();
+            widest = Numbers:::Larger(widest, desired.x + margin.Horizontal());
+            anyVisible = true;
+        }
+        this->contentHeight = total;
+        this->contentWidth = widest;
+        if this->direction == ScrollDirection:::Horizontal {
+            return this->ConstrainDesired(Point { x: viewport.x, y: total + frame.y }, availableSizeLogical);
+        }
+        return this->ConstrainDesired(Point { x: widest + frame.x, y: viewport.y }, availableSizeLogical);
+    }
+
+    Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
+        this->arrangedRect = finalRectLogical;
+        pushedBlocks: usize = layout->EnterBlock(this->style.PlacementOf(), this->PaddingRectFrom(finalRectLogical));
+        content: Rect = this->ContentRectFrom(finalRectLogical);
+        isHorizontal: bool = this->direction == ScrollDirection:::Horizontal;
+        if isHorizontal {
+            this->scrollOffsetY = 0.0f;
+            this->scrollOffsetX = Maths:::Clamp(this->scrollOffsetX, 0.0f, Numbers:::NonNegative(this->contentWidth - content.width));
+        }
+        else {
+            this->scrollOffsetY = Maths:::Clamp(this->scrollOffsetY, 0.0f, Numbers:::NonNegative(this->contentHeight - content.height));
+        }
+
+        layout->EnterScrollport(content);
+        scrolled: Rect = Rect {
+            x: content.x - this->scrollOffsetX,
+            y: content.y - this->scrollOffsetY,
+            width: Numbers:::Larger(content.width, this->contentWidth),
+            height: Numbers:::Larger(content.height, this->contentHeight)
+        };
+        cursorY~ f32 = content.y - this->scrollOffsetY;
+        anyVisible~ bool = false;
+        index~ usize = 0;
+        while index < this->children.length() {
+            child: WidgetBase~* = this->children[index];
+            index = index + 1;
+            margin: EdgeInsets = child->GetMarginLogical();
+            if Positioning:::IsOutOfFlow(child) {
+                startX~ f32 = content.x;
+                if isHorizontal {
+                    startX = content.x - this->scrollOffsetX;
+                }
+                staticTop~ f32 = cursorY;
+                if anyVisible {
+                    staticTop = cursorY + this->childGap;
+                }
+                Positioning:::ArrangeOutOfFlow(child, Point { x: startX + margin.left, y: staticTop + margin.top }, layout);
+                continue;
+            }
+            if !child->GetIsVisible() {
+                continue;
+            }
+            desired: Point = child->Measure(Point {
+                x: Numbers:::NonNegative(content.width - margin.Horizontal()),
+                y: Numbers:::NonNegative(content.height - margin.Vertical())
+            });
+            availableCross: f32 = Numbers:::NonNegative(content.width - margin.Horizontal());
+            childX~ f32 = content.x + margin.left;
+            childWidth~ f32 = desired.x;
+            if isHorizontal {
+                childX = content.x + margin.left - this->scrollOffsetX;
+            }
+            else if this->crossAlignment == CrossAlign:::Center {
+                childX = content.x + margin.left + (availableCross - desired.x) / 2.0f;
+            }
+            else if this->crossAlignment == CrossAlign:::End {
+                childX = content.x + content.width - margin.right - desired.x;
+            }
+            else if this->crossAlignment == CrossAlign:::Stretch {
+                childWidth = availableCross;
+            }
+            if anyVisible {
+                cursorY = cursorY + this->childGap;
+            }
+            childY: f32 = cursorY + margin.top;
+            child->Arrange(Positioning:::OffsetInFlow(child, Rect { x: childX, y: childY, width: childWidth, height: desired.y }, content, scrolled, layout), layout);
+            cursorY = childY + desired.y + margin.bottom;
+            anyVisible = true;
+        }
+        layout->LeaveScrollport();
+        layout->LeaveBlocks(pushedBlocks);
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if stacking->IsLayeredOut(this) {
+            return false;
+        }
+        handed: InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, input);
+        uncover: bool = handed.pointerOccluded && stacking->IsOnPointerPath(this);
+        pointerInput~ InputState = handed;
+        if uncover {
+            pointerInput.pointerOccluded = false;
+        }
+        overPanel: bool = pointerInput.IsPointerOver(this->arrangedRect);
+        this->pointerOver = overPanel;
+
+        content: Rect = this->ContentRectFrom(this->arrangedRect);
+        scrollbarTook: bool = this->UpdateScrollbar(handed, content);
+        occluded: InputState = handed.Occluded();
+        context: StackingContext*! = new StackingContext(this, StackingPass:::Input, stacking);
+        defer delete context;
+        layeredInput~ InputState = handed;
+        if scrollbarTook {
+            layeredInput = occluded;
+        }
+        layeredTook: bool = context->DispatchAbove(layeredInput);
+        pointerTaken~ bool = scrollbarTook || layeredTook || !pointerInput.IsPointerOver(content);
+        consumed~ bool = uncover || layeredTook;
+        childConsumedWheel~ bool = false;
+        index~ usize = this->children.length();
+        while index > 0 {
+            index = index - 1;
+            child: WidgetBase~* = this->children[index];
+            if !child->GetIsVisible() || stacking->IsLayeredOut(child) {
+                continue;
+            }
+            childInput~ InputState = handed;
+            if pointerTaken {
+                childInput = occluded;
+            }
+            given: InputState = Stacking:::ForPointerEvents(child->GetPlacement().pointerEventsMode, childInput);
+            if child->UpdateInteractionState(given, stacking) && !pointerTaken {
+                pointerTaken = true;
+                consumed = true;
+                childConsumedWheel = child->ConsumedWheelThisFrame();
+            }
+        }
+        if context->DispatchBelow(handed, pointerTaken) && !pointerTaken {
+            pointerTaken = true;
+            consumed = true;
+        }
+
+        this->wheelHandledThisFrame = false;
+        if !overPanel {
+            return this->draggingThumb || layeredTook;
+        }
+        consumed = consumed || scrollbarTook;
+
+        if this->direction == ScrollDirection:::Horizontal {
+            if !childConsumedWheel && this->horizontalWheelStepLogical != 0.0f && pointerInput.mouseWheelDeltaX != 0.0f {
+                maxScrollX: f32 = Numbers:::NonNegative(this->contentWidth - content.width);
+                if maxScrollX > 0.0f {
+                    this->scrollOffsetX = Maths:::Clamp(this->scrollOffsetX - pointerInput.mouseWheelDeltaX * this->horizontalWheelStepLogical, 0.0f, maxScrollX);
+                    consumed = true;
+                    this->wheelHandledThisFrame = true;
+                }
+            }
+        }
+        else if !childConsumedWheel && this->wheelStepLogical != 0.0f && pointerInput.mouseWheelDelta != 0.0f {
+            maxScroll: f32 = Numbers:::NonNegative(this->contentHeight - content.height);
+            if maxScroll > 0.0f {
+                this->scrollOffsetY = Maths:::Clamp(this->scrollOffsetY - pointerInput.mouseWheelDelta * this->wheelStepLogical, 0.0f, maxScroll);
+                consumed = true;
+                this->wheelHandledThisFrame = true;
+            }
+        }
+        return consumed || overPanel;
+    }
+
+    Draw~: (renderer: IRenderer~*, stacking: StackingTracker~*) -> void override {
+        if stacking->IsLayeredOut(this) {
+            return;
+        }
+        if !this->isVisible {
+            return;
+        }
+        context: StackingContext*! = new StackingContext(this, StackingPass:::Paint, stacking);
+        defer delete context;
+        background: Color = this->BackgroundForState();
+        if background.IsVisible() {
+            renderer->FillRect(this->arrangedRect, background);
+        }
+        if this->style.borderWidth > 0.0f && this->style.colorBorder.IsVisible() {
+            renderer->StrokeRect(this->arrangedRect, this->style.colorBorder, this->style.borderWidth);
+        }
+        content: Rect = this->ContentRectFrom(this->arrangedRect);
+        context->PaintBelow(renderer);
+        renderer->PushClipRect(content);
+        for child in this->children {
+            if child->GetIsVisible() && !stacking->IsLayeredOut(child) {
+                child->Draw(renderer, stacking);
+            }
+        }
+        renderer->PopClipRect();
+        context->PaintAbove(renderer);
+        this->DrawScrollbar(renderer, content);
+    }
+
+private:
+    scrollOffsetY~ f32 = 0.0f;
+    scrollOffsetX~ f32 = 0.0f;
+    contentHeight~ f32 = 0.0f;
+    contentWidth~ f32 = 0.0f;
+    wheelHandledThisFrame~ bool = false;
+    pointerOver~ bool = false;
+    draggingThumb~ bool = false;
+    thumbGrabOffset~ f32 = 0.0f;
+
+    LayOutScrollbar :: (content: Rect) -> ScrollbarLayout {
+        layout~ ScrollbarLayout = ScrollbarLayout { };
+        if this->scrollbarWidthLogical <= 0.0f {
+            return layout;
+        }
+        isHorizontal: bool = this->direction == ScrollDirection:::Horizontal;
+        viewport~ f32 = content.height;
+        extent~ f32 = this->contentHeight;
+        if isHorizontal {
+            viewport = content.width;
+            extent = this->contentWidth;
+        }
+        if viewport <= 0.0f || extent <= viewport {
+            return layout;
+        }
+        thickness: f32 = this->scrollbarWidthLogical;
+        layout.shown = true;
+        if isHorizontal {
+            layout.track = Rect {
+                x: content.x,
+                y: this->arrangedRect.y + this->arrangedRect.height - this->style.borderWidth - thickness,
+                width: content.width,
+                height: thickness
+            };
+        }
+        else {
+            layout.track = Rect {
+                x: this->arrangedRect.x + this->arrangedRect.width - this->style.borderWidth - thickness,
+                y: content.y,
+                width: thickness,
+                height: content.height
+            };
+        }
+        trackLength~ f32 = layout.track.height;
+        offset~ f32 = this->scrollOffsetY;
+        if isHorizontal {
+            trackLength = layout.track.width;
+            offset = this->scrollOffsetX;
+        }
+        thumbLength: f32 = Numbers:::Smaller(trackLength, Numbers:::Larger(thickness, trackLength * viewport / extent));
+        layout.maxScroll = extent - viewport;
+        layout.travel = trackLength - thumbLength;
+        thumbStart: f32 = (offset / layout.maxScroll) * layout.travel;
+        if isHorizontal {
+            layout.thumb = Rect { x: layout.track.x + thumbStart, y: layout.track.y, width: thumbLength, height: thickness };
+        }
+        else {
+            layout.thumb = Rect { x: layout.track.x, y: layout.track.y + thumbStart, width: thickness, height: thumbLength };
+        }
+        return layout;
+    }
+
+    UpdateScrollbar~: (input: InputState, content: Rect) -> bool {
+        layout: ScrollbarLayout = this->LayOutScrollbar(content);
+        if !layout.shown || !this->isEnabled {
+            this->draggingThumb = false;
+            return false;
+        }
+        isHorizontal: bool = this->direction == ScrollDirection:::Horizontal;
+        pointer~ f32 = input.mousePosition.y;
+        trackStart~ f32 = layout.track.y;
+        thumbStart~ f32 = layout.thumb.y;
+        thumbLength~ f32 = layout.thumb.height;
+        if isHorizontal {
+            pointer = input.mousePosition.x;
+            trackStart = layout.track.x;
+            thumbStart = layout.thumb.x;
+            thumbLength = layout.thumb.width;
+        }
+        overTrack: bool = input.IsPointerOver(layout.track);
+        if input.mouseButtonPressedThisFrame[0] && overTrack {
+            this->draggingThumb = true;
+            if input.IsPointerOver(layout.thumb) {
+                this->thumbGrabOffset = pointer - thumbStart;
+            }
+            else {
+                this->thumbGrabOffset = thumbLength * 0.5f;
+            }
+        }
+        if this->draggingThumb && !input.mouseButtonDown[0] {
+            this->draggingThumb = false;
+        }
+        if this->draggingThumb && layout.travel > 0.0f {
+            along: f32 = Maths:::Clamp(pointer - trackStart - this->thumbGrabOffset, 0.0f, layout.travel);
+            offset: f32 = along / layout.travel * layout.maxScroll;
+            if isHorizontal {
+                this->scrollOffsetX = offset;
+            }
+            else {
+                this->scrollOffsetY = offset;
+            }
+        }
+        return this->draggingThumb || overTrack;
+    }
+
+    DrawScrollbar :: (renderer: IRenderer~*, content: Rect) -> void {
+        layout: ScrollbarLayout = this->LayOutScrollbar(content);
+        if !layout.shown {
+            return;
+        }
+        if this->colorScrollbarTrack.IsVisible() {
+            renderer->FillRect(layout.track, this->colorScrollbarTrack);
+        }
+        thumb~ Color = this->colorScrollbarThumb;
+        if (this->pointerOver || this->draggingThumb) && this->colorScrollbarThumbHovered.IsVisible() {
+            thumb = this->colorScrollbarThumbHovered;
+        }
+        if thumb.IsVisible() {
+            renderer->FillRect(layout.thumb, thumb);
+        }
+    }
+}
