@@ -25,6 +25,10 @@ ScrollablePanel :: import ScrollablePanel;
 TextInput :: import TextInput;
 SplitPanel :: import SplitPanel;
 SplitAxis :: import SplitAxis;
+NumericDrag :: import NumericDrag;
+Chevron :: import Chevron;
+ChevronDirection :: import ChevronDirection;
+OverlayHost :: import OverlayHost;
 FocusState :: import FocusState;
 Key :: import Key;
 RecordingClipboard :: import RecordingClipboard;
@@ -787,6 +791,106 @@ ShowSplitPanel :: () -> void {
     panel->Draw(renderer, stacking);
 }
 
+DragFrame :: (drag: NumericDrag~*, stacking: StackingTracker~*, label: string, x: f32, pressed: bool, down: bool, released: bool) -> void {
+    print(label);
+    print(drag->UpdateInteractionState(PointerAt(x, pressed, down, released), stacking));
+}
+
+ShowSmallWidgets :: (font: IFontBackend*) -> void {
+    print("numeric drag");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    drag: NumericDrag*! = new NumericDrag(font);
+    defer delete drag;
+    drag->className = "drag";
+    drag->value = 1.5f;
+    drag->sensitivity = 0.01f;
+    drag->preferredWidthLogical = 40.0f;
+    drag->onValueChanged = new (value: f32) -> void {
+        print("value changed");
+        print(value);
+    };
+    measured: Point = drag->Measure(Point { x: 200.0f, y: 100.0f });
+    print(measured.x);
+    print(measured.y);
+    drag->Arrange(Rect { x: 0.0f, y: 0.0f, width: measured.x, height: measured.y }, layout);
+    DragFrame(drag, stacking, "press", 20.0f, true, true, false);
+    DragFrame(drag, stacking, "drag right 50", 70.0f, false, true, false);
+    DragFrame(drag, stacking, "drag left 125", -55.0f, false, true, false);
+    DragFrame(drag, stacking, "release outside", -55.0f, false, false, true);
+    drag->Draw(renderer, stacking);
+
+    print("chevrons");
+    right: Chevron*! = new Chevron();
+    defer delete right;
+    right->radiusLogical = 4.0f;
+    right->thicknessLogical = 1.5f;
+    right->contentSizeLogical = Point { x: 12.0f, y: 12.0f };
+    rightSize: Point = right->Measure(Point { x: 100.0f, y: 100.0f });
+    right->Arrange(Rect { x: 0.0f, y: 0.0f, width: rightSize.x, height: rightSize.y }, layout);
+    right->Draw(renderer, stacking);
+    down: Chevron*! = new Chevron();
+    defer delete down;
+    down->direction = ChevronDirection:::Down;
+    down->radiusLogical = 4.0f;
+    down->thicknessLogical = 1.5f;
+    down->contentSizeLogical = Point { x: 12.0f, y: 12.0f };
+    down->Arrange(Rect { x: 20.0f, y: 0.0f, width: 12.0f, height: 12.0f }, layout);
+    down->Draw(renderer, stacking);
+}
+
+OverlayFrame :: (host: OverlayHost~*, stacking: StackingTracker~*, layout: LayoutContext~*, label: string, input: InputState) -> void {
+    print(label);
+    print(host->UpdateInteractionState(input, stacking));
+    host->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 100.0f }, layout);
+    print(host->GetChildCount());
+}
+
+ShowOverlays :: () -> void {
+    print("overlays");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    host: OverlayHost*! = new OverlayHost();
+    defer delete host;
+    page: Box*! = MakeBox("page", LayoutMode:::None);
+    page->onPressed = new () -> void {
+        print("page pressed");
+    };
+    host->SetRoot(page!);
+    host->Measure(Point { x: 200.0f, y: 100.0f });
+    host->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 100.0f }, layout);
+    print(host->HasOverlays());
+    OverlayFrame(host, stacking, layout, "press the page", PointerAt(150.0f, true, true, false));
+    OverlayFrame(host, stacking, layout, "release", PointerAt(150.0f, false, false, true));
+
+    popup: Box*! = MakeBox("popup", LayoutMode:::None);
+    popup->onPressed = new () -> void {
+        print("popup pressed");
+    };
+    firstId: u64 = host->ShowOverlay(popup!, Rect { x: 10.0f, y: 10.0f, width: 50.0f, height: 30.0f }, true);
+    print(firstId);
+    sheet: Box*! = MakeBox("sheet", LayoutMode:::None);
+    secondId: u64 = host->ShowOverlay(sheet!, null, false);
+    print(secondId);
+    host->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 100.0f }, layout);
+    PrintTree(host, 0);
+
+    escapeKeys: Key[1] = [Key:::Escape];
+    escaping~ InputState = PointerAt(150.0f, false, false, false);
+    escaping.keysPressedThisFrame = escapeKeys.borrow();
+    OverlayFrame(host, stacking, layout, "escape dismisses the top overlay", escaping);
+    OverlayFrame(host, stacking, layout, "press inside the popup", PointerAt(20.0f, true, true, false));
+    OverlayFrame(host, stacking, layout, "release", PointerAt(20.0f, false, false, true));
+    OverlayFrame(host, stacking, layout, "press outside the popup", PointerAt(150.0f, true, true, false));
+    print(host->HasOverlays());
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -818,5 +922,7 @@ main :: () -> i32 {
     ShowTextInput(font);
     ShowKeyDispatch(font);
     ShowSplitPanel();
+    ShowSmallWidgets(font);
+    ShowOverlays();
     return 0;
 }
