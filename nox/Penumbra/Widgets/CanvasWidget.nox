@@ -1,0 +1,31 @@
+Point :: import Point;
+Rect :: import Rect;
+IRenderer :: import IRenderer;
+Box :: import Box;
+
+CanvasWidget :: class : Box {
+public:
+    onDraw~ ((renderer: IRenderer~*, contentRectLogical: Rect) -> void)!? = null;
+    preferredWidthLogical~ f32 = 0.0f;
+    preferredHeightLogical~ f32 = 0.0f;
+
+    !CanvasWidget~: () {
+        delete this->onDraw;
+    }
+
+protected:
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        return Point { x: this->preferredWidthLogical, y: this->preferredHeightLogical };
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        if contentRect.width <= 0.0f || contentRect.height <= 0.0f {
+            return;
+        }
+        if handler := this->onDraw {
+            renderer->PushClipRect(contentRect);
+            handler(renderer, contentRect);
+            renderer->PopClipRect();
+        }
+    }
+}

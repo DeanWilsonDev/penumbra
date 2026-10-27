@@ -5,6 +5,7 @@ IRenderer :: import IRenderer;
 IFontBackend :: import IFontBackend;
 IClipboard :: import IClipboard;
 IIconBackend :: import IIconBackend;
+IImageBackend :: import IImageBackend;
 LineJoin :: import LineJoin;
 LineCap :: import LineCap;
 
@@ -31,6 +32,8 @@ public:
     printsDetail~ bool = true;
     frameIndex~ u64 = 0;
     frameDeltaSeconds~ f32 = 0.0f;
+    dpiScaleFactor~ f32 = 1.0f;
+    texturesCreated~ u64 = 0;
 
     GetFrameIndex :: () -> u64 {
         return this->frameIndex;
@@ -38,6 +41,44 @@ public:
 
     GetFrameDeltaSeconds :: () -> f32 {
         return this->frameDeltaSeconds;
+    }
+
+    GetDpiScaleFactor :: () -> f32 {
+        return this->dpiScaleFactor;
+    }
+
+    CreateTargetTexture~: (widthPhysical: i32, heightPhysical: i32) -> u64 {
+        this->commandCount = this->commandCount + 1;
+        this->texturesCreated = this->texturesCreated + 1;
+        print("create target");
+        print(widthPhysical);
+        print(heightPhysical);
+        return this->texturesCreated;
+    }
+
+    DestroyTexture~: (texture: u64) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("destroy texture");
+        print(texture);
+    }
+
+    BeginTextureTarget~: (texture: u64, clearColor: Color) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("begin target");
+        print(texture);
+        print(clearColor.red);
+    }
+
+    EndTextureTarget~: () -> void {
+        this->commandCount = this->commandCount + 1;
+        print("end target");
+    }
+
+    DrawTexture~: (texture: u64, destinationLogical: Rect) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("texture");
+        print(texture);
+        this->PrintRect(destinationLogical);
     }
 
     FillRect~: (rect: Rect, color: Color) -> void {
@@ -197,4 +238,31 @@ public:
         print(boundsLogical.width);
         print(iconColor.red);
     }
+}
+
+RecordingImageBackend :: class {
+    implements:
+        IImageBackend;
+public:
+    LoadTexture~: (filePath: string) -> u64 {
+        print("load image");
+        print(filePath);
+        if filePath == "missing.png" {
+            return 0;
+        }
+        this->loaded = this->loaded + 1;
+        return 100 + this->loaded;
+    }
+
+    TextureSizeLogical :: (texture: u64) -> Point {
+        return Point { x: 24.0f, y: 16.0f };
+    }
+
+    ReleaseTexture~: (texture: u64) -> void {
+        print("release image");
+        print(texture);
+    }
+
+private:
+    loaded~ u64 = 0;
 }

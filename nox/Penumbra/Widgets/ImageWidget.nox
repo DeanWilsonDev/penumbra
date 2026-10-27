@@ -1,0 +1,123 @@
+Point :: import Point;
+Rect :: import Rect;
+IRenderer :: import IRenderer;
+IImageBackend :: import IImageBackend;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+LayoutContext :: import LayoutContext;
+StackingTracker :: import StackingTracker;
+WidgetBase :: import WidgetBase;
+
+ImageWidget :: class : WidgetBase {
+public:
+    filePath~ string! = "";
+
+    !ImageWidget~: () {
+        this->ReleaseLoaded();
+        delete this->filePath;
+    }
+
+    SetFilePath~: (path: string) -> void {
+        copied: string! = path.copy();
+        delete this->filePath;
+        this->filePath = copied!;
+    }
+
+    GetTexture :: () -> u64 {
+        return this->texture;
+    }
+
+    LoadFrom~: (backend: IImageBackend~*) -> void {
+        this->ReleaseLoaded();
+        if this->filePath.length() == 0 {
+            return;
+        }
+        this->texture = backend->LoadTexture(this->filePath);
+        if this->texture == 0 {
+            return;
+        }
+        this->loadedWithBackend = backend;
+        this->textureSizeLogical = backend->TextureSizeLogical(this->texture);
+    }
+
+    Measure~: (availableSizeLogical: Point) -> Point override {
+        if this->texture == 0 {
+            return Point { };
+        }
+        return this->textureSizeLogical;
+    }
+
+    Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
+        this->arrangedRect = finalRectLogical;
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if !this->isEnabled || !this->HasCallbacks() {
+            this->pressedInside = false;
+            if this->wasHovered {
+                if handler := this->onUnhovered {
+                    handler();
+                }
+            }
+            this->wasHovered = false;
+            return false;
+        }
+
+        left: usize = MouseButton:::Left();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        down: bool = input.mouseButtonDown[left];
+        released: bool = input.mouseButtonReleasedThisFrame[left];
+
+        if hovered {
+            if handler := this->onHovered {
+                handler();
+            }
+        }
+        if !hovered && this->wasHovered {
+            if handler := this->onUnhovered {
+                handler();
+            }
+        }
+        this->wasHovered = hovered;
+        if pressed && hovered {
+            this->pressedInside = true;
+            if handler := this->onPressed {
+                handler();
+            }
+        }
+        if released {
+            if this->pressedInside {
+                if handler := this->onReleased {
+                    handler();
+                }
+            }
+            this->pressedInside = false;
+        }
+        return hovered || (this->pressedInside && down);
+    }
+
+    Draw~: (renderer: IRenderer~*, stacking: StackingTracker~*) -> void override {
+        if this->texture != 0 {
+            renderer->DrawTexture(this->texture, this->arrangedRect);
+        }
+    }
+
+private:
+    texture~ u64 = 0;
+    loadedWithBackend~ IImageBackend~*? = null;
+    textureSizeLogical~ Point = Point { };
+    pressedInside~ bool = false;
+    wasHovered~ bool = false;
+
+    ReleaseLoaded~: () -> void {
+        if backend := this->loadedWithBackend {
+            if this->texture != 0 {
+                backend->ReleaseTexture(this->texture);
+            }
+        }
+        this->texture = 0;
+        this->loadedWithBackend = null;
+        this->textureSizeLogical = Point { };
+    }
+}
