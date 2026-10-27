@@ -38,6 +38,8 @@ library_sources=(
     Penumbra/Widgets/IconWidget.nox
     Penumbra/Widgets/Chart.nox
     Penumbra/Widgets/BarChart.nox
+    Penumbra/Widgets/LineChart.nox
+    Penumbra/Widgets/DonutChart.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox

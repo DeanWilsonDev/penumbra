@@ -5,6 +5,8 @@ IRenderer :: import IRenderer;
 IFontBackend :: import IFontBackend;
 IClipboard :: import IClipboard;
 IIconBackend :: import IIconBackend;
+LineJoin :: import LineJoin;
+LineCap :: import LineCap;
 
 FixedAdvanceFont :: class {
     implements:
@@ -72,6 +74,43 @@ public:
         print(sizeLogical);
     }
 
+    DrawFilledCircle~: (centre: Point, radiusLogical: f32, color: Color) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("circle");
+        print(centre.x);
+        print(centre.y);
+        print(radiusLogical);
+        print(color.red);
+    }
+
+    DrawArc~: (centre: Point, innerRadiusLogical: f32, outerRadiusLogical: f32, startDegrees: f32, sweepDegrees: f32, color: Color) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("arc");
+        print(centre.x);
+        print(centre.y);
+        print(innerRadiusLogical);
+        print(outerRadiusLogical);
+        print(startDegrees);
+        print(sweepDegrees);
+        print(color.red);
+    }
+
+    DrawPolyline~: (points: Array<Point>, color: Color, thicknessLogical: f32, join: LineJoin, cap: LineCap) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("polyline");
+        this->PrintPoints(points);
+        print(color.red);
+        print(thicknessLogical);
+    }
+
+    DrawFilledPolygon~: (points: Array<Point>, color: Color) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("polygon");
+        this->PrintPoints(points);
+        print(color.red);
+        print(color.alpha);
+    }
+
     PushClipRect~: (rect: Rect) -> void {
         this->commandCount = this->commandCount + 1;
         print("clip");
@@ -95,6 +134,14 @@ public:
     }
 
 private:
+    PrintPoints :: (points: Array<Point>) -> void {
+        print(points.length());
+        for point in points {
+            print(point.x);
+            print(point.y);
+        }
+    }
+
     PrintRect :: (rect: Rect) -> void {
         print(rect.x);
         print(rect.y);

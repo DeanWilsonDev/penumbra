@@ -2,6 +2,18 @@ Point :: import Point;
 Rect :: import Rect;
 Color :: import Color;
 
+LineJoin :: enum {
+    Miter,
+    Bevel,
+    Round
+}
+
+LineCap :: enum {
+    Butt,
+    Square,
+    Round
+}
+
 IRenderer :: interface {
     FillRect~ (rect: Rect, color: Color) -> void : 0;
     StrokeRect~ (rect: Rect, color: Color, thicknessLogical: f32) -> void : 0;
@@ -10,6 +22,10 @@ IRenderer :: interface {
     PushClipRect~ (rect: Rect) -> void : 0;
     PushClipRectUnbounded~ (rect: Rect?) -> void : 0;
     PopClipRect~ () -> void : 0;
+    DrawFilledCircle~ (centre: Point, radiusLogical: f32, color: Color) -> void : 0;
+    DrawArc~ (centre: Point, innerRadiusLogical: f32, outerRadiusLogical: f32, startDegrees: f32, sweepDegrees: f32, color: Color) -> void : 0;
+    DrawPolyline~ (points: Array<Point>, color: Color, thicknessLogical: f32, join: LineJoin, cap: LineCap) -> void : 0;
+    DrawFilledPolygon~ (points: Array<Point>, color: Color) -> void : 0;
     GetFrameIndex : () -> u64 : 0;
     GetFrameDeltaSeconds : () -> f32 : 0;
 }
