@@ -4,6 +4,7 @@ Color :: import Color;
 IRenderer :: import IRenderer;
 IFontBackend :: import IFontBackend;
 IClipboard :: import IClipboard;
+IIconBackend :: import IIconBackend;
 
 FixedAdvanceFont :: class {
     implements:
@@ -120,5 +121,19 @@ public:
     GetClipboardText :: () -> string! {
         print("clipboard get");
         return this->contents.copy();
+    }
+}
+
+RecordingIconBackend :: class {
+    implements:
+        IIconBackend;
+public:
+    DrawIcon~: (renderer: IRenderer~*, iconName: string, boundsLogical: Rect, iconColor: Color) -> void {
+        print("icon");
+        print(iconName);
+        print(boundsLogical.x);
+        print(boundsLogical.y);
+        print(boundsLogical.width);
+        print(iconColor.red);
     }
 }

@@ -35,6 +35,7 @@ library_sources=(
     Penumbra/Widgets/OverlayHost.nox
     Penumbra/Widgets/Dropdown.nox
     Penumbra/Widgets/InlineContainer.nox
+    Penumbra/Widgets/IconWidget.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox

@@ -15,3 +15,7 @@ IRenderer :: interface {
 IFontBackend :: interface {
     MeasureText : (text: string, sizeLogical: f32) -> Point : 0;
 }
+
+IIconBackend :: interface {
+    DrawIcon~ (renderer: IRenderer~*, iconName: string, boundsLogical: Rect, iconColor: Color) -> void : 0;
+}
