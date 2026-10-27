@@ -1459,6 +1459,40 @@ ShowTextSelection :: (font: IFontBackend*) -> void {
     SelectionFrame(page, stacking, "select all", selectingAll);
 }
 
+ShowRoundedStyles :: () -> void {
+    print("rounded styles");
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+
+    card: Box*! = MakeBox("card", LayoutMode:::None);
+    defer delete card;
+    card->style.borderRadius = 6.0f;
+    card->style.shadowColor = Color { red: 180, green: 0, blue: 0, alpha: 120 };
+    card->style.shadowBlurRadiusLogical = 8.0f;
+    card->style.colorBackground = Color { red: 185, green: 0, blue: 0, alpha: 255 };
+    card->style.gradientTop = Color { red: 190, green: 0, blue: 0, alpha: 255 };
+    card->style.gradientBottom = Color { red: 200, green: 0, blue: 0, alpha: 255 };
+    card->style.gradientTopHovered = Color { red: 195, green: 0, blue: 0, alpha: 255 };
+    card->style.borderWidth = 1.0f;
+    card->style.colorBorder = Color { red: 210, green: 0, blue: 0, alpha: 255 };
+    card->onHovered = new () -> void { };
+    card->Arrange(Rect { x: 10.0f, y: 10.0f, width: 60.0f, height: 30.0f }, layout);
+    card->Draw(renderer, stacking);
+    print(card->UpdateInteractionState(PointerAtPoint(20.0f, 20.0f, false, false, false), stacking));
+    card->Draw(renderer, stacking);
+
+    flat: Box*! = MakeBox("flat", LayoutMode:::None);
+    defer delete flat;
+    flat->style.borderRadius = 3.0f;
+    flat->style.colorBackground = Color { red: 220, green: 0, blue: 0, alpha: 255 };
+    flat->Arrange(Rect { x: 0.0f, y: 0.0f, width: 20.0f, height: 10.0f }, layout);
+    flat->Draw(renderer, stacking);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1501,5 +1535,6 @@ main :: () -> i32 {
     ShowTextArea(font);
     ShowSurfaces();
     ShowTextSelection(font);
+    ShowRoundedStyles();
     return 0;
 }

@@ -84,6 +84,15 @@ BoxStyle :: struct {
     colorBorderPressed~ Color = Color { };
     colorBorderDisabled~ Color = Color { };
     borderWidth~ f32 = 0.0f;
+    borderRadius~ f32 = 0.0f;
+    gradientTop~ Color = Color { };
+    gradientBottom~ Color = Color { };
+    gradientTopHovered~ Color = Color { };
+    gradientBottomHovered~ Color = Color { };
+    gradientTopPressed~ Color = Color { };
+    gradientBottomPressed~ Color = Color { };
+    shadowColor~ Color = Color { };
+    shadowBlurRadiusLogical~ f32 = 0.0f;
     padding~ EdgeInsets = EdgeInsets { };
     margin~ EdgeInsets = EdgeInsets { };
     width~ Length = Length { };

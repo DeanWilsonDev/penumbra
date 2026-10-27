@@ -92,6 +92,41 @@ public:
         this->PrintColor(color);
     }
 
+    FillRoundedRect~: (rect: Rect, color: Color, cornerRadiusLogical: f32) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("rounded fill");
+        this->PrintRect(rect);
+        print(color.red);
+        print(cornerRadiusLogical);
+    }
+
+    StrokeRoundedRect~: (rect: Rect, color: Color, thicknessLogical: f32, cornerRadiusLogical: f32) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("rounded stroke");
+        this->PrintRect(rect);
+        print(color.red);
+        print(thicknessLogical);
+        print(cornerRadiusLogical);
+    }
+
+    FillGradientRect~: (rect: Rect, topColor: Color, bottomColor: Color, cornerRadiusLogical: f32) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("gradient");
+        this->PrintRect(rect);
+        print(topColor.red);
+        print(bottomColor.red);
+        print(cornerRadiusLogical);
+    }
+
+    DrawDropShadow~: (rect: Rect, color: Color, blurRadiusLogical: f32, cornerRadiusLogical: f32) -> void {
+        this->commandCount = this->commandCount + 1;
+        print("shadow");
+        this->PrintRect(rect);
+        print(color.red);
+        print(blurRadiusLogical);
+        print(cornerRadiusLogical);
+    }
+
     StrokeRect~: (rect: Rect, color: Color, thicknessLogical: f32) -> void {
         this->commandCount = this->commandCount + 1;
         print("stroke");

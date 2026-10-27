@@ -2,6 +2,7 @@ Point :: import Point;
 Rect :: import Rect;
 Color :: import Color;
 IRenderer :: import IRenderer;
+RoundedRects :: import RoundedRects;
 InputState :: import InputState;
 MouseButton :: import MouseButton;
 StackingTracker :: import StackingTracker;
@@ -57,7 +58,7 @@ protected:
         if !this->checked {
             return;
         }
-        renderer->FillRect(contentRect, this->colorBoxChecked);
+        RoundedRects:::Fill(renderer, contentRect, this->colorBoxChecked, this->style.borderRadius);
         markInsetRatio: f32 = 0.25f;
         insetX: f32 = contentRect.width * markInsetRatio;
         insetY: f32 = contentRect.height * markInsetRatio;
@@ -67,7 +68,7 @@ protected:
             width: contentRect.width - 2.0f * insetX,
             height: contentRect.height - 2.0f * insetY
         };
-        renderer->FillRect(mark, this->colorCheckMark);
+        RoundedRects:::Fill(renderer, mark, this->colorCheckMark, this->style.borderRadius * 0.6f);
     }
 
 private:
