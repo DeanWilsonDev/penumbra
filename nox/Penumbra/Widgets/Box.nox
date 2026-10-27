@@ -527,7 +527,7 @@ private:
                 y: slotTop + margin.top,
                 width: cross.extent,
                 height: Numbers:::NonNegative(slotHeight - margin.Vertical())
-            }, content, layout), layout);
+            }, content, null, layout), layout);
             leadingSeen = true;
         }
     }
@@ -611,7 +611,7 @@ private:
                 if growExtent >= 0.0f {
                     height = growExtent;
                 }
-                child->Arrange(Positioning:::OffsetInFlow(child, Rect { x: cross.position, y: top, width: cross.extent, height: height }, content, layout), layout);
+                child->Arrange(Positioning:::OffsetInFlow(child, Rect { x: cross.position, y: top, width: cross.extent, height: height }, content, null, layout), layout);
                 cursor = top + height + margin.bottom;
             }
             else {
@@ -621,7 +621,7 @@ private:
                 if growExtent >= 0.0f {
                     width = growExtent;
                 }
-                child->Arrange(Positioning:::OffsetInFlow(child, Rect { x: left, y: cross.position, width: width, height: cross.extent }, content, layout), layout);
+                child->Arrange(Positioning:::OffsetInFlow(child, Rect { x: left, y: cross.position, width: width, height: cross.extent }, content, null, layout), layout);
                 cursor = left + width + margin.right;
             }
             anyVisible = true;

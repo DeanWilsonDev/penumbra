@@ -43,17 +43,18 @@ Positioning :: namespace {
         return result;
     }
 
-    OffsetInFlow :: (child: WidgetBase*, inFlowRect: Rect, parentContent: Rect, layout: LayoutContext*) -> Rect {
+    OffsetInFlow :: (child: WidgetBase*, inFlowRect: Rect, parentContent: Rect, stickyBlock: Rect?, layout: LayoutContext*) -> Rect {
         placement: Placement = child->GetPlacement();
         placed~ Rect = inFlowRect;
         if placement.positionMode == Position:::Sticky {
             port: Rect = layout->InnermostScrollport();
+            bounds: Rect = stickyBlock ?? parentContent;
             margin: EdgeInsets = child->GetMarginLogical();
             placed.y = Positioning:::StickAlong(placed.y, placed.height, port.y, port.height,
-                parentContent.y + margin.top, parentContent.y + parentContent.height - margin.bottom,
+                bounds.y + margin.top, bounds.y + bounds.height - margin.bottom,
                 Positioning:::ResolveOffset(placement.top, port.height), Positioning:::ResolveOffset(placement.bottom, port.height));
             placed.x = Positioning:::StickAlong(placed.x, placed.width, port.x, port.width,
-                parentContent.x + margin.left, parentContent.x + parentContent.width - margin.right,
+                bounds.x + margin.left, bounds.x + bounds.width - margin.right,
                 Positioning:::ResolveOffset(placement.left, port.width), Positioning:::ResolveOffset(placement.right, port.width));
             return placed;
         }

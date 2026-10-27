@@ -21,6 +21,7 @@ PointerEvents :: import PointerEvents;
 Button :: import Button;
 Checkbox :: import Checkbox;
 Transform :: import Transform;
+ScrollablePanel :: import ScrollablePanel;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -454,6 +455,64 @@ ShowButtons :: () -> void {
     print(checkbox->checked);
 }
 
+ScrollFrame :: (panel: ScrollablePanel~*, stacking: StackingTracker~*, layout: LayoutContext~*, frameName: string, x: f32, y: f32, down: bool, pressed: bool, wheel: f32) -> void {
+    print(frameName);
+    input~ InputState = InputState { };
+    input.mousePosition = Point { x: x, y: y };
+    input.mouseButtonDown[0] = down;
+    input.mouseButtonPressedThisFrame[0] = pressed;
+    input.mouseWheelDelta = wheel;
+    print(panel->UpdateInteractionState(input, stacking));
+    print(panel->ConsumedWheelThisFrame());
+    panel->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: 60.0f }, layout);
+    print(panel->GetScrollOffset());
+    if first := panel->GetChildAt(0) {
+        print(first->GetArrangedRect().y);
+    }
+}
+
+ShowScrolling :: () -> void {
+    print("scrolling");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    panel: ScrollablePanel*! = new ScrollablePanel();
+    defer delete panel;
+    panel->className = "list";
+    panel->crossAlignment = CrossAlign:::Stretch;
+    panel->wheelStepLogical = 10.0f;
+    panel->scrollbarWidthLogical = 6.0f;
+    panel->colorScrollbarTrack = Color { red: 30, green: 30, blue: 30, alpha: 255 };
+    panel->colorScrollbarThumb = Color { red: 90, green: 90, blue: 90, alpha: 255 };
+    panel->colorScrollbarThumbHovered = Color { red: 140, green: 140, blue: 140, alpha: 255 };
+    rowIndex~ i32 = 0;
+    while rowIndex < 5 {
+        row: Box*! = MakeSizedBox("row", 40.0f, 20.0f);
+        row->style.colorBackground = Color { red: u8(50 + rowIndex * 10), green: 50, blue: 60, alpha: 255 };
+        panel->AddChild(row!);
+        rowIndex = rowIndex + 1;
+    }
+    desired: Point = panel->Measure(Point { x: 100.0f, y: 60.0f });
+    print(desired.x);
+    print(desired.y);
+    panel->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: 60.0f }, layout);
+    PrintTree(panel, 0);
+
+    ScrollFrame(panel, stacking, layout, "wheel down once", 30.0f, 30.0f, false, false, -1.0f);
+    ScrollFrame(panel, stacking, layout, "wheel past the end", 30.0f, 30.0f, false, false, -10.0f);
+    ScrollFrame(panel, stacking, layout, "wheel outside", 300.0f, 30.0f, false, false, 1.0f);
+    ScrollFrame(panel, stacking, layout, "press the track above the thumb", 97.0f, 5.0f, true, true, 0.0f);
+    ScrollFrame(panel, stacking, layout, "drag the thumb", 97.0f, 30.0f, true, false, 0.0f);
+    ScrollFrame(panel, stacking, layout, "drag beyond the panel", 97.0f, 200.0f, true, false, 0.0f);
+    ScrollFrame(panel, stacking, layout, "release", 97.0f, 200.0f, false, false, 0.0f);
+    ScrollFrame(panel, stacking, layout, "hover the rows", 30.0f, 30.0f, false, false, 0.0f);
+
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    panel->Draw(renderer, stacking);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -481,5 +540,6 @@ main :: () -> i32 {
     ShowPositioning();
     ShowStacking();
     ShowButtons();
+    ShowScrolling();
     return 0;
 }

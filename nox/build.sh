@@ -23,6 +23,7 @@ library_sources=(
     Penumbra/Anim/Animation.nox
     Penumbra/Widgets/Button.nox
     Penumbra/Widgets/Checkbox.nox
+    Penumbra/Widgets/ScrollablePanel.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox

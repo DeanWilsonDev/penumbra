@@ -73,6 +73,10 @@ public:
         return null;
     }
 
+    virtual ConsumedWheelThisFrame :: () -> bool {
+        return false;
+    }
+
     SetIsEnabled~: (enabled: bool) -> void {
         this->isEnabled = enabled;
     }
