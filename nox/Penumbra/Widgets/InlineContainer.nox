@@ -1,0 +1,141 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+EdgeInsets :: import EdgeInsets;
+LayoutContext :: import LayoutContext;
+WidgetBase :: import WidgetBase;
+CrossPlacement :: import CrossPlacement;
+Box :: import Box;
+
+InlineLineItem :: struct {
+    child: WidgetBase~*;
+    desired: Point;
+    margin: EdgeInsets;
+    lineIndex: usize;
+}
+
+InlineContainer :: class : Box {
+public:
+    lineGapLogical~ f32 = 0.0f;
+
+    Measure~: (availableSizeLogical: Point) -> Point override {
+        frame: Point = this->FrameSize();
+        contentAvailable: Point = Point {
+            x: Numbers:::NonNegative(availableSizeLogical.x - frame.x),
+            y: Numbers:::NonNegative(availableSizeLogical.y - frame.y)
+        };
+        items: Array<InlineLineItem>! = this->BuildLines(contentAvailable);
+        defer delete items;
+        lineHeights: Array<f32>! = LineHeights(items);
+        defer delete lineHeights;
+
+        widestLine~ f32 = 0.0f;
+        lineWidth~ f32 = 0.0f;
+        currentLine~ usize = 0;
+        firstOnLine~ bool = true;
+        for item in items {
+            if item.lineIndex != currentLine {
+                widestLine = Numbers:::Larger(widestLine, lineWidth);
+                lineWidth = 0.0f;
+                currentLine = item.lineIndex;
+                firstOnLine = true;
+            }
+            if !firstOnLine {
+                lineWidth = lineWidth + this->childGap;
+            }
+            lineWidth = lineWidth + item.margin.left + item.desired.x + item.margin.right;
+            firstOnLine = false;
+        }
+        widestLine = Numbers:::Larger(widestLine, lineWidth);
+
+        totalHeight~ f32 = 0.0f;
+        lineIndex~ usize = 0;
+        while lineIndex < lineHeights.length() {
+            if lineIndex > 0 {
+                totalHeight = totalHeight + this->lineGapLogical;
+            }
+            totalHeight = totalHeight + lineHeights[lineIndex];
+            lineIndex = lineIndex + 1;
+        }
+        return Point { x: widestLine + frame.x, y: totalHeight + frame.y };
+    }
+
+    Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
+        this->arrangedRect = finalRectLogical;
+        content: Rect = this->ContentRectFrom(finalRectLogical);
+        items: Array<InlineLineItem>! = this->BuildLines(Point { x: content.width, y: content.height });
+        defer delete items;
+        lineHeights: Array<f32>! = LineHeights(items);
+        defer delete lineHeights;
+
+        cursorX~ f32 = content.x;
+        cursorY~ f32 = content.y;
+        currentLine~ usize = 0;
+        firstOnLine~ bool = true;
+        for item in items {
+            if item.lineIndex != currentLine {
+                cursorY = cursorY + lineHeights[currentLine] + this->lineGapLogical;
+                cursorX = content.x;
+                currentLine = item.lineIndex;
+                firstOnLine = true;
+            }
+            if !firstOnLine {
+                cursorX = cursorX + this->childGap;
+            }
+            left: f32 = cursorX + item.margin.left;
+            cross: CrossPlacement = this->PlaceCross(cursorY, lineHeights[currentLine], item.desired.y, item.margin.top, item.margin.bottom);
+            item.child->Arrange(Rect { x: left, y: cross.position, width: item.desired.x, height: cross.extent }, layout);
+            cursorX = left + item.desired.x + item.margin.right;
+            firstOnLine = false;
+        }
+    }
+
+private:
+    BuildLines~: (contentAvailable: Point) -> Array<InlineLineItem>! {
+        items~ Array<InlineLineItem>! = [];
+        cursorX~ f32 = 0.0f;
+        lineIndex~ usize = 0;
+        lineIsEmpty~ bool = true;
+        index~ usize = 0;
+        while index < this->children.length() {
+            child: WidgetBase~* = this->children[index];
+            index = index + 1;
+            if !child->GetIsVisible() {
+                continue;
+            }
+            margin: EdgeInsets = child->GetMarginLogical();
+            childAvailable: Point = Point {
+                x: Numbers:::NonNegative(contentAvailable.x - margin.left - margin.right),
+                y: Numbers:::NonNegative(contentAvailable.y - margin.top - margin.bottom)
+            };
+            desired~ Point = child->Measure(childAvailable);
+            if childAvailable.x > 0.0f {
+                desired.x = Numbers:::Smaller(desired.x, childAvailable.x);
+            }
+            itemWidth: f32 = margin.left + desired.x + margin.right;
+            if !lineIsEmpty && cursorX + this->childGap + itemWidth > contentAvailable.x {
+                lineIndex = lineIndex + 1;
+                cursorX = 0.0f;
+                lineIsEmpty = true;
+            }
+            if !lineIsEmpty {
+                cursorX = cursorX + this->childGap;
+            }
+            cursorX = cursorX + itemWidth;
+            lineIsEmpty = false;
+            items.push(InlineLineItem { child: child, desired: desired, margin: margin, lineIndex: lineIndex });
+        }
+        return items!;
+    }
+}
+
+LineHeights :: (items: Array<InlineLineItem>) -> Array<f32>! {
+    heights~ Array<f32>! = [];
+    for item in items {
+        while heights.length() <= item.lineIndex {
+            heights.push(0.0f);
+        }
+        heights[item.lineIndex] = Numbers:::Larger(heights[item.lineIndex], item.margin.top + item.desired.y + item.margin.bottom);
+    }
+    return heights!;
+}

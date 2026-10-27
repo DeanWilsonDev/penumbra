@@ -34,6 +34,7 @@ Key :: import Key;
 RecordingClipboard :: import RecordingClipboard;
 Dropdown :: import Dropdown;
 DropdownStyle :: import DropdownStyle;
+InlineContainer :: import InlineContainer;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -964,6 +965,33 @@ ShowDropdown :: (font: IFontBackend*) -> void {
     DropdownFrame(dropdown, stacking, layout, "escape", escaping);
 }
 
+ShowInlineFlow :: () -> void {
+    print("inline flow");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    flow: InlineContainer*! = new InlineContainer();
+    defer delete flow;
+    flow->className = "flow";
+    flow->childGap = 4.0f;
+    flow->lineGapLogical = 2.0f;
+    flow->crossAlignment = CrossAlign:::Center;
+    flow->AddChild(MakeSizedBox("a", 40.0f, 10.0f));
+    flow->AddChild(MakeSizedBox("b", 30.0f, 20.0f));
+    spaced: Box*! = MakeSizedBox("c", 50.0f, 10.0f);
+    spaced->style.margin.left = 2.0f;
+    flow->AddChild(spaced!);
+    hidden: Box*! = MakeSizedBox("hidden", 20.0f, 16.0f);
+    hidden->SetIsVisible(false);
+    flow->AddChild(hidden!);
+    flow->AddChild(MakeSizedBox("d", 90.0f, 8.0f));
+    flow->AddChild(MakeSizedBox("too wide", 150.0f, 4.0f));
+    desired: Point = flow->Measure(Point { x: 100.0f, y: 200.0f });
+    print(desired.x);
+    print(desired.y);
+    flow->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: desired.y }, layout);
+    PrintTree(flow, 0);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -998,5 +1026,6 @@ main :: () -> i32 {
     ShowSmallWidgets(font);
     ShowOverlays();
     ShowDropdown(font);
+    ShowInlineFlow();
     return 0;
 }
