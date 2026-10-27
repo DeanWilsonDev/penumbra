@@ -201,7 +201,7 @@ public:
         layeredTook: bool = context->DispatchAbove(layeredInput);
         pointerTaken~ bool = scrollbarTook || layeredTook || !pointerInput.IsPointerOver(content);
         consumed~ bool = uncover || layeredTook;
-        childConsumedWheel~ bool = false;
+        childConsumedWheel~ bool = uncover && stacking->PointerTakerUsedWheel();
         index~ usize = this->children.length();
         while index > 0 {
             index = index - 1;

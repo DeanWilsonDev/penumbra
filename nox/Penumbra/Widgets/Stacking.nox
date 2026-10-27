@@ -119,6 +119,11 @@ public:
         return innermost->PointerPathHolds(widget);
     }
 
+    PointerTakerUsedWheel :: () -> bool {
+        guard innermost := this->Innermost() return false;
+        return innermost->TakerUsedWheel();
+    }
+
 private:
     active~ Array<StackingContext~*>! = [];
     nextSerial~ u64 = 1;
@@ -170,6 +175,10 @@ public:
             return current == widget;
         }
         return false;
+    }
+
+    TakerUsedWheel :: () -> bool {
+        return this->takerUsedWheel;
     }
 
     PointerPathHolds :: (widget: WidgetBase*) -> bool {
@@ -241,6 +250,7 @@ private:
     ancestorStack~ Array<WidgetBase*>! = [];
     ancestorPool~ Array<WidgetBase*>! = [];
     pointerPath~ Array<WidgetBase*>! = [];
+    takerUsedWheel~ bool = false;
 
     Collect~: (parent: WidgetBase~*, walk: StackingWalk) -> void {
         index~ usize = 0;
@@ -357,6 +367,7 @@ private:
                 this->pointerPath.push(this->ancestorPool[entry.ancestorStart + step]);
                 step = step + 1;
             }
+            this->takerUsedWheel = entry.widget->ConsumedWheelThisFrame();
         }
         return took;
     }

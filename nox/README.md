@@ -88,8 +88,6 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   callbacks and a way to read its `SDL_Event` union as one of its member structs.
 - `KeyEvent`, `OnKeyEvent` and `KeyName`: keys reach handlers only as `onKeyPressed`.
 - Groups painted through a transform or opacity (`PaintsAsGroup`).
-- `StackingContext::PointerTakerUsedWheel`: a layered descendant that took the wheel doesn't yet
-  stop its scrolling ancestor from using it too.
 - Transforms as containing blocks, and drawing through a transform: only `Button`'s hit test reads
   `BoxStyle.transform` so far.
 

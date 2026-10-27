@@ -2659,3 +2659,82 @@ measure memo
 4
 5
 6
+layered wheel
+0
+root
+0
+0
+100
+60
+1
+outer
+0
+0
+100
+60
+2
+inner
+0
+0
+100
+30
+3
+inner row
+0
+0
+100
+20
+3
+inner row
+0
+20
+100
+20
+3
+inner row
+0
+40
+100
+20
+3
+inner row
+0
+60
+100
+20
+2
+outer row
+0
+30
+100
+20
+2
+outer row
+0
+50
+100
+20
+2
+outer row
+0
+70
+100
+20
+2
+outer row
+0
+90
+100
+20
+wheel over the layered panel
+true
+true
+10
+false
+0
+wheel over the outer rows
+true
+false
+10
+true
+10
