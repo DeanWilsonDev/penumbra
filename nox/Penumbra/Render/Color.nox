@@ -8,3 +8,12 @@ Color :: struct {
         return alpha > 0;
     }
 }
+
+Colors :: namespace {
+    SetOr :: (preferred: Color, fallback: Color) -> Color {
+        if preferred.IsVisible() {
+            return preferred;
+        }
+        return fallback;
+    }
+}

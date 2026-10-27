@@ -1,0 +1,59 @@
+Point :: import Point;
+Rect :: import Rect;
+
+MouseButton :: namespace {
+    Left :: () -> usize {
+        return 0;
+    }
+
+    Middle :: () -> usize {
+        return 1;
+    }
+
+    Right :: () -> usize {
+        return 2;
+    }
+}
+
+Modifiers :: struct {
+    shift~ bool = false;
+    control~ bool = false;
+    alt~ bool = false;
+    super~ bool = false;
+    shortcut~ bool = false;
+}
+
+InputState :: struct {
+    mousePosition~ Point = Point { };
+    mouseButtonDown~ bool[3] = [false, false, false];
+    mouseButtonPressedThisFrame~ bool[3] = [false, false, false];
+    mouseButtonReleasedThisFrame~ bool[3] = [false, false, false];
+    mouseWheelDelta~ f32 = 0.0f;
+    mouseWheelDeltaX~ f32 = 0.0f;
+    modifierState~ Modifiers = Modifiers { };
+    deltaTimeSeconds~ f32 = 0.0f;
+    pointerOccluded~ bool = false;
+    pointerPassThrough~ bool = false;
+
+    IsPointerOver :: (area: Rect) -> bool {
+        return !pointerOccluded && !pointerPassThrough
+            && mousePosition.x >= area.x && mousePosition.x < area.x + area.width
+            && mousePosition.y >= area.y && mousePosition.y < area.y + area.height;
+    }
+
+    Occluded :: () -> InputState {
+        occluded~ InputState = InputState {
+            mousePosition: mousePosition,
+            mouseButtonDown: mouseButtonDown,
+            mouseButtonPressedThisFrame: mouseButtonPressedThisFrame,
+            mouseButtonReleasedThisFrame: mouseButtonReleasedThisFrame,
+            mouseWheelDelta: mouseWheelDelta,
+            mouseWheelDeltaX: mouseWheelDeltaX,
+            modifierState: modifierState,
+            deltaTimeSeconds: deltaTimeSeconds,
+            pointerOccluded: true,
+            pointerPassThrough: pointerPassThrough
+        };
+        return occluded;
+    }
+}

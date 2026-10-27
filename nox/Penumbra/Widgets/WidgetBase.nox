@@ -2,6 +2,7 @@ Point :: import Point;
 Rect :: import Rect;
 EdgeInsets :: import EdgeInsets;
 IRenderer :: import IRenderer;
+InputState :: import InputState;
 
 InteractionState :: enum {
     Default,
@@ -13,10 +14,31 @@ InteractionState :: enum {
 WidgetBase :: class {
 public:
     className~ string = "";
+    onPressed~ (() -> void)!? = null;
+    onReleased~ (() -> void)!? = null;
+    onHovered~ (() -> void)!? = null;
+    onUnhovered~ (() -> void)!? = null;
+    onFocused~ (() -> void)!? = null;
+    onChanged~ (() -> void)!? = null;
+    onDestroyed~ (() -> void)!? = null;
+
+    !WidgetBase~: () {
+        if handler := this->onDestroyed {
+            handler();
+        }
+        delete this->onPressed;
+        delete this->onReleased;
+        delete this->onHovered;
+        delete this->onUnhovered;
+        delete this->onFocused;
+        delete this->onChanged;
+        delete this->onDestroyed;
+    }
 
     Measure~ (availableSizeLogical: Point) -> Point : 0;
     Arrange~ (finalRectLogical: Rect) -> void : 0;
     Draw~ (renderer: IRenderer~*) -> void : 0;
+    UpdateInteractionState~ (input: InputState) -> bool : 0;
 
     virtual GetMarginLogical :: () -> EdgeInsets {
         return EdgeInsets { };
@@ -54,8 +76,18 @@ public:
         return this->arrangedRect;
     }
 
+    GetInteractionState :: () -> InteractionState {
+        return this->currentState;
+    }
+
+    HasCallbacks :: () -> bool {
+        return this->onPressed != null || this->onReleased != null || this->onHovered != null
+            || this->onUnhovered != null || this->onFocused != null || this->onChanged != null;
+    }
+
 protected:
     isEnabled~ bool = true;
     isVisible~ bool = true;
     arrangedRect~ Rect = Rect { };
+    currentState~ InteractionState = InteractionState:::Default;
 }

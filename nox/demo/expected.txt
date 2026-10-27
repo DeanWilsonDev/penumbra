@@ -154,3 +154,99 @@ saved
 328
 12
 10
+frame outside
+false
+default
+default
+disabled
+frame over toolbar
+true
+hovered
+default
+disabled
+frame over button
+button hovered
+true
+hovered
+hovered
+disabled
+frame press
+button hovered
+button pressed
+1
+true
+hovered
+pressed
+disabled
+frame hold
+button hovered
+true
+hovered
+pressed
+disabled
+frame release
+button hovered
+button released
+true
+hovered
+hovered
+disabled
+frame press disabled
+button unhovered
+true
+pressed
+default
+disabled
+frame release disabled
+true
+hovered
+default
+disabled
+frame second press
+button hovered
+button pressed
+2
+true
+hovered
+pressed
+disabled
+frame drag off
+button unhovered
+true
+hovered
+default
+disabled
+frame release outside
+button released
+true
+hovered
+default
+disabled
+fill
+0
+0
+4e+02
+32
+40
+40
+48
+255
+fill
+4
+4
+8e+01
+24
+60
+60
+70
+255
+fill
+88
+4
+8e+01
+24
+30
+30
+30
+255
+button destroyed

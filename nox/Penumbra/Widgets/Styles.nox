@@ -50,6 +50,12 @@ Justify :: enum {
 BoxStyle :: struct {
     colorBackground~ Color = Color { };
     colorBorder~ Color = Color { };
+    colorBackgroundHovered~ Color = Color { };
+    colorBackgroundPressed~ Color = Color { };
+    colorBackgroundDisabled~ Color = Color { };
+    colorBorderHovered~ Color = Color { };
+    colorBorderPressed~ Color = Color { };
+    colorBorderDisabled~ Color = Color { };
     borderWidth~ f32 = 0.0f;
     padding~ EdgeInsets = EdgeInsets { };
     margin~ EdgeInsets = EdgeInsets { };
@@ -59,4 +65,9 @@ BoxStyle :: struct {
     maxWidth~ Length = Length { };
     flexGrow~ f32 = 0.0f;
     opacity~ f32 = 1.0f;
+
+    HasInteractionColors :: () -> bool {
+        return colorBackgroundHovered.IsVisible() || colorBackgroundPressed.IsVisible()
+            || colorBorderHovered.IsVisible() || colorBorderPressed.IsVisible();
+    }
 }
