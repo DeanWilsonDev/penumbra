@@ -12,6 +12,7 @@ library_sources=(
     Penumbra/Render/Color.nox
     Penumbra/Render/Renderer.nox
     Penumbra/Render/Utf8.nox
+    Penumbra/Render/TextWrap.nox
     Penumbra/Platform/InputState.nox
     Penumbra/Platform/Clipboard.nox
     Penumbra/Widgets/Length.nox

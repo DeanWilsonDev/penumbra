@@ -1,27 +1,290 @@
 Point :: import Point;
 Rect :: import Rect;
+Numbers :: import Numbers;
+Maths :: import Maths;
 Color :: import Color;
 IRenderer :: import IRenderer;
 IFontBackend :: import IFontBackend;
+Utf8 :: import Utf8;
+TextLine :: import TextLine;
+TextWrap :: import TextWrap;
 Box :: import Box;
 
 Label :: class : Box {
 public:
-    text~ string = "";
+    text~ string! = "";
     fontSizeLogical~ f32 = 16.0f;
     colorText~ Color = Color { };
+    maxWidthLogical~ f32? = null;
+    truncateWithEllipsis~ bool = false;
+    wrap~ bool = false;
 
-    Label~: (font: IFontBackend*, text: string) : font(font), text(text) { }
+    Label~: (font: IFontBackend*, text: string) : font(font) {
+        this->text = text.copy();
+    }
+
+    !Label~: () {
+        delete this->text;
+        delete this->wrappedText;
+        delete this->wrapLines;
+    }
+
+    SetText~: (text: string) -> void {
+        copied: string! = text.copy();
+        delete this->text;
+        this->text = copied!;
+    }
+
+    IndexAtPoint~: (pointLogical: Point) -> usize {
+        if this->text.length() == 0 {
+            return 0;
+        }
+        content: Rect = this->ContentRectFrom(this->arrangedRect);
+        lines: Array<TextLine>! = this->LinesFor(content.width);
+        defer delete lines;
+        lineHeight: f32 = this->LineHeight();
+        lineIndex~ usize = 0;
+        if lineHeight > 0.0f && pointLogical.y > content.y {
+            lineIndex = usize((pointLogical.y - content.y) / lineHeight);
+            if lineIndex > lines.length() - 1 {
+                lineIndex = lines.length() - 1;
+            }
+        }
+        line: TextLine = lines[lineIndex];
+        localX: f32 = pointLogical.x - content.x;
+        best~ usize = line.contentStart;
+        bestDistance~ f32 = Maths:::Absolute(localX);
+        index~ usize = line.contentStart;
+        while index < line.contentEnd {
+            index = Utf8:::NextCodePoint(this->text, index);
+            if index > line.contentEnd {
+                index = line.contentEnd;
+            }
+            distance: f32 = Maths:::Absolute(localX - this->WidthOf(line.contentStart, index));
+            if distance < bestDistance {
+                bestDistance = distance;
+                best = index;
+            }
+        }
+        return best;
+    }
+
+    CaretRectAt~: (index: usize) -> Rect {
+        content: Rect = this->ContentRectFrom(this->arrangedRect);
+        lines: Array<TextLine>! = this->LinesFor(content.width);
+        defer delete lines;
+        lineIndex: usize = LineIndexOf(lines, index);
+        line: TextLine = lines[lineIndex];
+        clamped~ usize = index;
+        if clamped < line.contentStart {
+            clamped = line.contentStart;
+        }
+        if clamped > line.contentEnd {
+            clamped = line.contentEnd;
+        }
+        lineHeight: f32 = this->LineHeight();
+        return Rect {
+            x: content.x + this->WidthOf(line.contentStart, clamped),
+            y: content.y + f32(lineIndex) * lineHeight,
+            width: 0.0f,
+            height: lineHeight
+        };
+    }
+
+    SetSelection~: (start: usize, end: usize, color: Color) -> void {
+        length: usize = this->text.length();
+        this->selectionStart = start;
+        if this->selectionStart > length {
+            this->selectionStart = length;
+        }
+        this->selectionEnd = end;
+        if this->selectionEnd < this->selectionStart {
+            this->selectionEnd = this->selectionStart;
+        }
+        if this->selectionEnd > length {
+            this->selectionEnd = length;
+        }
+        this->colorSelection = color;
+    }
+
+    ClearSelection~: () -> void {
+        this->selectionStart = 0;
+        this->selectionEnd = 0;
+    }
 
 protected:
     MeasureContent~: (availableContentSize: Point) -> Point override {
-        return this->font->MeasureText(this->text, this->fontSizeLogical);
+        if this->wrap {
+            this->RefreshWrap(availableContentSize.x);
+            widest~ f32 = 0.0f;
+            space: u8 = 32;
+            for line in this->wrapLines {
+                end~ usize = line.contentEnd;
+                if end < this->text.length() && this->text.byteAt(end) == space {
+                    end = end + 1;
+                }
+                widest = Numbers:::Larger(widest, this->WidthOf(line.contentStart, end));
+            }
+            reportedWidth~ f32 = widest;
+            if availableContentSize.x > 0.0f {
+                reportedWidth = Numbers:::Smaller(widest, availableContentSize.x);
+            }
+            return Point { x: reportedWidth, y: this->wrapLineHeight * f32(this->wrapLines.length()) };
+        }
+        measured: Point = this->font->MeasureText(this->text, this->fontSizeLogical);
+        width~ f32 = measured.x;
+        if maximum := this->maxWidthLogical {
+            if width > maximum {
+                width = maximum;
+            }
+        }
+        return Point { x: width, y: measured.y };
     }
 
     DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
-        renderer->DrawText(this->text, Point { x: contentRect.x, y: contentRect.y }, this->fontSizeLogical, this->colorText);
+        if this->selectionEnd > this->selectionStart {
+            lines: Array<TextLine>! = this->LinesFor(contentRect.width);
+            defer delete lines;
+            lineHeight: f32 = this->LineHeight();
+            right~ f32 = contentRect.x + contentRect.width;
+            if maximum := this->maxWidthLogical {
+                if !this->wrap {
+                    right = contentRect.x + maximum;
+                }
+            }
+            index~ usize = 0;
+            while index < lines.length() {
+                line: TextLine = lines[index];
+                index = index + 1;
+                from~ usize = line.contentStart;
+                if this->selectionStart > from {
+                    from = this->selectionStart;
+                }
+                to~ usize = line.contentEnd;
+                if this->selectionEnd < to {
+                    to = this->selectionEnd;
+                }
+                if from >= to {
+                    continue;
+                }
+                left: f32 = contentRect.x + this->WidthOf(line.contentStart, from);
+                rightEdge: f32 = Numbers:::Smaller(left + this->WidthOf(from, to), Numbers:::Larger(right, left));
+                top: f32 = contentRect.y + f32(index - 1) * lineHeight;
+                renderer->FillRect(Rect { x: left, y: top, width: rightEdge - left, height: lineHeight }, this->colorSelection);
+            }
+        }
+
+        origin: Point = Point { x: contentRect.x, y: contentRect.y };
+        if this->wrap {
+            this->RefreshWrap(contentRect.width);
+            lineIndex~ usize = 0;
+            for line in this->wrapLines {
+                if line.contentEnd > line.contentStart {
+                    linePosition: Point = Point { x: contentRect.x, y: contentRect.y + f32(lineIndex) * this->wrapLineHeight };
+                    renderer->DrawText(this->text.substring(line.contentStart, line.contentEnd - line.contentStart), linePosition, this->fontSizeLogical, this->colorText);
+                }
+                lineIndex = lineIndex + 1;
+            }
+            return;
+        }
+
+        maximum: f32 = this->maxWidthLogical ?? -1.0f;
+        if maximum < 0.0f || this->TextWidth(this->text) <= maximum {
+            renderer->DrawText(this->text, origin, this->fontSizeLogical, this->colorText);
+            return;
+        }
+
+        if !this->truncateWithEllipsis {
+            renderer->PushClipRect(Rect { x: contentRect.x, y: contentRect.y, width: maximum, height: contentRect.height });
+            renderer->DrawText(this->text, origin, this->fontSizeLogical, this->colorText);
+            renderer->PopClipRect();
+            return;
+        }
+
+        keep~ usize = this->text.length();
+        while keep > 0 && this->TextWidth(this->text.substring(0, keep)) > maximum {
+            keep = keep - 1;
+        }
+        if keep >= 3 {
+            shortened: string! = this->text.substring(0, keep - 2) + "..";
+            defer delete shortened;
+            renderer->DrawText(shortened, origin, this->fontSizeLogical, this->colorText);
+            return;
+        }
+        if keep == 2 {
+            shortened: string! = this->text.substring(0, 1) + ".";
+            defer delete shortened;
+            renderer->DrawText(shortened, origin, this->fontSizeLogical, this->colorText);
+            return;
+        }
+        renderer->DrawText(this->text.substring(0, keep), origin, this->fontSizeLogical, this->colorText);
     }
 
 private:
     font: IFontBackend*;
+    selectionStart~ usize = 0;
+    selectionEnd~ usize = 0;
+    colorSelection~ Color = Color { };
+    wrapLines~ Array<TextLine>! = [];
+    wrapLineHeight~ f32 = 0.0f;
+    wrapWidth~ f32 = -1.0f;
+    wrapFontSize~ f32 = -1.0f;
+    wrappedText~ string! = "";
+
+    TextWidth :: (value: string) -> f32 {
+        return this->font->MeasureText(value, this->fontSizeLogical).x;
+    }
+
+    LineHeight :: () -> f32 {
+        return this->font->MeasureText("Ag", this->fontSizeLogical).y;
+    }
+
+    WidthOf :: (start: usize, end: usize) -> f32 {
+        if end <= start {
+            return 0.0f;
+        }
+        return this->font->MeasureText(this->text.substring(start, end - start), this->fontSizeLogical).x;
+    }
+
+    RefreshWrap~: (widthLogical: f32) -> void {
+        textValue: string = this->text;
+        wrappedValue: string = this->wrappedText;
+        if this->wrapWidth == widthLogical && this->wrapFontSize == this->fontSizeLogical && wrappedValue == textValue {
+            return;
+        }
+        tolerance~ f32 = 0.0f;
+        if widthLogical > 0.0f {
+            tolerance = 0.01f;
+        }
+        fresh: Array<TextLine>! = TextWrap:::WithFont(this->font, this->fontSizeLogical, this->text, widthLogical + tolerance);
+        delete this->wrapLines;
+        this->wrapLines = fresh!;
+        this->wrapLineHeight = this->LineHeight();
+        this->wrapWidth = widthLogical;
+        this->wrapFontSize = this->fontSizeLogical;
+        copied: string! = this->text.copy();
+        delete this->wrappedText;
+        this->wrappedText = copied!;
+    }
+
+    LinesFor~: (widthLogical: f32) -> Array<TextLine>! {
+        if this->wrap {
+            this->RefreshWrap(widthLogical);
+            return [...this->wrapLines];
+        }
+        lines~ Array<TextLine>! = [];
+        lines.push(TextLine { contentStart: 0, contentEnd: this->text.length() });
+        return lines!;
+    }
+}
+
+LineIndexOf :: (lines: Array<TextLine>, index: usize) -> usize {
+    line~ usize = 0;
+    while line + 1 < lines.length() {
+        if index < lines[line + 1].contentStart {
+            return line;
+        }
+        line = line + 1;
+    }
+    return lines.length() - 1;
 }
