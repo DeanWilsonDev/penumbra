@@ -35,6 +35,8 @@ RecordingClipboard :: import RecordingClipboard;
 Dropdown :: import Dropdown;
 DropdownStyle :: import DropdownStyle;
 InlineContainer :: import InlineContainer;
+IconWidget :: import IconWidget;
+RecordingIconBackend :: import RecordingIconBackend;
 
 PressCounter :: struct {
     presses~ i32 = 0;
@@ -992,6 +994,45 @@ ShowInlineFlow :: () -> void {
     PrintTree(flow, 0);
 }
 
+IconFrame :: (icon: IconWidget~*, stacking: StackingTracker~*, renderer: RecordingRenderer~*, label: string, input: InputState) -> void {
+    print(label);
+    print(icon->UpdateInteractionState(input, stacking));
+    print(StateName(icon->GetInteractionState()));
+    icon->Draw(renderer, stacking);
+}
+
+ShowIcon :: () -> void {
+    print("icon");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+    backend: RecordingIconBackend*! = new RecordingIconBackend();
+    defer delete backend;
+    icon: IconWidget*! = new IconWidget();
+    defer delete icon;
+    icon->className = "icon";
+    icon->SetIcon("gear");
+    icon->iconBackend = backend;
+    icon->sizeLogical = 12.0f;
+    icon->colorLogical = Color { red: 100, green: 100, blue: 100, alpha: 255 };
+    icon->colorLogicalHovered = Color { red: 150, green: 150, blue: 150, alpha: 255 };
+    icon->onPressed = new () -> void {
+        print("icon pressed");
+    };
+    desired: Point = icon->Measure(Point { x: 100.0f, y: 100.0f });
+    print(desired.x);
+    icon->Arrange(Rect { x: 2.0f, y: 2.0f, width: desired.x, height: desired.y }, layout);
+    IconFrame(icon, stacking, renderer, "away", PointerAtPoint(50.0f, 50.0f, false, false, false));
+    IconFrame(icon, stacking, renderer, "hover", PointerAtPoint(5.0f, 5.0f, false, false, false));
+    IconFrame(icon, stacking, renderer, "press", PointerAtPoint(5.0f, 5.0f, true, true, false));
+    IconFrame(icon, stacking, renderer, "release", PointerAtPoint(5.0f, 5.0f, false, false, true));
+    icon->SetIsEnabled(false);
+    IconFrame(icon, stacking, renderer, "disabled", PointerAtPoint(5.0f, 5.0f, false, false, false));
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1027,5 +1068,6 @@ main :: () -> i32 {
     ShowOverlays();
     ShowDropdown(font);
     ShowInlineFlow();
+    ShowIcon();
     return 0;
 }

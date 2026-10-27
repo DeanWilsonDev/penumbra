@@ -34,7 +34,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `OverlayHost` by Escape and by a press outside. Last it opens a `Dropdown`, picks its long
   item (drawn truncated in the trigger), and dismisses the menu by a backdrop press and by Escape.
   Then it wraps six boxes into lines in an `InlineContainer`, skipping a hidden one and clamping one
-  wider than the line.
+  wider than the line. Last it hovers, presses and disables an `IconWidget` drawn through a
+  recording icon backend.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -67,6 +68,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/OverlayHost.h/.cpp` | `Penumbra/Widgets/OverlayHost.nox`: a root and a stack of overlays, Escape and outside-press dismissal, and dismissals deferred while the top overlay handles input. The overlays are parallel arrays (ids, owned contents, optional placements, dismiss flags), since a struct element can't own a widget |
 | `Widgets/Dropdown.h/.cpp` | `Penumbra/Widgets/Dropdown.nox`: the trigger with its truncated label and chevron, a fixed backdrop and a menu that widens with a tween. The rows and the backdrop write the press to a shared `DropdownState` (the chosen index, a dismiss flag), and the dropdown applies it after dispatching to them, because a row's callback can't capture the dropdown |
 | `Widgets/InlineContainer.h/.cpp` | `Penumbra/Widgets/InlineContainer.nox`: greedy line wrapping by width. The lines are one flat array of items that each carry their line index, since an array element can't own an array |
+| `Widgets/IconWidget.h/.cpp`, `Backends/IIconBackend.h` | `Penumbra/Widgets/IconWidget.nox`, and `IIconBackend` in `Penumbra/Render/Renderer.nox`: a fixed-size icon with per-state colours that fall back to the base colour when unset |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
@@ -83,7 +85,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `BoxStyle.transform` so far.
 - Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
 - `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
-- `TextArea`, the charts, `CanvasWidget`, `IconWidget`, `ImageWidget`
+- `TextArea`, the charts, `CanvasWidget`, `ImageWidget`
   and `ViewportWidget`.
 
 ## Language friction found so far

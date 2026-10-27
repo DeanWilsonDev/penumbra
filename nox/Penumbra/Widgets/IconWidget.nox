@@ -1,0 +1,139 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+IRenderer :: import IRenderer;
+IIconBackend :: import IIconBackend;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+LayoutContext :: import LayoutContext;
+StackingTracker :: import StackingTracker;
+InteractionState :: import InteractionState;
+WidgetBase :: import WidgetBase;
+
+IconWidget :: class : WidgetBase {
+public:
+    iconName~ string! = "";
+    iconBackend~ IIconBackend~*? = null;
+    sizeLogical~ f32 = 16.0f;
+    colorLogical~ Color = Color { };
+    colorLogicalHovered~ Color = Color { };
+    colorLogicalPressed~ Color = Color { };
+    colorLogicalDisabled~ Color = Color { };
+
+    !IconWidget~: () {
+        delete this->iconName;
+    }
+
+    SetIcon~: (name: string) -> void {
+        copied: string! = name.copy();
+        delete this->iconName;
+        this->iconName = copied!;
+    }
+
+    Measure~: (availableSizeLogical: Point) -> Point override {
+        return Point { x: this->sizeLogical, y: this->sizeLogical };
+    }
+
+    Arrange~: (finalRectLogical: Rect, layout: LayoutContext~*) -> void override {
+        this->arrangedRect = finalRectLogical;
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        if stacking->IsLayeredOut(this) {
+            return false;
+        }
+        if !this->isEnabled {
+            this->currentState = InteractionState:::Disabled;
+            this->pressedInside = false;
+            if this->wasHovered {
+                if handler := this->onUnhovered {
+                    handler();
+                }
+            }
+            this->wasHovered = false;
+            return false;
+        }
+        left: usize = MouseButton:::Left();
+        hasCallbacks: bool = this->HasCallbacks();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        down: bool = input.mouseButtonDown[left];
+        released: bool = input.mouseButtonReleasedThisFrame[left];
+
+        if hasCallbacks {
+            if hovered {
+                if handler := this->onHovered {
+                    handler();
+                }
+            }
+            if !hovered && this->wasHovered {
+                if handler := this->onUnhovered {
+                    handler();
+                }
+            }
+            if pressed && hovered {
+                this->pressedInside = true;
+                if handler := this->onPressed {
+                    handler();
+                }
+            }
+            if released {
+                if this->pressedInside {
+                    if handler := this->onReleased {
+                        handler();
+                    }
+                }
+                this->pressedInside = false;
+            }
+        }
+        else if pressed && hovered {
+            this->pressedInside = true;
+        }
+        else if released {
+            this->pressedInside = false;
+        }
+        this->wasHovered = hovered;
+
+        if this->pressedInside && down && hovered {
+            this->currentState = InteractionState:::Pressed;
+        }
+        else if hovered {
+            this->currentState = InteractionState:::Hovered;
+        }
+        else {
+            this->currentState = InteractionState:::Default;
+        }
+        return hasCallbacks && (hovered || (this->pressedInside && down));
+    }
+
+    Draw~: (renderer: IRenderer~*, stacking: StackingTracker~*) -> void override {
+        if stacking->IsLayeredOut(this) || !this->isVisible {
+            return;
+        }
+        if backend ~= this->iconBackend {
+            if this->iconName.length() > 0 {
+                backend->DrawIcon(renderer, this->iconName, this->arrangedRect, this->ColorForState());
+            }
+        }
+    }
+
+private:
+    pressedInside~ bool = false;
+    wasHovered~ bool = false;
+
+    ColorForState :: () -> Color {
+        return when this->currentState {
+            InteractionState:::Hovered -> PreferVisible(this->colorLogicalHovered, this->colorLogical),
+            InteractionState:::Pressed -> PreferVisible(this->colorLogicalPressed, this->colorLogical),
+            InteractionState:::Disabled -> PreferVisible(this->colorLogicalDisabled, this->colorLogical),
+            InteractionState:::Default -> this->colorLogical
+        };
+    }
+}
+
+PreferVisible :: (preferred: Color, fallback: Color) -> Color {
+    if preferred.alpha != 0 {
+        return preferred;
+    }
+    return fallback;
+}
