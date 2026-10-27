@@ -111,8 +111,12 @@ void KeyDispatch::AfterChild(WidgetBase& Child, const Platform::InputState& Give
     }
     // The first to finish that the keys reached is the topmost. A widget handed its input
     // before a full-window descendant (its backdrop, say) finished still had the keys.
-    if (!Current.Target && (Child.OnKeyPressed || Child.OnKeyEvent) &&
-        (!Given.KeysPressedThisFrame.empty() || !Given.KeyEvents.empty())) {
+    // A widget claims the frame only if it can act on it: presses for OnKeyPressed,
+    // presses or releases for OnKeyEvent. Otherwise a release-only frame would stop at a
+    // press-only widget instead of reaching the one under it that listens for releases.
+    const bool HasPresses = !Given.KeysPressedThisFrame.empty();
+    const bool HasEvents  = HasPresses || !Given.KeyEvents.empty();
+    if (!Current.Target && ((Child.OnKeyPressed && HasPresses) || (Child.OnKeyEvent && HasEvents))) {
         Current.Target = &Child;
     }
     if (!Given.PointerPassThrough && CoversWindow(Child.GetArrangedRect())) {

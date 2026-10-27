@@ -529,7 +529,7 @@ constexpr std::array Glyphs{
           [](const Pen& P) {
               P.Stroke({{12, 3}, {12, 14}});
               P.Stroke({{8, 10}, {12, 14}, {16, 10}});
-              P.Arc({12, 16}, 9, 0, 180);
+              P.Arc({12, 14}, 8, 0, 180);
           }},
     Glyph{"dot-grid",
           [](const Pen& P) {

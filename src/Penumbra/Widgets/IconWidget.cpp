@@ -16,6 +16,10 @@ bool IconWidget::UpdateInteractionState(const Platform::InputState& Input) {
     if (!IsEnabled) {
         CurrentState = InteractionState::Disabled;
         PressedInside = false;
+        if (WasHovered && OnUnhovered) {
+            OnUnhovered(); // a widget that goes inert while hovered still ends its hover
+        }
+        WasHovered = false;
         return false;
     }
 
