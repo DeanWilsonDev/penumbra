@@ -1646,6 +1646,64 @@ ShowViewportUnitsAndMemo :: () -> void {
     print(counter->measureCount);
 }
 
+NestedWheelFrame :: (root: Box~*, outer: ScrollablePanel*, inner: ScrollablePanel*, stacking: StackingTracker~*, layout: LayoutContext~*, frameName: string, x: f32, y: f32) -> void {
+    print(frameName);
+    input~ InputState = InputState { };
+    input.mousePosition = Point { x: x, y: y };
+    input.mouseWheelDelta = -1.0f;
+    print(root->UpdateInteractionState(input, stacking));
+    print(inner->ConsumedWheelThisFrame());
+    print(inner->GetScrollOffset());
+    print(outer->ConsumedWheelThisFrame());
+    print(outer->GetScrollOffset());
+    root->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: 60.0f }, layout);
+}
+
+ShowLayeredWheel :: () -> void {
+    print("layered wheel");
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    root: Box*! = MakeBox("root", LayoutMode:::VerticalStack);
+    defer delete root;
+    root->crossAlignment = CrossAlign:::Stretch;
+
+    outer: ScrollablePanel*! = new ScrollablePanel();
+    outer->className = "outer";
+    outer->crossAlignment = CrossAlign:::Stretch;
+    outer->wheelStepLogical = 10.0f;
+    outer->style.height = Lengths:::Logical(60.0f);
+    outerView: ScrollablePanel~* = outer;
+
+    inner: ScrollablePanel*! = new ScrollablePanel();
+    inner->className = "inner";
+    inner->crossAlignment = CrossAlign:::Stretch;
+    inner->wheelStepLogical = 10.0f;
+    inner->style.height = Lengths:::Logical(30.0f);
+    inner->style.positionMode = Position:::Relative;
+    inner->style.zIndex = 1;
+    innerView: ScrollablePanel~* = inner;
+    rowIndex~ i32 = 0;
+    while rowIndex < 4 {
+        inner->AddChild(MakeSizedBox("inner row", 40.0f, 20.0f));
+        rowIndex = rowIndex + 1;
+    }
+    outer->AddChild(inner!);
+    rowIndex = 0;
+    while rowIndex < 4 {
+        outer->AddChild(MakeSizedBox("outer row", 40.0f, 20.0f));
+        rowIndex = rowIndex + 1;
+    }
+    root->AddChild(outer!);
+
+    root->Measure(Point { x: 100.0f, y: 60.0f }, layout);
+    root->Arrange(Rect { x: 0.0f, y: 0.0f, width: 100.0f, height: 60.0f }, layout);
+    PrintTree(root, 0);
+    NestedWheelFrame(root, outerView, innerView, stacking, layout, "wheel over the layered panel", 20.0f, 10.0f);
+    NestedWheelFrame(root, outerView, innerView, stacking, layout, "wheel over the outer rows", 20.0f, 45.0f);
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1691,5 +1749,6 @@ main :: () -> i32 {
     ShowRoundedStyles();
     ShowTransitions();
     ShowViewportUnitsAndMemo();
+    ShowLayeredWheel();
     return 0;
 }
