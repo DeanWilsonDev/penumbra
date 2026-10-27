@@ -1,0 +1,761 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Maths :: import Maths;
+Color :: import Color;
+IRenderer :: import IRenderer;
+IFontBackend :: import IFontBackend;
+Utf8 :: import Utf8;
+TextLine :: import TextLine;
+ITextRangeMeasure :: import ITextRangeMeasure;
+TextWrap :: import TextWrap;
+InputState :: import InputState;
+MouseButton :: import MouseButton;
+Key :: import Key;
+IClipboard :: import IClipboard;
+FocusState :: import FocusState;
+WidgetBase :: import WidgetBase;
+StackingTracker :: import StackingTracker;
+Box :: import Box;
+
+TextAreaSpan :: struct {
+    start~ usize = 0;
+    end~ usize = 0;
+    fontSizeLogical~ f32? = null;
+    colorText~ Color? = null;
+    colorBackground~ Color = Color { };
+}
+
+TextAreaRun :: struct {
+    start: usize;
+    end: usize;
+    fontSizeLogical: f32;
+    colorText: Color;
+    colorBackground: Color;
+}
+
+TextAreaLineBox :: struct {
+    top~ f32 = 0.0f;
+    height~ f32 = 0.0f;
+    ascent~ f32 = 0.0f;
+}
+
+TextAreaPiece :: struct {
+    run: TextAreaRun;
+    x: f32;
+    width: f32;
+}
+
+TextArea :: class : Box {
+    implements:
+        ITextRangeMeasure;
+public:
+    fontSizeLogical~ f32 = 16.0f;
+    colorText~ Color = Color { };
+    colorCaret~ Color = Color { };
+    colorSelection~ Color = Color { };
+    colorScrollbarThumb~ Color = Color { };
+    caretWidthLogical~ f32 = 0.0f;
+    preferredWidthLogical~ f32 = 0.0f;
+    preferredHeightLogical~ f32 = 0.0f;
+    wheelStepLogical~ f32 = 0.0f;
+    scrollbarWidthLogical~ f32 = 0.0f;
+    focus~ FocusState~*? = null;
+    clipboard~ IClipboard~*? = null;
+    text~ string! = "";
+    onTextChanged~ ((text: string) -> void)!? = null;
+    onFocusLost~ (() -> void)!? = null;
+
+    TextArea~: (font: IFontBackend*) : font(font) { }
+
+    !TextArea~: () {
+        if this->IsFocused() {
+            if focusState := this->focus {
+                focusState->focused = null;
+            }
+        }
+        delete this->text;
+        delete this->onTextChanged;
+        delete this->onFocusLost;
+        delete this->spans;
+        delete this->lines;
+        delete this->lineBoxes;
+    }
+
+    SetText~: (replacement: string) -> void {
+        copied: string! = replacement.copy();
+        delete this->text;
+        this->text = copied!;
+        this->caretIndex = 0;
+        this->selectionAnchor = 0;
+        this->linesDirty = true;
+    }
+
+    SetSpans~: (newSpans: Array<TextAreaSpan>) -> void {
+        sorted~ Array<TextAreaSpan>! = [];
+        for span in newSpans {
+            at~ usize = sorted.length();
+            while at > 0 && sorted[at - 1].start > span.start {
+                at = at - 1;
+            }
+            sorted.insert(at, span);
+        }
+        length: usize = this->text.length();
+        previousEnd~ usize = 0;
+        index~ usize = 0;
+        while index < sorted.length() {
+            start~ usize = Numbers:::SmallerIndex(Numbers:::LargerIndex(sorted[index].start, previousEnd), length);
+            end~ usize = Numbers:::LargerIndex(Numbers:::SmallerIndex(sorted[index].end, length), start);
+            sorted[index].start = start;
+            sorted[index].end = end;
+            previousEnd = end;
+            index = index + 1;
+        }
+        delete this->spans;
+        this->spans = sorted!;
+        this->linesDirty = true;
+    }
+
+    SpanCount :: () -> usize {
+        return this->spans.length();
+    }
+
+    SpanAt :: (index: usize) -> TextAreaSpan {
+        return this->spans[index];
+    }
+
+    IsFocused :: () -> bool {
+        if focusState := this->focus {
+            if focusedWidget := focusState->focused {
+                return focusedWidget == this;
+            }
+        }
+        return false;
+    }
+
+    ConsumedWheelThisFrame :: () -> bool override {
+        return this->wheelHandledThisFrame;
+    }
+
+    MeasureRange :: (start: usize, end: usize) -> f32 {
+        if end <= start {
+            return 0.0f;
+        }
+        runs: Array<TextAreaRun>! = this->RunsIn(start, end);
+        defer delete runs;
+        width~ f32 = 0.0f;
+        for run in runs {
+            width = width + this->RunWidth(run);
+        }
+        return width;
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        left: usize = MouseButton:::Left();
+        hovered: bool = input.IsPointerOver(this->arrangedRect);
+        pressed: bool = input.mouseButtonPressedThisFrame[left];
+        down: bool = input.mouseButtonDown[left];
+        released: bool = input.mouseButtonReleasedThisFrame[left];
+        content: Rect = this->ContentRectFrom(this->arrangedRect);
+        wrapWidth: f32 = this->WrapWidthFor(content);
+
+        this->RebuildLinesIfNeeded(wrapWidth);
+
+        if pressed && hovered {
+            if focusState := this->focus {
+                focusState->focused = this;
+                clickedIndex: usize = this->IndexAtLocalPoint(input.mousePosition.x - content.x, input.mousePosition.y - content.y);
+                this->caretIndex = clickedIndex;
+                this->selectionAnchor = clickedIndex;
+                this->desiredCaretXLogical = -1.0f;
+                this->dragging = true;
+            }
+        }
+        if this->dragging && down && this->IsFocused() {
+            this->caretIndex = this->IndexAtLocalPoint(input.mousePosition.x - content.x, input.mousePosition.y - content.y);
+            this->desiredCaretXLogical = -1.0f;
+        }
+        if released {
+            this->dragging = false;
+        }
+        focusedNow: bool = this->IsFocused();
+        if this->wasFocused && !focusedNow {
+            if handler := this->onFocusLost {
+                handler();
+            }
+        }
+        this->wasFocused = focusedNow;
+
+        consumed~ bool = false;
+        this->wheelHandledThisFrame = false;
+        if hovered && this->wheelStepLogical != 0.0f && input.mouseWheelDelta != 0.0f {
+            maximumScroll: f32 = Numbers:::NonNegative(this->TotalHeight() - content.height);
+            if maximumScroll > 0.0f {
+                scrolled: f32 = Numbers:::NonNegative(this->scrollOffsetY - input.mouseWheelDelta * this->wheelStepLogical);
+                this->scrollOffsetY = Numbers:::Smaller(scrolled, maximumScroll);
+                consumed = true;
+                this->wheelHandledThisFrame = true;
+            }
+        }
+
+        if !focusedNow {
+            return hovered || consumed;
+        }
+
+        shortcut: bool = input.modifierState.shortcut;
+        shift: bool = input.modifierState.shift;
+        changed~ bool = false;
+
+        if input.textInputThisFrame.length() > 0 {
+            if this->HasSelection() {
+                this->DeleteSelection();
+            }
+            this->InsertText(input.textInputThisFrame);
+            changed = true;
+        }
+
+        for key in input.keysPressedThisFrame {
+            if TextAreaUsesKey(key, shortcut) {
+                stacking->keys->MarkUsed(key);
+            }
+            this->RebuildLinesIfNeeded(wrapWidth);
+            if shortcut {
+                if this->ApplyShortcut(key) {
+                    changed = true;
+                }
+                continue;
+            }
+            if this->ApplyEditingKey(key, shift) {
+                changed = true;
+            }
+        }
+
+        this->RebuildLinesIfNeeded(wrapWidth);
+        this->ScrollCaretIntoView(content.height);
+
+        if changed {
+            if handler := this->onTextChanged {
+                handler(this->text);
+            }
+        }
+        return true;
+    }
+
+protected:
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        return Point { x: this->preferredWidthLogical, y: this->preferredHeightLogical };
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        wrapWidth: f32 = this->WrapWidthFor(contentRect);
+        this->RebuildLinesIfNeeded(wrapWidth);
+
+        renderer->PushClipRect(contentRect);
+        if this->DefaultLineHeight() <= 0.0f {
+            renderer->PopClipRect();
+            return;
+        }
+
+        selected: bool = this->IsFocused() && this->HasSelection();
+        selectionStart~ usize = 0;
+        selectionEnd~ usize = 0;
+        if selected {
+            selectionStart = this->SelectionStart();
+            selectionEnd = this->SelectionEnd();
+        }
+        viewportBottom: f32 = this->scrollOffsetY + contentRect.height;
+
+        lineIndex~ usize = this->LineIndexAtY(this->scrollOffsetY);
+        while lineIndex < this->lines.length() && this->lineBoxes[lineIndex].top < viewportBottom {
+            line: TextLine = this->lines[lineIndex];
+            lineBox: TextAreaLineBox = this->lineBoxes[lineIndex];
+            lineY: f32 = contentRect.y + lineBox.top - this->scrollOffsetY;
+
+            pieces~ Array<TextAreaPiece>! = [];
+            runs: Array<TextAreaRun>! = this->RunsIn(line.contentStart, line.contentEnd);
+            pieceX~ f32 = contentRect.x;
+            for run in runs {
+                width: f32 = this->RunWidth(run);
+                pieces.push(TextAreaPiece { run: run, x: pieceX, width: width });
+                pieceX = pieceX + width;
+            }
+            delete runs;
+
+            for piece in pieces {
+                if piece.run.colorBackground.alpha > 0 {
+                    backgroundTop: f32 = lineY + lineBox.ascent - this->FontAscent(piece.run.fontSizeLogical);
+                    renderer->FillRect(Rect { x: piece.x, y: backgroundTop, width: piece.width, height: this->FontHeight(piece.run.fontSizeLogical) }, piece.run.colorBackground);
+                }
+            }
+
+            if selected {
+                ownershipEnd: usize = this->LineOwnershipEnd(lineIndex);
+                overlapStart: usize = Numbers:::LargerIndex(line.contentStart, selectionStart);
+                overlapEnd: usize = Numbers:::SmallerIndex(ownershipEnd, selectionEnd);
+                if overlapStart < overlapEnd {
+                    fullLine: bool = overlapStart <= line.contentStart && selectionEnd >= ownershipEnd && ownershipEnd > line.contentEnd;
+                    selectionLeft: f32 = contentRect.x + this->LineLocalX(line, overlapStart);
+                    selectionRight~ f32 = contentRect.x + wrapWidth;
+                    if !fullLine {
+                        selectionRight = contentRect.x + this->LineLocalX(line, Numbers:::SmallerIndex(overlapEnd, line.contentEnd));
+                    }
+                    renderer->FillRect(Rect { x: selectionLeft, y: lineY, width: selectionRight - selectionLeft, height: lineBox.height }, this->colorSelection);
+                }
+            }
+
+            for piece in pieces {
+                textTop: f32 = lineY + lineBox.ascent - this->FontAscent(piece.run.fontSizeLogical);
+                pieceText: string = this->text.substring(piece.run.start, piece.run.end - piece.run.start);
+                renderer->DrawText(pieceText, Point { x: piece.x, y: textTop }, piece.run.fontSizeLogical, piece.run.colorText);
+            }
+            delete pieces;
+            lineIndex = lineIndex + 1;
+        }
+
+        if this->IsFocused() {
+            caretLine: usize = this->LineIndexForCaret(this->caretIndex);
+            caretBox: TextAreaLineBox = this->lineBoxes[caretLine];
+            if caretBox.top + caretBox.height > this->scrollOffsetY && caretBox.top < viewportBottom {
+                caretY: f32 = contentRect.y + caretBox.top - this->scrollOffsetY;
+                caretX: f32 = contentRect.x + this->LineLocalX(this->lines[caretLine], this->caretIndex);
+                renderer->FillRect(Rect { x: caretX, y: caretY, width: this->caretWidthLogical, height: caretBox.height }, this->colorCaret);
+            }
+        }
+
+        total: f32 = this->TotalHeight();
+        if this->scrollbarWidthLogical > 0.0f && total > contentRect.height {
+            maximumScroll: f32 = total - contentRect.height;
+            thumbHeight: f32 = Numbers:::Larger(this->DefaultLineHeight(), contentRect.height * (contentRect.height / total));
+            thumbTravel: f32 = contentRect.height - thumbHeight;
+            thumbY~ f32 = contentRect.y;
+            if maximumScroll > 0.0f {
+                thumbY = contentRect.y + (this->scrollOffsetY / maximumScroll) * thumbTravel;
+            }
+            trackX: f32 = contentRect.x + contentRect.width - this->scrollbarWidthLogical;
+            renderer->FillRect(Rect { x: trackX, y: thumbY, width: this->scrollbarWidthLogical, height: thumbHeight }, this->colorScrollbarThumb);
+        }
+
+        renderer->PopClipRect();
+    }
+
+private:
+    font: IFontBackend*;
+    caretIndex~ usize = 0;
+    selectionAnchor~ usize = 0;
+    dragging~ bool = false;
+    wasFocused~ bool = false;
+    spans~ Array<TextAreaSpan>! = [];
+    lines~ Array<TextLine>! = [];
+    lineBoxes~ Array<TextAreaLineBox>! = [];
+    linesWrapWidth~ f32 = -1.0f;
+    linesDirty~ bool = true;
+    desiredCaretXLogical~ f32 = -1.0f;
+    scrollOffsetY~ f32 = 0.0f;
+    wheelHandledThisFrame~ bool = false;
+
+    HasSelection :: () -> bool {
+        return this->selectionAnchor != this->caretIndex;
+    }
+
+    SelectionStart :: () -> usize {
+        return Numbers:::SmallerIndex(this->selectionAnchor, this->caretIndex);
+    }
+
+    SelectionEnd :: () -> usize {
+        return Numbers:::LargerIndex(this->selectionAnchor, this->caretIndex);
+    }
+
+    FontHeight :: (sizeLogical: f32) -> f32 {
+        return this->font->MeasureText("Ag", sizeLogical).y;
+    }
+
+    FontAscent :: (sizeLogical: f32) -> f32 {
+        return this->font->MeasureAscent(sizeLogical);
+    }
+
+    RunWidth :: (run: TextAreaRun) -> f32 {
+        return this->font->MeasureText(this->text.substring(run.start, run.end - run.start), run.fontSizeLogical).x;
+    }
+
+    DefaultRun :: (start: usize, end: usize) -> TextAreaRun {
+        return TextAreaRun { start: start, end: end, fontSizeLogical: this->fontSizeLogical, colorText: this->colorText, colorBackground: Color { } };
+    }
+
+    RunsIn :: (start: usize, end: usize) -> Array<TextAreaRun>! {
+        runs~ Array<TextAreaRun>! = [];
+        cursor~ usize = start;
+        spanIndex~ usize = 0;
+        while spanIndex < this->spans.length() && this->spans[spanIndex].end <= start {
+            spanIndex = spanIndex + 1;
+        }
+        while spanIndex < this->spans.length() && cursor < end && this->spans[spanIndex].start < end {
+            span: TextAreaSpan = this->spans[spanIndex];
+            spanIndex = spanIndex + 1;
+            if span.start > cursor {
+                runs.push(this->DefaultRun(cursor, span.start));
+                cursor = span.start;
+            }
+            pieceEnd: usize = Numbers:::SmallerIndex(span.end, end);
+            if pieceEnd > cursor {
+                runs.push(TextAreaRun {
+                    start: cursor,
+                    end: pieceEnd,
+                    fontSizeLogical: span.fontSizeLogical ?? this->fontSizeLogical,
+                    colorText: span.colorText ?? this->colorText,
+                    colorBackground: span.colorBackground
+                });
+                cursor = pieceEnd;
+            }
+        }
+        if cursor < end {
+            runs.push(this->DefaultRun(cursor, end));
+        }
+        return runs!;
+    }
+
+    DefaultLineHeight :: () -> f32 {
+        return this->FontHeight(this->fontSizeLogical);
+    }
+
+    TotalHeight :: () -> f32 {
+        count: usize = this->lineBoxes.length();
+        if count == 0 {
+            return 0.0f;
+        }
+        last: TextAreaLineBox = this->lineBoxes[count - 1];
+        return last.top + last.height;
+    }
+
+    WrapWidthFor :: (contentRect: Rect) -> f32 {
+        if this->scrollbarWidthLogical > 0.0f {
+            return Numbers:::NonNegative(contentRect.width - this->scrollbarWidthLogical);
+        }
+        return contentRect.width;
+    }
+
+    RebuildLinesIfNeeded~: (wrapWidthLogical: f32) -> void {
+        if !this->linesDirty && this->linesWrapWidth == wrapWidthLogical {
+            return;
+        }
+        freshLines: Array<TextLine>! = TextWrap:::Wrap(this->text, wrapWidthLogical, this);
+        delete this->lines;
+        this->lines = freshLines!;
+
+        boxes~ Array<TextAreaLineBox>! = [];
+        top~ f32 = 0.0f;
+        for line in this->lines {
+            ascent~ f32 = 0.0f;
+            descent~ f32 = 0.0f;
+            if line.contentEnd > line.contentStart {
+                runs: Array<TextAreaRun>! = this->RunsIn(line.contentStart, line.contentEnd);
+                for run in runs {
+                    ascent = Numbers:::Larger(ascent, this->FontAscent(run.fontSizeLogical));
+                    descent = Numbers:::Larger(descent, this->FontHeight(run.fontSizeLogical) - this->FontAscent(run.fontSizeLogical));
+                }
+                delete runs;
+            }
+            else {
+                ascent = this->FontAscent(this->fontSizeLogical);
+                descent = this->FontHeight(this->fontSizeLogical) - ascent;
+            }
+            boxes.push(TextAreaLineBox { top: top, height: ascent + descent, ascent: ascent });
+            top = top + ascent + descent;
+        }
+        delete this->lineBoxes;
+        this->lineBoxes = boxes!;
+
+        this->linesWrapWidth = wrapWidthLogical;
+        this->linesDirty = false;
+    }
+
+    LineOwnershipEnd :: (lineIndex: usize) -> usize {
+        if lineIndex + 1 < this->lines.length() {
+            return this->lines[lineIndex + 1].contentStart;
+        }
+        return this->text.length() + 1;
+    }
+
+    LineIndexForCaret :: (index: usize) -> usize {
+        lineIndex~ usize = 0;
+        while lineIndex < this->lines.length() {
+            if index >= this->lines[lineIndex].contentStart && index < this->LineOwnershipEnd(lineIndex) {
+                return lineIndex;
+            }
+            lineIndex = lineIndex + 1;
+        }
+        return this->lines.length() - 1;
+    }
+
+    LineIndexAtY :: (contentY: f32) -> usize {
+        if contentY <= 0.0f {
+            return 0;
+        }
+        lineIndex~ usize = 0;
+        while lineIndex < this->lineBoxes.length() {
+            lineBox: TextAreaLineBox = this->lineBoxes[lineIndex];
+            if contentY < lineBox.top + lineBox.height {
+                return lineIndex;
+            }
+            lineIndex = lineIndex + 1;
+        }
+        return this->lineBoxes.length() - 1;
+    }
+
+    LineLocalX :: (line: TextLine, index: usize) -> f32 {
+        clamped: usize = Numbers:::SmallerIndex(Numbers:::LargerIndex(index, line.contentStart), line.contentEnd);
+        return this->MeasureRange(line.contentStart, clamped);
+    }
+
+    IndexAtLineX :: (line: TextLine, localX: f32) -> usize {
+        if line.contentEnd == line.contentStart || localX <= 0.0f {
+            return line.contentStart;
+        }
+        best~ usize = line.contentStart;
+        bestDistance~ f32 = Maths:::Absolute(localX);
+        index~ usize = line.contentStart;
+        while index < line.contentEnd {
+            index = Numbers:::SmallerIndex(Utf8:::NextCodePoint(this->text, index), line.contentEnd);
+            distance: f32 = Maths:::Absolute(localX - this->MeasureRange(line.contentStart, index));
+            if distance < bestDistance {
+                bestDistance = distance;
+                best = index;
+            }
+        }
+        return best;
+    }
+
+    IndexAtLocalPoint :: (localX: f32, localY: f32) -> usize {
+        lineIndex: usize = Numbers:::SmallerIndex(this->LineIndexAtY(localY + this->scrollOffsetY), this->lines.length() - 1);
+        return this->IndexAtLineX(this->lines[lineIndex], localX);
+    }
+
+    ReplaceRange~: (start: usize, end: usize, inserted: string) -> void {
+        length: usize = this->text.length();
+        updated: string! = this->text.substring(0, start) + inserted + this->text.substring(end, length - end);
+        delete this->text;
+        this->text = updated!;
+    }
+
+    InsertText~: (inserted: string) -> void {
+        at: usize = this->caretIndex;
+        added: usize = inserted.length();
+        this->ReplaceRange(at, at, inserted);
+        index~ usize = 0;
+        while index < this->spans.length() {
+            if this->spans[index].start >= at {
+                this->spans[index].start = this->spans[index].start + added;
+                this->spans[index].end = this->spans[index].end + added;
+            }
+            else if this->spans[index].end >= at {
+                this->spans[index].end = this->spans[index].end + added;
+            }
+            index = index + 1;
+        }
+        this->caretIndex = at + added;
+        this->selectionAnchor = this->caretIndex;
+        this->desiredCaretXLogical = -1.0f;
+        this->linesDirty = true;
+    }
+
+    EraseText~: (start: usize, length: usize) -> void {
+        this->ReplaceRange(start, start + length, "");
+        index~ usize = this->spans.length();
+        while index > 0 {
+            index = index - 1;
+            shiftedStart: usize = TextAreaShiftAfterErase(this->spans[index].start, start, length);
+            shiftedEnd: usize = TextAreaShiftAfterErase(this->spans[index].end, start, length);
+            if shiftedStart >= shiftedEnd {
+                this->spans.remove(index);
+            }
+            else {
+                this->spans[index].start = shiftedStart;
+                this->spans[index].end = shiftedEnd;
+            }
+        }
+        this->linesDirty = true;
+    }
+
+    DeleteSelection~: () -> void {
+        start: usize = this->SelectionStart();
+        this->EraseText(start, this->SelectionEnd() - start);
+        this->caretIndex = start;
+        this->selectionAnchor = start;
+    }
+
+    CopySelection~: () -> void {
+        if board := this->clipboard {
+            start: usize = this->SelectionStart();
+            board->SetClipboardText(this->text.substring(start, this->SelectionEnd() - start));
+        }
+    }
+
+    MoveCaretVertically~: (lineDelta: i32, shift: bool) -> void {
+        currentLine: usize = this->LineIndexForCaret(this->caretIndex);
+        if this->desiredCaretXLogical < 0.0f {
+            this->desiredCaretXLogical = this->LineLocalX(this->lines[currentLine], this->caretIndex);
+        }
+        if lineDelta < 0 {
+            if currentLine == 0 {
+                return;
+            }
+            this->caretIndex = this->IndexAtLineX(this->lines[currentLine - 1], this->desiredCaretXLogical);
+        }
+        else if lineDelta > 0 {
+            if currentLine + 1 >= this->lines.length() {
+                return;
+            }
+            this->caretIndex = this->IndexAtLineX(this->lines[currentLine + 1], this->desiredCaretXLogical);
+        }
+        if !shift {
+            this->selectionAnchor = this->caretIndex;
+        }
+    }
+
+    ScrollCaretIntoView~: (viewportHeightLogical: f32) -> void {
+        if this->DefaultLineHeight() <= 0.0f {
+            return;
+        }
+        caretBox: TextAreaLineBox = this->lineBoxes[this->LineIndexForCaret(this->caretIndex)];
+        lineBottom: f32 = caretBox.top + caretBox.height;
+        if caretBox.top < this->scrollOffsetY {
+            this->scrollOffsetY = caretBox.top;
+        }
+        else if lineBottom > this->scrollOffsetY + viewportHeightLogical {
+            this->scrollOffsetY = lineBottom - viewportHeightLogical;
+        }
+        maximumScroll: f32 = Numbers:::NonNegative(this->TotalHeight() - viewportHeightLogical);
+        this->scrollOffsetY = Numbers:::Smaller(Numbers:::NonNegative(this->scrollOffsetY), maximumScroll);
+    }
+
+    ApplyShortcut~: (key: Key) -> bool {
+        if key == Key:::A {
+            this->selectionAnchor = 0;
+            this->caretIndex = this->text.length();
+            this->desiredCaretXLogical = -1.0f;
+            return false;
+        }
+        if key == Key:::C {
+            if this->HasSelection() {
+                this->CopySelection();
+            }
+            return false;
+        }
+        if key == Key:::X {
+            if this->HasSelection() && this->clipboard != null {
+                this->CopySelection();
+                this->DeleteSelection();
+                this->desiredCaretXLogical = -1.0f;
+                return true;
+            }
+            return false;
+        }
+        if key == Key:::V {
+            if board := this->clipboard {
+                pasted: string! = board->GetClipboardText();
+                defer delete pasted;
+                if pasted.length() > 0 {
+                    if this->HasSelection() {
+                        this->DeleteSelection();
+                    }
+                    this->InsertText(pasted);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    ApplyEditingKey~: (key: Key, shift: bool) -> bool {
+        changed~ bool = false;
+        if key == Key:::Backspace {
+            if this->HasSelection() {
+                this->DeleteSelection();
+                changed = true;
+            }
+            else if this->caretIndex > 0 {
+                previous: usize = Utf8:::PreviousCodePoint(this->text, this->caretIndex);
+                this->EraseText(previous, this->caretIndex - previous);
+                this->caretIndex = previous;
+                changed = true;
+            }
+            this->selectionAnchor = this->caretIndex;
+            this->desiredCaretXLogical = -1.0f;
+        }
+        else if key == Key:::Delete {
+            if this->HasSelection() {
+                this->DeleteSelection();
+                changed = true;
+            }
+            else if this->caretIndex < this->text.length() {
+                this->EraseText(this->caretIndex, Utf8:::NextCodePoint(this->text, this->caretIndex) - this->caretIndex);
+                changed = true;
+            }
+            this->selectionAnchor = this->caretIndex;
+            this->desiredCaretXLogical = -1.0f;
+        }
+        else if key == Key:::Enter {
+            if this->HasSelection() {
+                this->DeleteSelection();
+            }
+            this->InsertText("\n");
+            changed = true;
+        }
+        else if key == Key:::Left {
+            if !shift && this->HasSelection() {
+                this->caretIndex = this->SelectionStart();
+            }
+            else {
+                this->caretIndex = Utf8:::PreviousCodePoint(this->text, this->caretIndex);
+            }
+            this->CollapseUnlessExtending(shift);
+        }
+        else if key == Key:::Right {
+            if !shift && this->HasSelection() {
+                this->caretIndex = this->SelectionEnd();
+            }
+            else {
+                this->caretIndex = Utf8:::NextCodePoint(this->text, this->caretIndex);
+            }
+            this->CollapseUnlessExtending(shift);
+        }
+        else if key == Key:::Up {
+            this->MoveCaretVertically(-1, shift);
+        }
+        else if key == Key:::Down {
+            this->MoveCaretVertically(1, shift);
+        }
+        else if key == Key:::Home {
+            this->caretIndex = this->lines[this->LineIndexForCaret(this->caretIndex)].contentStart;
+            this->CollapseUnlessExtending(shift);
+        }
+        else if key == Key:::End {
+            this->caretIndex = this->lines[this->LineIndexForCaret(this->caretIndex)].contentEnd;
+            this->CollapseUnlessExtending(shift);
+        }
+        return changed;
+    }
+
+    CollapseUnlessExtending~: (shift: bool) -> void {
+        if !shift {
+            this->selectionAnchor = this->caretIndex;
+        }
+        this->desiredCaretXLogical = -1.0f;
+    }
+}
+
+TextAreaUsesKey :: (key: Key, shortcut: bool) -> bool {
+    if shortcut {
+        return key == Key:::A || key == Key:::C || key == Key:::X || key == Key:::V;
+    }
+    return key != Key:::Escape && key != Key:::Tab;
+}
+
+TextAreaShiftAfterErase :: (index: usize, start: usize, length: usize) -> usize {
+    if index <= start {
+        return index;
+    }
+    if index >= start + length {
+        return index - length;
+    }
+    return start;
+}

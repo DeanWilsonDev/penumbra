@@ -17,6 +17,10 @@ public:
     MeasureText :: (text: string, sizeLogical: f32) -> Point {
         return Point { x: f32(text.length()) * sizeLogical * this->advancePerSize, y: sizeLogical };
     }
+
+    MeasureAscent :: (sizeLogical: f32) -> f32 {
+        return sizeLogical * 0.75f;
+    }
 }
 
 RecordingRenderer :: class {

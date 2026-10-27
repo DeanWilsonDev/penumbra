@@ -49,6 +49,20 @@ Numbers :: namespace {
         }
         return second;
     }
+
+    LargerIndex :: (first: usize, second: usize) -> usize {
+        if first > second {
+            return first;
+        }
+        return second;
+    }
+
+    SmallerIndex :: (first: usize, second: usize) -> usize {
+        if first < second {
+            return first;
+        }
+        return second;
+    }
 }
 
 Transforms :: namespace {

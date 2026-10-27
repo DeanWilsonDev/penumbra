@@ -23,6 +23,8 @@ Checkbox :: import Checkbox;
 Transform :: import Transform;
 ScrollablePanel :: import ScrollablePanel;
 TextInput :: import TextInput;
+TextArea :: import TextArea;
+TextAreaSpan :: import TextAreaSpan;
 SplitPanel :: import SplitPanel;
 SplitAxis :: import SplitAxis;
 NumericDrag :: import NumericDrag;
@@ -1216,6 +1218,92 @@ ShowLabels :: (font: IFontBackend*) -> void {
     clipped->Draw(renderer, stacking);
 }
 
+AreaFrame :: (area: TextArea~*, stacking: StackingTracker~*, renderer: RecordingRenderer~*, label: string, input: InputState) -> void {
+    print(label);
+    print(area->UpdateInteractionState(input, stacking));
+    print(area->ConsumedWheelThisFrame());
+    print(area->text);
+    area->Draw(renderer, stacking);
+}
+
+ShowTextArea :: (font: IFontBackend*) -> void {
+    print("text area");
+    focusState: FocusState*! = new FocusState { };
+    defer delete focusState;
+    clipboard: RecordingClipboard*! = new RecordingClipboard();
+    defer delete clipboard;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+    renderer: RecordingRenderer*! = new RecordingRenderer();
+    defer delete renderer;
+
+    area: TextArea*! = new TextArea(font);
+    defer delete area;
+    area->fontSizeLogical = 10.0f;
+    area->preferredWidthLogical = 40.0f;
+    area->preferredHeightLogical = 25.0f;
+    area->caretWidthLogical = 1.0f;
+    area->wheelStepLogical = 10.0f;
+    area->scrollbarWidthLogical = 4.0f;
+    area->colorSelection = Color { red: 100, green: 0, blue: 0, alpha: 255 };
+    area->colorCaret = Color { red: 110, green: 0, blue: 0, alpha: 255 };
+    area->colorScrollbarThumb = Color { red: 130, green: 0, blue: 0, alpha: 255 };
+    area->focus = focusState;
+    area->clipboard = clipboard;
+    area->onTextChanged = new (text: string) -> void {
+        print("area changed");
+    };
+    area->onFocusLost = new () -> void {
+        print("area focus lost");
+    };
+    area->SetText("one two\nthree");
+    spans: TextAreaSpan[2] = [
+        TextAreaSpan { start: 9, end: 11, colorText: Color { red: 120, green: 0, blue: 0, alpha: 255 } },
+        TextAreaSpan { start: 4, end: 7, fontSizeLogical: 20.0f, colorBackground: Color { red: 90, green: 0, blue: 0, alpha: 255 } }
+    ];
+    area->SetSpans(spans.borrow());
+    desired: Point = area->Measure(Point { x: 640.0f, y: 360.0f });
+    print(desired.x);
+    print(desired.y);
+    area->Arrange(Rect { x: 0.0f, y: 0.0f, width: desired.x, height: desired.y }, layout);
+
+    wheel~ InputState = PointerAtPoint(12.0f, 15.0f, false, false, false);
+    wheel.mouseWheelDelta = -1.0f;
+    AreaFrame(area, stacking, renderer, "wheel", wheel);
+    AreaFrame(area, stacking, renderer, "click", PointerAtPoint(12.0f, 15.0f, true, true, false));
+
+    endThenEnter: Key[2] = [Key:::End, Key:::Enter];
+    breaking~ InputState = PointerAtPoint(12.0f, 15.0f, false, false, true);
+    breaking.keysPressedThisFrame = endThenEnter.borrow();
+    AreaFrame(area, stacking, renderer, "end then enter", breaking);
+
+    up: Key[1] = [Key:::Up];
+    selecting~ InputState = PointerAtPoint(60.0f, 60.0f, false, false, false);
+    selecting.keysPressedThisFrame = up.borrow();
+    selecting.modifierState.shift = true;
+    AreaFrame(area, stacking, renderer, "shift up", selecting);
+
+    copy: Key[1] = [Key:::C];
+    copying~ InputState = PointerAtPoint(60.0f, 60.0f, false, false, false);
+    copying.keysPressedThisFrame = copy.borrow();
+    copying.modifierState.shortcut = true;
+    print(area->UpdateInteractionState(copying, stacking));
+
+    erase: Key[1] = [Key:::Backspace];
+    erasing~ InputState = PointerAtPoint(60.0f, 60.0f, false, false, false);
+    erasing.keysPressedThisFrame = erase.borrow();
+    AreaFrame(area, stacking, renderer, "backspace", erasing);
+    print(area->SpanCount());
+    remaining: TextAreaSpan = area->SpanAt(0);
+    print(remaining.start);
+    print(remaining.end);
+
+    focusState->focused = null;
+    print(area->UpdateInteractionState(PointerAtPoint(60.0f, 60.0f, false, false, false), stacking));
+}
+
 main :: () -> i32 {
     font: FixedAdvanceFont*! = new FixedAdvanceFont();
     defer delete font;
@@ -1255,5 +1343,6 @@ main :: () -> i32 {
     ShowBarCharts(font);
     ShowLineAndDonut(font);
     ShowLabels(font);
+    ShowTextArea(font);
     return 0;
 }
