@@ -41,8 +41,12 @@ bool ImageWidget::UpdateInteractionState(const Platform::InputState& Input) {
     // A leaf with no children to give first refusal to. Same inert-unless-opted-in
     // guard as Box::UpdateInteractionState: skip hit-testing entirely when nothing
     // is listening.
-    if (!IsEnabled || !(OnPressed || OnReleased || OnHovered || OnFocused || OnChanged)) {
+    if (!IsEnabled || !(OnPressed || OnReleased || OnHovered || OnUnhovered || OnFocused || OnChanged)) {
         PressedInside = false;
+        if (WasHovered && OnUnhovered) {
+            OnUnhovered(); // a widget that goes inert while hovered still ends its hover
+        }
+        WasHovered = false;
         return false;
     }
 
@@ -54,6 +58,10 @@ bool ImageWidget::UpdateInteractionState(const Platform::InputState& Input) {
     if (Hovered && OnHovered) {
         OnHovered();
     }
+    if (!Hovered && WasHovered && OnUnhovered) {
+        OnUnhovered();
+    }
+    WasHovered = Hovered;
     if (Pressed && Hovered) {
         PressedInside = true;
         if (OnPressed) {

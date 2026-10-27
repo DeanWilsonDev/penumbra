@@ -9,7 +9,7 @@ namespace Penumbra::Widgets {
 class WidgetBase;
 
 // Routes each key no focused widget used to the topmost widget, in paint order, with an
-// OnKeyPressed handler: a menu over a modal gets Escape before the modal does, and a
+// OnKeyPressed or OnKeyEvent handler: a menu over a modal gets Escape before the modal does, and a
 // modal gets it while a field inside it has focus, since a field doesn't use Escape.
 //
 // The outermost input pass opens one (Box, ScrollablePanel, SplitPanel and

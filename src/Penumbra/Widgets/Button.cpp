@@ -52,6 +52,10 @@ bool Button::UpdateInteractionState(const Platform::InputState& Given) {
     if (!IsEnabled) {
         CurrentState = InteractionState::Disabled;
         PressedInside = false;
+        if (WasHovered && OnUnhovered) {
+            OnUnhovered(); // a widget that goes inert while hovered still ends its hover
+        }
+        WasHovered = false;
     } else {
         Point MousePosition = Input.MousePosition;
         if (!Style.Transform.IsIdentity()) {
@@ -64,6 +68,14 @@ bool Button::UpdateInteractionState(const Platform::InputState& Given) {
         const bool Down     = Input.MouseButtonDown[LeftButton];
         const bool Pressed  = Input.MouseButtonPressedThisFrame[LeftButton];
         const bool Released = Input.MouseButtonReleasedThisFrame[LeftButton];
+
+        if (Hovered && OnHovered) {
+            OnHovered();
+        }
+        if (!Hovered && WasHovered && OnUnhovered) {
+            OnUnhovered();
+        }
+        WasHovered = Hovered;
 
         if (Pressed && Hovered) {
             PressedInside = true;

@@ -78,6 +78,11 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
     if (Released) {
         Dragging = false;
     }
+    const bool FocusedNow = IsFocused();
+    if (WasFocused && !FocusedNow && OnFocusLost) {
+        OnFocusLost();
+    }
+    WasFocused = FocusedNow;
 
     if (!IsFocused()) {
         return Hovered;

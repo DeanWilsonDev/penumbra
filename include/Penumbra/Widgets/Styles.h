@@ -196,6 +196,10 @@ struct DropdownStyle : BoxStyle {
     float         LeadingVisualGapLogical{0.0f};
     float         MinimumOpenWidthLogical{0.0f};
     float         OpenTransitionSeconds{0.0f};
+    // The chevron a trigger draws after its selected label when the item has no leading
+    // visual. Zero width reserves no room and draws nothing.
+    float         TriggerChevronWidthLogical{0.0f};
+    float         TriggerChevronThicknessLogical{0.0f};
 
     // The open menu's z-index. It's Fixed, over a transparent full-window backdrop, so
     // it paints and takes the pointer over everything with a lower one. Unset is auto.

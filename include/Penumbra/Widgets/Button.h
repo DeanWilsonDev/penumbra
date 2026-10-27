@@ -32,6 +32,7 @@ private:
 
     InteractionState    CurrentState{InteractionState::Default};
     bool                PressedInside{false}; // a press began on this button and is held
+    bool                WasHovered{false};
     Anim::AnimatedColor BackgroundAnim;       // eases toward the current state's colour
 };
 

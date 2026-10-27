@@ -1,6 +1,7 @@
 #include "Penumbra/Widgets/Dropdown.h"
 
 #include "Penumbra/Anim/Animation.h"
+#include "Penumbra/Render/Utf8.h"
 #include "Penumbra/Widgets/Stacking.h"
 
 #include <algorithm>
@@ -111,7 +112,21 @@ void Dropdown::Dismiss() {
     }
 }
 
+bool Dropdown::DrawsSelectedLabel() const {
+    return FontBackend != nullptr && !Items.empty() && SelectedIndex < Items.size() &&
+           !Items[SelectedIndex].DrawLeadingVisual;
+}
+
 Point Dropdown::MeasureContent(Point) {
+    if (DrawsSelectedLabel()) {
+        float LabelWidth = 0.0f;
+        for (const DropdownItem& Item : Items) {
+            LabelWidth = std::max(LabelWidth, FontBackend->MeasureTextWidth(Font, Item.Label));
+        }
+        const float TextHeight = FontBackend->MeasureText(Font, "Ag").HeightLogical;
+        return {LabelWidth + DropdownVisualStyle.LeadingVisualGapLogical + DropdownVisualStyle.TriggerChevronWidthLogical,
+                std::max(TextHeight, DropdownVisualStyle.TriggerContentSizeLogical)};
+    }
     return {DropdownVisualStyle.TriggerContentSizeLogical, DropdownVisualStyle.TriggerContentSizeLogical};
 }
 
@@ -119,7 +134,28 @@ void Dropdown::DrawContent(Render::Renderer& Renderer, Rect ContentRect) {
     if (Items.empty() || SelectedIndex >= Items.size()) return;
     if (Items[SelectedIndex].DrawLeadingVisual) {
         Items[SelectedIndex].DrawLeadingVisual(Renderer, ContentRect, DropdownVisualStyle.ColorTextHighlighted);
+        return;
     }
+    if (!DrawsSelectedLabel()) return;
+    const float TextHeight = FontBackend->MeasureText(Font, "Ag").HeightLogical;
+    const float MaxWidth = std::max(0.0f, ContentRect.W - DropdownVisualStyle.TriggerChevronWidthLogical);
+    std::string Text = Items[SelectedIndex].Label;
+    if (Renderer.MeasureTextWidth(Font, Text) > MaxWidth) {
+        // Trim whole code points, never a byte of one, until the label and ".." fit.
+        while (!Text.empty() && Renderer.MeasureTextWidth(Font, Text + "..") > MaxWidth) {
+            Text.resize(Render::PreviousCodePoint(Text, Text.size()));
+        }
+        Text += "..";
+    }
+    const Point TextOrigin{ContentRect.X, ContentRect.Y + (ContentRect.H - TextHeight) * 0.5f};
+    Renderer.DrawText(Font, Text, TextOrigin, DropdownVisualStyle.ColorText);
+    const float ChevronSize = std::min(DropdownVisualStyle.TriggerChevronWidthLogical * 0.5f, ContentRect.H * 0.5f);
+    const float ChevronX = ContentRect.X + ContentRect.W - DropdownVisualStyle.TriggerChevronWidthLogical + (DropdownVisualStyle.TriggerChevronWidthLogical - ChevronSize) * 0.5f;
+    const float ChevronY = ContentRect.Y + (ContentRect.H - ChevronSize * 0.5f) * 0.5f;
+    Renderer.DrawLine({ChevronX, ChevronY}, {ChevronX + ChevronSize * 0.5f, ChevronY + ChevronSize * 0.5f},
+                      DropdownVisualStyle.ColorText, DropdownVisualStyle.TriggerChevronThicknessLogical);
+    Renderer.DrawLine({ChevronX + ChevronSize * 0.5f, ChevronY + ChevronSize * 0.5f}, {ChevronX + ChevronSize, ChevronY},
+                      DropdownVisualStyle.ColorText, DropdownVisualStyle.TriggerChevronThicknessLogical);
 }
 
 bool Dropdown::UpdateInteractionState(const Platform::InputState& Input) {
@@ -153,10 +189,12 @@ void Dropdown::Open() {
             LabelWidth = std::max(LabelWidth, FontBackend->MeasureTextWidth(Font, Item.Label));
         }
     }
-    const BoxStyle& RowStyle = DropdownVisualStyle.Row;
-    const float RowFrame = RowStyle.Padding.Left + RowStyle.Padding.Right + 2.0f * RowStyle.BorderWidth;
+    const BoxStyle& RowStyle  = DropdownVisualStyle.Row;
+    const BoxStyle& MenuStyle = DropdownVisualStyle.Menu;
+    const float RowFrame  = RowStyle.Padding.Left + RowStyle.Padding.Right + 2.0f * RowStyle.BorderWidth;
+    const float MenuFrame = MenuStyle.Padding.Left + MenuStyle.Padding.Right + 2.0f * MenuStyle.BorderWidth;
     State->OpenWidth = std::max(DropdownVisualStyle.MinimumOpenWidthLogical,
-                                RowFrame + DropdownVisualStyle.LeadingVisualSizeLogical +
+                                MenuFrame + RowFrame + DropdownVisualStyle.LeadingVisualSizeLogical +
                                     DropdownVisualStyle.LeadingVisualGapLogical + LabelWidth);
 
     auto Menu = std::make_unique<DropdownMenu>();

@@ -16,10 +16,14 @@ bool IconWidget::UpdateInteractionState(const Platform::InputState& Input) {
     if (!IsEnabled) {
         CurrentState = InteractionState::Disabled;
         PressedInside = false;
+        if (WasHovered && OnUnhovered) {
+            OnUnhovered(); // a widget that goes inert while hovered still ends its hover
+        }
+        WasHovered = false;
         return false;
     }
 
-    const bool HasCallbacks = OnPressed || OnReleased || OnHovered || OnFocused || OnChanged;
+    const bool HasCallbacks = OnPressed || OnReleased || OnHovered || OnUnhovered || OnFocused || OnChanged;
     const bool Hovered      = Input.IsPointerOver(ArrangedRect);
     const bool Pressed      = Input.MouseButtonPressedThisFrame[LeftButton];
     const bool Down         = Input.MouseButtonDown[LeftButton];
@@ -28,6 +32,9 @@ bool IconWidget::UpdateInteractionState(const Platform::InputState& Input) {
     if (HasCallbacks) {
         if (Hovered && OnHovered) {
             OnHovered();
+        }
+        if (!Hovered && WasHovered && OnUnhovered) {
+            OnUnhovered();
         }
         if (Pressed && Hovered) {
             PressedInside = true;
@@ -46,6 +53,7 @@ bool IconWidget::UpdateInteractionState(const Platform::InputState& Input) {
     } else if (Released) {
         PressedInside = false;
     }
+    WasHovered = Hovered;
 
     if (PressedInside && Down && Hovered) {
         CurrentState = InteractionState::Pressed;

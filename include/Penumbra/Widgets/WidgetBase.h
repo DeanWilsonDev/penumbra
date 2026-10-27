@@ -78,6 +78,10 @@ public:
     std::function<void()> OnPressed  = nullptr;
     std::function<void()> OnReleased = nullptr;
     std::function<void()> OnHovered  = nullptr;
+    // The pointer leaving this widget after OnHovered fired for it (OnHovered fires each
+    // frame the pointer is over it; this fires once as it leaves, or when the widget stops
+    // being reachable: disabled, occluded or let through).
+    std::function<void()> OnUnhovered = nullptr;
     std::function<void()> OnFocused  = nullptr;
     std::function<void()> OnChanged  = nullptr;
 
@@ -85,6 +89,11 @@ public:
     // widget, in paint order, with a handler, and no full-window widget above it holds
     // the keys back (see KeyDispatch.h). How a modal closes on Escape.
     std::function<void(Platform::Key)> OnKeyPressed = nullptr;
+
+    // Every key transition this frame, releases included, under the same routing as
+    // OnKeyPressed; a widget with either handler is a dispatch target. A press a focused
+    // widget used is left out, as it is for OnKeyPressed.
+    std::function<void(const Platform::KeyEvent&)> OnKeyEvent = nullptr;
 
     // Fires from ~WidgetBase() when set -- the generic "this widget is being torn
     // down" hook a plain Box handed out via BuildWidgetTree can opt into, mirroring

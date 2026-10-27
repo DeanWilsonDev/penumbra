@@ -60,6 +60,7 @@ private:
     Backends::IImageBackend* LoadedWithBackend{nullptr};
     Point                    TextureSizeLogical{0.0f, 0.0f};
     bool                     PressedInside{false};
+    bool                     WasHovered{false};
 };
 
 } // namespace Penumbra::Widgets

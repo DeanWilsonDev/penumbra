@@ -34,6 +34,7 @@ add_library(penumbra STATIC
     src/Penumbra/Application.cpp
     src/Penumbra/LifecycleRegistry.cpp
     src/Penumbra/Platform/PlatformWindow.cpp
+    src/Penumbra/Platform/KeyName.cpp
     src/Penumbra/Render/Renderer.cpp
     src/Penumbra/Render/SdlTtfFontBackend.cpp
     src/Penumbra/Render/TextWrap.cpp

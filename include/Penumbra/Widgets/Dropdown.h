@@ -39,6 +39,10 @@ public:
     bool UpdateInteractionState(const Platform::InputState&) override;
 
 protected:
+    // A trigger whose selected item has no leading visual shows that item's label and a
+    // chevron (DropdownStyle::TriggerChevronWidthLogical), sized to the widest label.
+    bool  DrawsSelectedLabel() const;
+
     Point MeasureContent(Point AvailableContentSize) override;
     void  DrawContent(Render::Renderer&, Rect ContentRect) override;
 
