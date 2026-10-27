@@ -10,6 +10,8 @@ IRenderer :: interface {
     PushClipRect~ (rect: Rect) -> void : 0;
     PushClipRectUnbounded~ (rect: Rect?) -> void : 0;
     PopClipRect~ () -> void : 0;
+    GetFrameIndex : () -> u64 : 0;
+    GetFrameDeltaSeconds : () -> f32 : 0;
 }
 
 IFontBackend :: interface {

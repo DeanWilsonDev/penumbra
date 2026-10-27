@@ -1,0 +1,614 @@
+Point :: import Point;
+Rect :: import Rect;
+Numbers :: import Numbers;
+Maths :: import Maths;
+Color :: import Color;
+IRenderer :: import IRenderer;
+IFontBackend :: import IFontBackend;
+InputState :: import InputState;
+Tween :: import Tween;
+TweenedValues :: import TweenedValues;
+Anim :: import Anim;
+BoxStyle :: import BoxStyle;
+StackingTracker :: import StackingTracker;
+Box :: import Box;
+
+ChartStyle :: struct {
+    box~ BoxStyle = BoxStyle { };
+    colorAxis~ Color = Color { };
+    colorGridLine~ Color = Color { };
+    colorLabel~ Color = Color { };
+    colorHover~ Color = Color { };
+    axisThicknessLogical~ f32 = 0.0f;
+    gridLineThicknessLogical~ f32 = 0.0f;
+    tickSpacingLogical~ f32 = 0.0f;
+    labelGapLogical~ f32 = 0.0f;
+    lineThicknessLogical~ f32 = 0.0f;
+    pointRadiusLogical~ f32 = 0.0f;
+    hoverPointRadiusLogical~ f32 = 0.0f;
+    areaOpacity~ f32 = 0.0f;
+    barGapFraction~ f32 = 0.0f;
+    barCornerRadiusLogical~ f32 = 0.0f;
+    donutThicknessLogical~ f32 = 0.0f;
+    segmentGapDegrees~ f32 = 0.0f;
+    appearSeconds~ f32 = 0.0f;
+    transitionSeconds~ f32 = 0.0f;
+}
+
+ValueExtent :: struct {
+    low~ f32 = 0.0f;
+    high~ f32 = 0.0f;
+}
+
+ChartSeries :: class {
+public:
+    name~ string! = "";
+    values~ Array<f32>! = [];
+    seriesColor~ Color = Color { };
+
+    ChartSeries~: (name: string, seriesColor: Color) {
+        this->name = name.copy();
+        this->seriesColor = seriesColor;
+    }
+
+    !ChartSeries~: () {
+        delete this->name;
+        delete this->values;
+    }
+}
+
+ChartTicks :: namespace {
+    Tolerance :: () -> f32 {
+        return 0.0001f;
+    }
+
+    NiceStepAtLeast :: (rawStep: f32) -> f32 {
+        if !(rawStep > 0.0f) || !Maths:::IsFinite(rawStep) {
+            return 1.0f;
+        }
+        magnitude: f32 = Maths:::Power(10.0f, Maths:::Floor(Maths:::Log10(rawStep)));
+        fraction: f32 = rawStep / magnitude;
+        nice~ f32 = 10.0f;
+        if fraction <= 1.0f + Tolerance() {
+            nice = 1.0f;
+        }
+        else if fraction <= 2.0f + Tolerance() {
+            nice = 2.0f;
+        }
+        else if fraction <= 5.0f + Tolerance() {
+            nice = 5.0f;
+        }
+        return nice * magnitude;
+    }
+
+    FirstTick :: (low: f32, step: f32) -> f32 {
+        return Maths:::Ceil(low / step - Tolerance());
+    }
+
+    TickCount :: (low: f32, high: f32, step: f32) -> i32 {
+        if !(step > 0.0f) {
+            return 0;
+        }
+        first: f32 = FirstTick(low, step);
+        count~ i32 = 0;
+        while count < 1000 {
+            tick: f32 = (first + f32(count)) * step;
+            if tick > high + step * Tolerance() {
+                break;
+            }
+            count = count + 1;
+        }
+        return count;
+    }
+
+    TickAt :: (low: f32, step: f32, index: i32) -> f32 {
+        return (FirstTick(low, step) + f32(index)) * step;
+    }
+
+    Inset :: (value: Rect, amount: f32) -> Rect {
+        return Rect {
+            x: value.x + amount,
+            y: value.y + amount,
+            width: Numbers:::NonNegative(value.width - 2.0f * amount),
+            height: Numbers:::NonNegative(value.height - 2.0f * amount)
+        };
+    }
+
+    Fixed :: (value: f32, decimals: i32) -> string! {
+        return when decimals {
+            0 -> `${value:.0f}`,
+            1 -> `${value:.1f}`,
+            2 -> `${value:.2f}`,
+            3 -> `${value:.3f}`,
+            4 -> `${value:.4f}`,
+            5 -> `${value:.5f}`,
+            default -> `${value:.6f}`
+        };
+    }
+}
+
+ChartBase :: class : Box {
+public:
+    chartVisualStyle~ ChartStyle = ChartStyle { };
+    fontBackend~ IFontBackend*? = null;
+    fontSizeLogical~ f32 = 12.0f;
+    preferredWidthLogical~ f32 = 0.0f;
+    preferredHeightLogical~ f32 = 0.0f;
+    onHoverChanged~ ((index: i32) -> void)!? = null;
+
+    !ChartBase~: () {
+        delete this->onHoverChanged;
+    }
+
+    ApplyStyle~: (styleValue: ChartStyle) -> void {
+        this->chartVisualStyle = styleValue;
+        this->style = styleValue.box;
+    }
+
+    GetHoveredIndex :: () -> i32 {
+        return this->hoveredIndex;
+    }
+
+    ReplayAppear~: () -> void {
+        this->replayRequested = true;
+    }
+
+    UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
+        over: bool = this->isEnabled && this->HoverInUse() && input.IsPointerOver(this->arrangedRect);
+        newHovered~ i32 = -1;
+        if over {
+            newHovered = this->HitTest(input.mousePosition);
+        }
+        if newHovered != this->hoveredIndex {
+            this->hoveredIndex = newHovered;
+            if handler := this->onHoverChanged {
+                handler(newHovered);
+            }
+        }
+        boxConsumed: bool = Box:::UpdateInteractionState(input, stacking);
+        return boxConsumed || over;
+    }
+
+protected:
+    lastContentRect~ Rect = Rect { };
+
+    DrawChart~ (renderer: IRenderer~*, contentRect: Rect, snap: bool, deltaSeconds: f32, appearProgress: f32) -> void : 0;
+    HitTest : (mouseLogical: Point) -> i32 : 0;
+
+    MeasureContent~: (availableContentSize: Point) -> Point override {
+        return Point { x: this->preferredWidthLogical, y: this->preferredHeightLogical };
+    }
+
+    DrawContent~: (renderer: IRenderer~*, contentRect: Rect) -> void override {
+        if contentRect.width <= 0.0f || contentRect.height <= 0.0f {
+            return;
+        }
+        frame: u64 = renderer->GetFrameIndex();
+        snap~ bool = false;
+        delta~ f32 = 0.0f;
+        if frame == 0 {
+            snap = true;
+            this->appear = Tween { };
+        }
+        else if this->lastDrawnFrame == 0 || this->replayRequested || (frame != this->lastDrawnFrame && frame != this->lastDrawnFrame + 1) {
+            snap = true;
+            this->appear.Start(this->chartVisualStyle.appearSeconds);
+            this->replayRequested = false;
+        }
+        else if frame == this->lastDrawnFrame + 1 {
+            delta = renderer->GetFrameDeltaSeconds();
+        }
+        this->lastDrawnFrame = frame;
+        this->appear.Update(delta);
+
+        this->lastContentRect = contentRect;
+        renderer->PushClipRect(contentRect);
+        this->DrawChart(renderer, contentRect, snap, delta, Anim:::EaseOutCubic(this->appear.Progress()));
+        renderer->PopClipRect();
+    }
+
+    SyncValues :: (values: TweenedValues~*, target: Array<f32>, snap: bool, deltaSeconds: f32) -> void {
+        if snap {
+            values->SnapTo(target);
+            return;
+        }
+        values->RetargetTo(target, this->chartVisualStyle.transitionSeconds);
+        values->Update(deltaSeconds);
+    }
+
+    LineHeight :: () -> f32 {
+        if font := this->fontBackend {
+            return font->MeasureText("Ag", this->fontSizeLogical).y;
+        }
+        return 0.0f;
+    }
+
+    TextWidth :: (text: string) -> f32 {
+        if text.length() == 0 {
+            return 0.0f;
+        }
+        if font := this->fontBackend {
+            return font->MeasureText(text, this->fontSizeLogical).x;
+        }
+        return 0.0f;
+    }
+
+private:
+    appear~ Tween = Tween { };
+    lastDrawnFrame~ u64 = 0;
+    replayRequested~ bool = false;
+    hoveredIndex~ i32 = -1;
+
+    HoverInUse :: () -> bool {
+        return this->onHoverChanged != null || this->chartVisualStyle.colorHover.alpha != 0 || this->chartVisualStyle.hoverPointRadiusLogical > 0.0f;
+    }
+}
+
+AxisChartBase :: class : ChartBase {
+public:
+    labels~ Array<string!>! = [];
+    series~ Array<ChartSeries*!>! = [];
+    showAxes~ bool = true;
+    minValue~ f32? = null;
+    maxValue~ f32? = null;
+    formatValue~ ((value: f32) -> string!)!? = null;
+
+    AxisChartBase~: () : range(new TweenedValues()) { }
+
+    !AxisChartBase~: () {
+        this->labels.freeAll();
+        this->series.freeAll();
+        this->seriesValues.freeAll();
+        delete this->range;
+        delete this->formatValue;
+    }
+
+    AddLabel~: (text: string) -> void {
+        this->labels.push(text.copy());
+    }
+
+    AddSeries~: (name: string, seriesColor: Color) -> ChartSeries~* {
+        this->series.push(new ChartSeries(name, seriesColor));
+        return this->series[this->series.length() - 1];
+    }
+
+protected:
+    plotRect~ Rect = Rect { };
+    valueAxisHorizontal~ bool = false;
+    rangeLow~ f32 = 0.0f;
+    rangeHigh~ f32 = 1.0f;
+    tickStep~ f32 = 0.0f;
+
+    CategoryCount :: () -> usize {
+        count~ usize = this->labels.length();
+        for one in this->series {
+            if one->values.length() > count {
+                count = one->values.length();
+            }
+        }
+        return count;
+    }
+
+    DisplayedValue :: (seriesIndex: usize, category: usize) -> f32 {
+        if seriesIndex >= this->seriesValues.length() || category >= this->seriesValues[seriesIndex]->Size() {
+            return 0.0f;
+        }
+        return this->seriesValues[seriesIndex]->ValueAt(category);
+    }
+
+    AppearValue :: (value: f32, appearProgress: f32) -> f32 {
+        base: f32 = this->BaselineValue();
+        return base + (value - base) * appearProgress;
+    }
+
+    virtual DataExtent :: () -> ValueExtent {
+        extent~ ValueExtent = ValueExtent { };
+        any~ bool = false;
+        for one in this->series {
+            for value in one->values {
+                if any {
+                    extent.low = Numbers:::Smaller(extent.low, value);
+                    extent.high = Numbers:::Larger(extent.high, value);
+                }
+                else {
+                    extent.low = value;
+                    extent.high = value;
+                }
+                any = true;
+            }
+        }
+        return extent;
+    }
+
+    virtual AxisIncludesZero :: () -> bool {
+        return true;
+    }
+
+    virtual CategoryCentre :: (category: usize) -> f32 {
+        return 0.0f;
+    }
+
+    BaselineValue :: () -> f32 {
+        return Maths:::Clamp(0.0f, this->rangeLow, this->rangeHigh);
+    }
+
+    ValuePosition :: (value: f32) -> f32 {
+        span: f32 = this->rangeHigh - this->rangeLow;
+        along~ f32 = 0.0f;
+        if span > 0.0f {
+            along = (value - this->rangeLow) / span;
+        }
+        if this->valueAxisHorizontal {
+            return this->plotRect.x + this->plotRect.width * along;
+        }
+        return this->plotRect.y + this->plotRect.height * (1.0f - along);
+    }
+
+    LayoutAxes~: (contentRect: Rect, valueAxisIsHorizontal: bool, insetLogical: f32, snap: bool, deltaSeconds: f32) -> void {
+        this->valueAxisHorizontal = valueAxisIsHorizontal;
+        categories: usize = this->CategoryCount();
+
+        while this->seriesValues.length() < this->series.length() {
+            this->seriesValues.push(new TweenedValues());
+        }
+        while this->seriesValues.length() > this->series.length() {
+            removed: TweenedValues*! = this->seriesValues.remove(this->seriesValues.length() - 1);
+            delete removed;
+        }
+        seriesIndex~ usize = 0;
+        while seriesIndex < this->series.length() {
+            source: ChartSeries* = this->series[seriesIndex];
+            target~ Array<f32>! = [];
+            category~ usize = 0;
+            while category < categories {
+                if category < source->values.length() {
+                    target.push(source->values[category]);
+                }
+                else {
+                    target.push(0.0f);
+                }
+                category = category + 1;
+            }
+            this->SyncValues(this->seriesValues[seriesIndex], target, snap, deltaSeconds);
+            delete target;
+            seriesIndex = seriesIndex + 1;
+        }
+
+        extent~ ValueExtent = this->DataExtent();
+        if this->AxisIncludesZero() {
+            extent.low = Numbers:::Smaller(extent.low, 0.0f);
+            extent.high = Numbers:::Larger(extent.high, 0.0f);
+        }
+        if minimum := this->minValue {
+            extent.low = minimum;
+        }
+        if maximum := this->maxValue {
+            extent.high = maximum;
+        }
+        if !(extent.high > extent.low) {
+            extent.high = extent.low + 1.0f;
+        }
+
+        look: ChartStyle = this->chartVisualStyle;
+        lineHeight~ f32 = 0.0f;
+        if this->showAxes {
+            lineHeight = this->LineHeight();
+        }
+        ticks: bool = this->showAxes && look.tickSpacingLogical > 0.0f;
+        valueLabels: bool = ticks && lineHeight > 0.0f;
+        categoryLabels: bool = lineHeight > 0.0f && this->labels.length() > 0;
+        gap: f32 = look.labelGapLogical;
+
+        this->tickStep = 0.0f;
+        plot~ Rect = contentRect;
+        if !this->valueAxisHorizontal {
+            top~ f32 = 0.0f;
+            if valueLabels {
+                top = lineHeight * 0.5f;
+            }
+            bottom~ f32 = 0.0f;
+            if categoryLabels {
+                bottom = gap + lineHeight;
+            }
+            plot.y = plot.y + top;
+            plot.height = Numbers:::NonNegative(plot.height - top - bottom);
+            plot = ChartTicks:::Inset(plot, insetLogical);
+            if ticks {
+                extent = this->PlanTicks(plot.height, extent);
+            }
+            if valueLabels {
+                gutter: f32 = this->WidestTickLabel(extent.low, extent.high) + gap;
+                plot.x = plot.x + gutter;
+                plot.width = Numbers:::NonNegative(plot.width - gutter);
+            }
+        }
+        else {
+            gutter~ f32 = 0.0f;
+            if categoryLabels {
+                widest~ f32 = 0.0f;
+                for label in this->labels {
+                    widest = Numbers:::Larger(widest, this->TextWidth(label));
+                }
+                gutter = widest + gap;
+            }
+            bottom~ f32 = 0.0f;
+            if valueLabels {
+                bottom = gap + lineHeight;
+            }
+            plot.x = plot.x + gutter;
+            plot.width = Numbers:::NonNegative(plot.width - gutter);
+            plot.height = Numbers:::NonNegative(plot.height - bottom);
+            plot = ChartTicks:::Inset(plot, insetLogical);
+            if ticks {
+                extent = this->PlanTicks(plot.width, extent);
+            }
+            if valueLabels {
+                plot.width = Numbers:::NonNegative(plot.width - this->WidestTickLabel(extent.low, extent.high) * 0.5f);
+            }
+        }
+        this->plotRect = plot;
+
+        rangeTarget: f32[2] = [extent.low, extent.high];
+        this->SyncValues(this->range, rangeTarget.borrow(), snap, deltaSeconds);
+        this->rangeLow = this->range->ValueAt(0);
+        this->rangeHigh = Numbers:::Larger(this->range->ValueAt(1), this->rangeLow + ChartTicks:::Tolerance());
+    }
+
+    DrawGrid :: (renderer: IRenderer~*) -> void {
+        if !this->showAxes || this->tickStep <= 0.0f {
+            return;
+        }
+        look: ChartStyle = this->chartVisualStyle;
+        lines: bool = look.gridLineThicknessLogical > 0.0f && look.colorGridLine.alpha != 0;
+        lineHeight: f32 = this->LineHeight();
+        labelled: bool = lineHeight > 0.0f && look.colorLabel.alpha != 0;
+        gap: f32 = look.labelGapLogical;
+        plot: Rect = this->plotRect;
+        count: i32 = ChartTicks:::TickCount(this->rangeLow, this->rangeHigh, this->tickStep);
+        index~ i32 = 0;
+        while index < count {
+            tick: f32 = ChartTicks:::TickAt(this->rangeLow, this->tickStep, index);
+            index = index + 1;
+            at: f32 = this->ValuePosition(tick);
+            if lines {
+                if this->valueAxisHorizontal {
+                    renderer->DrawLine(Point { x: at, y: plot.y }, Point { x: at, y: plot.y + plot.height }, look.colorGridLine, look.gridLineThicknessLogical);
+                }
+                else {
+                    renderer->DrawLine(Point { x: plot.x, y: at }, Point { x: plot.x + plot.width, y: at }, look.colorGridLine, look.gridLineThicknessLogical);
+                }
+            }
+            if labelled {
+                label: string! = this->FormatTick(tick);
+                width: f32 = this->TextWidth(label);
+                where~ Point = Point { x: plot.x - gap - width, y: at - lineHeight * 0.5f };
+                if this->valueAxisHorizontal {
+                    where = Point { x: Numbers:::Larger(this->lastContentRect.x, at - width * 0.5f), y: plot.y + plot.height + gap };
+                }
+                renderer->DrawText(label, where, this->fontSizeLogical, look.colorLabel);
+                delete label;
+            }
+        }
+    }
+
+    DrawBaseline :: (renderer: IRenderer~*) -> void {
+        look: ChartStyle = this->chartVisualStyle;
+        if !this->showAxes || look.axisThicknessLogical <= 0.0f || look.colorAxis.alpha == 0 {
+            return;
+        }
+        at: f32 = this->ValuePosition(this->BaselineValue());
+        plot: Rect = this->plotRect;
+        if this->valueAxisHorizontal {
+            renderer->DrawLine(Point { x: at, y: plot.y }, Point { x: at, y: plot.y + plot.height }, look.colorAxis, look.axisThicknessLogical);
+        }
+        else {
+            renderer->DrawLine(Point { x: plot.x, y: at }, Point { x: plot.x + plot.width, y: at }, look.colorAxis, look.axisThicknessLogical);
+        }
+    }
+
+    DrawCategoryLabels :: (renderer: IRenderer~*, spacing: f32) -> void {
+        look: ChartStyle = this->chartVisualStyle;
+        lineHeight~ f32 = 0.0f;
+        if this->showAxes {
+            lineHeight = this->LineHeight();
+        }
+        if lineHeight <= 0.0f || look.colorLabel.alpha == 0 || this->labels.length() == 0 {
+            return;
+        }
+        gap: f32 = look.labelGapLogical;
+        plot: Rect = this->plotRect;
+        footprint~ f32 = lineHeight;
+        if !this->valueAxisHorizontal {
+            footprint = 0.0f;
+            for label in this->labels {
+                footprint = Numbers:::Larger(footprint, this->TextWidth(label));
+            }
+            footprint = footprint + gap;
+        }
+        every~ usize = 1;
+        if spacing > 0.0f {
+            every = usize(Numbers:::Larger(1.0f, Maths:::Ceil(footprint / spacing - ChartTicks:::Tolerance())));
+        }
+        index~ usize = 0;
+        while index < this->labels.length() {
+            label: string = this->labels[index];
+            width: f32 = this->TextWidth(label);
+            where~ Point = Point { x: plot.x - gap - width, y: this->CategoryCentre(index) - lineHeight * 0.5f };
+            if !this->valueAxisHorizontal {
+                left: f32 = Numbers:::Smaller(this->CategoryCentre(index) - width * 0.5f, plot.x + plot.width - width);
+                where = Point { x: Numbers:::Larger(plot.x, left), y: plot.y + plot.height + gap };
+            }
+            renderer->DrawText(label, where, this->fontSizeLogical, look.colorLabel);
+            index = index + every;
+        }
+    }
+
+private:
+    seriesValues~ Array<TweenedValues*!>! = [];
+    range~ TweenedValues*!;
+
+    FormatTick :: (value: f32) -> string! {
+        shown~ f32 = value;
+        if Maths:::Absolute(shown) < this->tickStep * ChartTicks:::Tolerance() {
+            shown = 0.0f;
+        }
+        if format := this->formatValue {
+            return format(shown);
+        }
+        decimals~ i32 = 0;
+        if this->tickStep < 1.0f && this->tickStep > 0.0f {
+            decimals = i32(Maths:::Ceil(-Maths:::Log10(this->tickStep) - ChartTicks:::Tolerance()));
+        }
+        return ChartTicks:::Fixed(shown, decimals);
+    }
+
+    WidestTickLabel :: (low: f32, high: f32) -> f32 {
+        widest~ f32 = 0.0f;
+        count: i32 = ChartTicks:::TickCount(low, high, this->tickStep);
+        index~ i32 = 0;
+        while index < count {
+            label: string! = this->FormatTick(ChartTicks:::TickAt(low, this->tickStep, index));
+            widest = Numbers:::Larger(widest, this->TextWidth(label));
+            delete label;
+            index = index + 1;
+        }
+        return widest;
+    }
+
+    PlanTicks~: (plotLength: f32, extent: ValueExtent) -> ValueExtent {
+        minimumSpacing: f32 = this->chartVisualStyle.tickSpacingLogical;
+        gap: f32 = this->chartVisualStyle.labelGapLogical;
+        labelled: bool = this->valueAxisHorizontal && this->LineHeight() > 0.0f;
+        maximumIntervals: f32 = Numbers:::Larger(1.0f, Maths:::Floor(plotLength / minimumSpacing));
+        step~ f32 = ChartTicks:::NiceStepAtLeast((extent.high - extent.low) / maximumIntervals);
+        attempt~ i32 = 0;
+        planned~ ValueExtent = extent;
+        while attempt < 8 {
+            this->tickStep = step;
+            niceLow~ f32 = extent.low;
+            if this->minValue == null {
+                niceLow = Maths:::Floor(extent.low / step + ChartTicks:::Tolerance()) * step;
+            }
+            niceHigh~ f32 = extent.high;
+            if this->maxValue == null {
+                niceHigh = Maths:::Ceil(extent.high / step - ChartTicks:::Tolerance()) * step;
+            }
+            planned = ValueExtent { low: niceLow, high: niceHigh };
+            intervals: f32 = (niceHigh - niceLow) / step;
+            spacingNow~ f32 = plotLength;
+            if intervals > 0.0f {
+                spacingNow = plotLength / intervals;
+            }
+            needed~ f32 = minimumSpacing;
+            if labelled {
+                needed = Numbers:::Larger(needed, this->WidestTickLabel(niceLow, niceHigh) + gap);
+            }
+            if spacingNow + ChartTicks:::Tolerance() >= needed {
+                return planned;
+            }
+            step = ChartTicks:::NiceStepAtLeast(step * 1.01f);
+            attempt = attempt + 1;
+        }
+        return planned;
+    }
+}
