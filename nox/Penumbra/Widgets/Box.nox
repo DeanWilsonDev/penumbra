@@ -263,6 +263,16 @@ public:
     }
 
 protected:
+    PlaceCross :: (contentStart: f32, contentExtent: f32, childExtent: f32, marginLead: f32, marginTrail: f32) -> CrossPlacement {
+        available: f32 = Numbers:::NonNegative(contentExtent - marginLead - marginTrail);
+        return when this->crossAlignment {
+            CrossAlign:::Start -> CrossPlacement { position: contentStart + marginLead, extent: childExtent },
+            CrossAlign:::Center -> CrossPlacement { position: contentStart + marginLead + (available - childExtent) / 2.0f, extent: childExtent },
+            CrossAlign:::End -> CrossPlacement { position: contentStart + contentExtent - marginTrail - childExtent, extent: childExtent },
+            CrossAlign:::Stretch -> CrossPlacement { position: contentStart + marginLead, extent: available }
+        };
+    }
+
     virtual MeasureContent~: (availableContentSize: Point) -> Point {
         return Point { };
     }
@@ -477,16 +487,6 @@ private:
             return Point { x: crossMax, y: mainTotal };
         }
         return Point { x: mainTotal, y: crossMax };
-    }
-
-    PlaceCross :: (contentStart: f32, contentExtent: f32, childExtent: f32, marginLead: f32, marginTrail: f32) -> CrossPlacement {
-        available: f32 = Numbers:::NonNegative(contentExtent - marginLead - marginTrail);
-        return when this->crossAlignment {
-            CrossAlign:::Start -> CrossPlacement { position: contentStart + marginLead, extent: childExtent },
-            CrossAlign:::Center -> CrossPlacement { position: contentStart + marginLead + (available - childExtent) / 2.0f, extent: childExtent },
-            CrossAlign:::End -> CrossPlacement { position: contentStart + contentExtent - marginTrail - childExtent, extent: childExtent },
-            CrossAlign:::Stretch -> CrossPlacement { position: contentStart + marginLead, extent: available }
-        };
     }
 
     PlaceOutOfFlow :: (child: WidgetBase~*, at: Point, layout: LayoutContext~*) -> void {

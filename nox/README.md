@@ -33,6 +33,8 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   Then it drags a `NumericDrag`, draws both `Chevron`s, and opens and dismisses overlays on an
   `OverlayHost` by Escape and by a press outside. Last it opens a `Dropdown`, picks its long
   item (drawn truncated in the trigger), and dismisses the menu by a backdrop press and by Escape.
+  Then it wraps six boxes into lines in an `InlineContainer`, skipping a hidden one and clamping one
+  wider than the line.
   It also runs clean under ASan and UBSan.
 
 ## What's ported
@@ -64,12 +66,14 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
 | `Widgets/Chevron.h/.cpp` | `Penumbra/Widgets/Chevron.nox`; `IRenderer` gains `DrawLine` |
 | `Widgets/OverlayHost.h/.cpp` | `Penumbra/Widgets/OverlayHost.nox`: a root and a stack of overlays, Escape and outside-press dismissal, and dismissals deferred while the top overlay handles input. The overlays are parallel arrays (ids, owned contents, optional placements, dismiss flags), since a struct element can't own a widget |
 | `Widgets/Dropdown.h/.cpp` | `Penumbra/Widgets/Dropdown.nox`: the trigger with its truncated label and chevron, a fixed backdrop and a menu that widens with a tween. The rows and the backdrop write the press to a shared `DropdownState` (the chosen index, a dismiss flag), and the dropdown applies it after dispatching to them, because a row's callback can't capture the dropdown |
+| `Widgets/InlineContainer.h/.cpp` | `Penumbra/Widgets/InlineContainer.nox`: greedy line wrapping by width. The lines are one flat array of items that each carry their line index, since an array element can't own an array |
 | `Widgets/Checkbox.h/.cpp` | `Penumbra/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
 
 ## Not ported yet
 
-- The SDL platform layer, the SDL renderer and the SDL_ttf font backend. Foreign calls exist now,
-  but only over bools, integers and floats: SDL needs opaque handles, raw pointers and C strings.
+- The SDL platform layer, the SDL renderer and the SDL_ttf font backend. Foreign calls now carry
+  opaque handles, C strings and out-parameters of C-layout structs (nox #38, #39); SDL still needs
+  callbacks and a way to read its `SDL_Event` union as one of its member structs.
 - `KeyEvent`, `OnKeyEvent` and `KeyName`: keys reach handlers only as `onKeyPressed`.
 - Groups painted through a transform or opacity (`PaintsAsGroup`), and text selection inside a
   `ScrollablePanel`.
@@ -79,7 +83,7 @@ NOX=../nox-systems-language/build/nox nox/check.sh  # here
   `BoxStyle.transform` so far.
 - Rounded corners: `IRenderer` has no rounded fill, so `Checkbox` fills square rects.
 - `BoxStyle`'s transitions, the layout-pass measure memo, and viewport units.
-- `Dropdown`, `TextArea`, `InlineContainer`, the charts, `CanvasWidget`, `IconWidget`, `ImageWidget`
+- `TextArea`, the charts, `CanvasWidget`, `IconWidget`, `ImageWidget`
   and `ViewportWidget`.
 
 ## Language friction found so far

@@ -34,6 +34,7 @@ library_sources=(
     Penumbra/Widgets/Chevron.nox
     Penumbra/Widgets/OverlayHost.nox
     Penumbra/Widgets/Dropdown.nox
+    Penumbra/Widgets/InlineContainer.nox
 )
 demo_sources=(
     demo/HeadlessBackends.nox
