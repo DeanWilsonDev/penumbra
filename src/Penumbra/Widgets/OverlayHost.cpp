@@ -98,14 +98,14 @@ bool OverlayHost::UpdateInteractionState(const Platform::InputState& Input) {
     }
 
     // Root, beneath the overlays, still updates, so a hover there clears and its
-    // animations run, but with the pointer occluded and no keys: an open overlay has
-    // the keyboard too.
+    // animations run, but with the pointer occluded and no key presses: an open overlay
+    // has the keyboard too. Key releases still reach it, so no key stays held there.
     if (Root) {
         Platform::InputState Beneath = Input;
         Beneath.PointerOccluded = true;
         Beneath.TextInputThisFrame.clear();
         Beneath.KeysPressedThisFrame.clear();
-        Beneath.KeyEvents.clear();
+        std::erase_if(Beneath.KeyEvents, [](const Platform::KeyEvent& Event) { return Event.Down; });
         Root->UpdateInteractionState(Beneath);
     }
 
