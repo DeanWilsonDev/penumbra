@@ -334,7 +334,7 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
                                       Key == Platform::Key::X || Key == Platform::Key::V)
                                    : (Key != Platform::Key::Escape && Key != Platform::Key::Tab);
         if (Uses) {
-            KeyDispatch::MarkUsed(Key);
+            KeyDispatch::MarkUsed(Press);
         }
         RebuildLinesIfNeeded(WrapWidth);
 

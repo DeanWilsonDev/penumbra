@@ -37,6 +37,8 @@ struct Modifiers {
     bool Alt{false};
     bool Super{false};
     bool Shortcut{false};
+
+    bool operator==(const Modifiers&) const = default;
 };
 
 // One key transition this frame, in the order SDL reported them. Down is true for a

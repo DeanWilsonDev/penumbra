@@ -123,7 +123,7 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
                                       Key != Platform::Key::Enter && Key != Platform::Key::Up &&
                                       Key != Platform::Key::Down);
         if (Uses) {
-            KeyDispatch::MarkUsed(Key);
+            KeyDispatch::MarkUsed(Press);
         }
         if (Shortcut) {
             switch (Key) {
