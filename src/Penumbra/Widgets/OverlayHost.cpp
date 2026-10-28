@@ -105,6 +105,7 @@ bool OverlayHost::UpdateInteractionState(const Platform::InputState& Input) {
         Beneath.PointerOccluded = true;
         Beneath.TextInputThisFrame.clear();
         Beneath.KeysPressedThisFrame.clear();
+        Beneath.KeyEvents.clear();
         Root->UpdateInteractionState(Beneath);
     }
 
