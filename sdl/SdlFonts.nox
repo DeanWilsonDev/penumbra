@@ -97,11 +97,7 @@ public:
             if rendered.texture == null {
                 return rendered;
             }
-            widthPhysical~ f32 = 0.0f;
-            heightPhysical~ f32 = 0.0f;
-            Sdl:::SDL_GetTextureSize(rendered.texture, widthPhysical, heightPhysical);
-            rendered.widthPhysical = widthPhysical;
-            rendered.heightPhysical = heightPhysical;
+            Sdl:::SDL_GetTextureSize(rendered.texture, rendered.widthPhysical, rendered.heightPhysical);
         }
         entry: CachedText*! = new CachedText(text, sizePhysical, packed, rendered);
         entry->lastUsedFrame = frameIndex;

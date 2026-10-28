@@ -165,9 +165,8 @@ The Nox board's Penumbra card tracks this list:
 - **Interior mutability.** `IFontBackend.MeasureText` takes a shared receiver, but opening a font
   on first use changes the cache. `SdlFonts` reaches its `FontCache` through a `raw` pointer, as
   C++ would through a `mutable` member.
-- **Disjoint fields count as one borrow.** `SDL_GetTextureSize(texture, rendered.width,
-  rendered.height)` is NOX0461, since two mutable borrows of one local's different fields are
-  treated as overlapping. The font cache reads into two locals and copies them in.
+- **Disjoint fields counted as one borrow** until nox #80: `SDL_GetTextureSize(texture,
+  rendered.width, rendered.height)` was NOX0461. Fixed; the font cache passes the fields directly.
 - **`reinterpret` keeps a mutable borrow.** Binding `reinterpret<T>(event)` as a shared `T*`
   still records a mutable borrow of `event`, so reading `event.type` afterwards is NOX0459. The
   pump reads the event type first.
