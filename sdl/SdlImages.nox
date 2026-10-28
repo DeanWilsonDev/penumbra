@@ -1,0 +1,35 @@
+Sdl :: import Sdl;
+SdlImage :: import SdlImage;
+SdlRenderer :: import SdlRenderer;
+Point :: import Point;
+IImageBackend :: import IImageBackend;
+
+SdlImages :: class {
+    implements:
+        IImageBackend;
+public:
+    SdlImages~: (renderer: raw SdlRenderer~*) : renderer(renderer) {
+    }
+
+    LoadTexture~: (filePath: string) -> u64 {
+        unsafe {
+            loaded: raw Sdl:::Texture~* = SdlImage:::IMG_LoadTexture(this->renderer->SdlHandle(), filePath);
+            return this->renderer->RegisterTexture(loaded);
+        }
+    }
+
+    TextureSizeLogical :: (texture: u64) -> Point {
+        unsafe {
+            return this->renderer->TextureSizePhysical(texture);
+        }
+    }
+
+    ReleaseTexture~: (texture: u64) -> void {
+        unsafe {
+            this->renderer->DestroyTexture(texture);
+        }
+    }
+
+private:
+    renderer~ raw SdlRenderer~* = null;
+}

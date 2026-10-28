@@ -1,0 +1,61 @@
+Sdl :: import Sdl;
+SdlFPoint :: import SdlFPoint;
+SdlFColor :: import SdlFColor;
+SdlVertex :: import SdlVertex;
+SdlGeometry :: import SdlGeometry;
+
+MeshBuilder :: class {
+public:
+    vertices~ Array<SdlVertex>! = [];
+    indices~ Array<i32>! = [];
+
+    !MeshBuilder~: () {
+        delete this->vertices;
+        delete this->indices;
+    }
+
+    VertexCount :: () -> i32 {
+        return i32(this->vertices.length());
+    }
+
+    Push~: (position: SdlFPoint, color: SdlFColor) -> i32 {
+        this->vertices.push(SdlVertex { position: position, color: color });
+        return i32(this->vertices.length()) - 1;
+    }
+
+    Triangle~: (first: i32, second: i32, third: i32) -> void {
+        this->indices.push(first);
+        this->indices.push(second);
+        this->indices.push(third);
+    }
+
+    Quad~: (first: i32, second: i32, third: i32, fourth: i32) -> void {
+        this->Triangle(first, second, third);
+        this->Triangle(first, third, fourth);
+    }
+
+    Band~: (innerBase: i32, outerBase: i32, count: i32) -> void {
+        index~ i32 = 0;
+        while index < count {
+            next: i32 = (index + 1) % count;
+            this->Triangle(innerBase + index, innerBase + next, outerBase + next);
+            this->Triangle(innerBase + index, outerBase + next, outerBase + index);
+            index = index + 1;
+        }
+    }
+
+    DropDegenerateTriangles~: () -> void {
+        kept: Array<i32>! = SdlGeometry:::DropDegenerateTriangles(this->vertices, this->indices);
+        delete this->indices;
+        this->indices = kept!;
+    }
+
+    Submit~: (renderer: raw Sdl:::Renderer~*) -> void {
+        if this->indices.length() == 0 {
+            return;
+        }
+        unsafe {
+            Sdl:::SDL_RenderGeometry(renderer, null, this->vertices, i32(this->vertices.length()), this->indices, i32(this->indices.length()));
+        }
+    }
+}

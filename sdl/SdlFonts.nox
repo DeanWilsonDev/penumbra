@@ -1,0 +1,192 @@
+Sdl :: import Sdl;
+SdlTtf :: import SdlTtf;
+SdlColor :: import SdlColor;
+Point :: import Point;
+Color :: import Color;
+IFontBackend :: import IFontBackend;
+
+CachedFont :: struct {
+    sizePhysical~ f32 = 0.0f;
+    font~ raw SdlTtf:::Font~* = null;
+}
+
+TextTexture :: struct {
+    texture~ raw Sdl:::Texture~* = null;
+    widthPhysical~ f32 = 0.0f;
+    heightPhysical~ f32 = 0.0f;
+}
+
+CachedText :: class {
+public:
+    text~ string! = "";
+    sizePhysical~ f32 = 0.0f;
+    packedColor~ u32 = 0;
+    rendered~ TextTexture = TextTexture { };
+    lastUsedFrame~ u64 = 0;
+
+    CachedText~: (text: string, sizePhysical: f32, packedColor: u32, rendered: TextTexture) : sizePhysical(sizePhysical), packedColor(packedColor), rendered(rendered) {
+        this->text = text.copy();
+    }
+
+    !CachedText~: () {
+        delete this->text;
+        unsafe {
+            if this->rendered.texture != null {
+                Sdl:::SDL_DestroyTexture(this->rendered.texture);
+            }
+        }
+    }
+}
+
+FontCache :: class {
+public:
+    renderer~ raw Sdl:::Renderer~* = null;
+    framesBeforeEviction~ u64 = 120;
+
+    FontCache~: (fontPath: string) {
+        this->fontPath = fontPath.copy();
+    }
+
+    !FontCache~: () {
+        this->texts.freeAll();
+        unsafe {
+            for cached in this->fonts {
+                if cached.font != null {
+                    SdlTtf:::TTF_CloseFont(cached.font);
+                }
+            }
+        }
+        delete this->fonts;
+        delete this->fontPath;
+    }
+
+    FontFor~: (sizePhysical: f32) -> raw SdlTtf:::Font~* {
+        for cached in this->fonts {
+            if cached.sizePhysical == sizePhysical {
+                return cached.font;
+            }
+        }
+        opened~ raw SdlTtf:::Font~* = null;
+        unsafe {
+            opened = SdlTtf:::TTF_OpenFont(this->fontPath, sizePhysical);
+        }
+        this->fonts.push(CachedFont { sizePhysical: sizePhysical, font: opened });
+        return opened;
+    }
+
+    TextureFor~: (text: string, sizePhysical: f32, color: Color, frameIndex: u64) -> TextTexture {
+        packed: u32 = PackColor(color);
+        for cached in this->texts {
+            if cached->sizePhysical == sizePhysical && cached->packedColor == packed && cached->text == text {
+                cached->lastUsedFrame = frameIndex;
+                return cached->rendered;
+            }
+        }
+        rendered~ TextTexture = TextTexture { };
+        font: raw SdlTtf:::Font~* = this->FontFor(sizePhysical);
+        if font == null || this->renderer == null {
+            return rendered;
+        }
+        unsafe {
+            surface: raw Sdl:::Surface~* = SdlTtf:::TTF_RenderText_Blended(font, text, 0, SdlColor { red: color.red, green: color.green, blue: color.blue, alpha: color.alpha });
+            if surface == null {
+                return rendered;
+            }
+            rendered.texture = Sdl:::SDL_CreateTextureFromSurface(this->renderer, surface);
+            Sdl:::SDL_DestroySurface(surface);
+            if rendered.texture == null {
+                return rendered;
+            }
+            widthPhysical~ f32 = 0.0f;
+            heightPhysical~ f32 = 0.0f;
+            Sdl:::SDL_GetTextureSize(rendered.texture, widthPhysical, heightPhysical);
+            rendered.widthPhysical = widthPhysical;
+            rendered.heightPhysical = heightPhysical;
+        }
+        entry: CachedText*! = new CachedText(text, sizePhysical, packed, rendered);
+        entry->lastUsedFrame = frameIndex;
+        this->texts.push(entry!);
+        return rendered;
+    }
+
+    EvictUnused~: (frameIndex: u64) -> void {
+        index~ usize = 0;
+        while index < this->texts.length() {
+            if this->texts[index]->lastUsedFrame + this->framesBeforeEviction < frameIndex {
+                evicted: CachedText*! = this->texts.remove(index);
+                delete evicted;
+            }
+            else {
+                index = index + 1;
+            }
+        }
+    }
+
+private:
+    fontPath~ string! = "";
+    fonts~ Array<CachedFont>! = [];
+    texts~ Array<CachedText*!>! = [];
+}
+
+PackColor :: (color: Color) -> u32 {
+    return u32(color.red) << 24 | u32(color.green) << 16 | u32(color.blue) << 8 | u32(color.alpha);
+}
+
+SdlFonts :: class {
+    implements:
+        IFontBackend;
+public:
+    dpiScaleFactor~ f32 = 1.0f;
+    cache~ raw FontCache~* = null;
+
+    SdlFonts~: (fontPath: string) : ownedCache(new FontCache(fontPath)) {
+        unsafe {
+            this->initialised = SdlTtf:::TTF_Init();
+        }
+        unsafe {
+            this->cache = this->ownedCache;
+        }
+    }
+
+    !SdlFonts~: () {
+        delete this->ownedCache;
+        if this->initialised {
+            unsafe {
+                SdlTtf:::TTF_Quit();
+            }
+        }
+    }
+
+    IsReady~: () -> bool {
+        unsafe {
+            return this->initialised && this->cache->FontFor(16.0f * this->dpiScaleFactor) != null;
+        }
+    }
+
+    MeasureText :: (text: string, sizeLogical: f32) -> Point {
+        widthPhysical~ i32 = 0;
+        heightPhysical~ i32 = 0;
+        unsafe {
+            font: raw SdlTtf:::Font~* = this->cache->FontFor(sizeLogical * this->dpiScaleFactor);
+            if font == null || text.length() == 0 {
+                return Point { x: 0.0f, y: sizeLogical };
+            }
+            SdlTtf:::TTF_GetStringSize(font, text, 0, widthPhysical, heightPhysical);
+        }
+        return Point { x: f32(widthPhysical) / this->dpiScaleFactor, y: f32(heightPhysical) / this->dpiScaleFactor };
+    }
+
+    MeasureAscent :: (sizeLogical: f32) -> f32 {
+        unsafe {
+            font: raw SdlTtf:::Font~* = this->cache->FontFor(sizeLogical * this->dpiScaleFactor);
+            if font == null {
+                return sizeLogical * 0.75f;
+            }
+            return f32(SdlTtf:::TTF_GetFontAscent(font)) / this->dpiScaleFactor;
+        }
+    }
+
+private:
+    initialised~ bool = false;
+    ownedCache~ FontCache*!;
+}
