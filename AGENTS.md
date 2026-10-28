@@ -7,6 +7,9 @@ This branch (`nox-proto`) is Penumbra written in Nox, with no C++. The C++ libra
   the headless demo. `nox.json` names them as one project.
 - Build with the Nox prototype compiler (`DeanWilsonDev/nox-systems-language`, branch `proto`):
   `nox build` or `nox run` from anywhere in the checkout.
+- `sdl/` is the SDL3 layer and its windowed gallery, a separate project (`sdl/nox.json`) so the
+  headless build never links SDL. Cloud sessions have no SDL3: check it with
+  `tests/check-gallery-with-stub-sdl.sh` (and `--checked`), which runs it against `tests/sdl-stub/`.
 - Check every change with `tests/check-demo.sh` and `tests/check-demo.sh --checked`. Only record a
   new `tests/demo-expected.txt` after checking the changed values by hand.
 - Something Nox is missing or gets wrong goes on the Nox board as a `[proto] ` card and is fixed in

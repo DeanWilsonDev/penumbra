@@ -1,0 +1,419 @@
+Sdl :: import Sdl;
+SdlConstants :: import SdlConstants;
+SdlEvent :: import SdlEvent;
+SdlKeyboardEvent :: import SdlKeyboardEvent;
+SdlTextInputEvent :: import SdlTextInputEvent;
+SdlMouseButtonEvent :: import SdlMouseButtonEvent;
+SdlMouseWheelEvent :: import SdlMouseWheelEvent;
+Point :: import Point;
+InputState :: import InputState;
+Key :: import Key;
+KeyEvent :: import KeyEvent;
+Modifiers :: import Modifiers;
+IClipboard :: import IClipboard;
+
+SdlWindow :: class {
+public:
+    window~ raw Sdl:::Window~* = null;
+    renderer~ raw Sdl:::Renderer~* = null;
+    maxFrameDeltaSeconds~ f32 = 0.1f;
+
+    !SdlWindow~: () {
+        this->Close();
+        delete this->typedText;
+        delete this->pressedKeys;
+        delete this->keyEvents;
+    }
+
+    Open~: (title: string, widthLogical: i32, heightLogical: i32) -> bool {
+        unsafe {
+            if !Sdl:::SDL_Init(SdlConstants:::InitVideo) {
+                return false;
+            }
+            this->initialised = true;
+            this->window = Sdl:::SDL_CreateWindow(title, widthLogical, heightLogical, SdlConstants:::WindowResizable | SdlConstants:::WindowHighPixelDensity);
+            if this->window == null {
+                return false;
+            }
+            this->renderer = Sdl:::SDL_CreateRenderer(this->window, null);
+            if this->renderer == null {
+                return false;
+            }
+            Sdl:::SDL_SetRenderVSync(this->renderer, 1);
+            platform: string! = copyCString(Sdl:::SDL_GetPlatform());
+            this->shortcutIsSuper = platform == "macOS" || platform == "iOS";
+            delete platform;
+            this->lastFrameTicks = Sdl:::SDL_GetTicksNS();
+        }
+        return true;
+    }
+
+    Close~: () -> void {
+        unsafe {
+            if this->renderer != null {
+                Sdl:::SDL_DestroyRenderer(this->renderer);
+                this->renderer = null;
+            }
+            if this->window != null {
+                Sdl:::SDL_DestroyWindow(this->window);
+                this->window = null;
+            }
+            if this->initialised {
+                Sdl:::SDL_Quit();
+                this->initialised = false;
+            }
+        }
+    }
+
+    LastError :: () -> string! {
+        unsafe {
+            return copyCString(Sdl:::SDL_GetError());
+        }
+    }
+
+    LogicalSize :: () -> Point {
+        width~ i32 = 0;
+        height~ i32 = 0;
+        if this->window != null {
+            unsafe {
+                Sdl:::SDL_GetWindowSize(this->window, width, height);
+            }
+        }
+        return Point { x: f32(width), y: f32(height) };
+    }
+
+    DpiScaleFactor :: () -> f32 {
+        if this->window == null {
+            return 1.0f;
+        }
+        logicalWidth~ i32 = 0;
+        logicalHeight~ i32 = 0;
+        pixelWidth~ i32 = 0;
+        pixelHeight~ i32 = 0;
+        unsafe {
+            Sdl:::SDL_GetWindowSize(this->window, logicalWidth, logicalHeight);
+            Sdl:::SDL_GetWindowSizeInPixels(this->window, pixelWidth, pixelHeight);
+            if logicalWidth > 0 && pixelWidth > 0 {
+                return f32(pixelWidth) / f32(logicalWidth);
+            }
+            displayScale: f32 = Sdl:::SDL_GetWindowDisplayScale(this->window);
+            if displayScale > 0.0f {
+                return displayScale;
+            }
+        }
+        return 1.0f;
+    }
+
+    SetTitle~: (title: string) -> void {
+        unsafe {
+            Sdl:::SDL_SetWindowTitle(this->window, title);
+        }
+    }
+
+    SetTextInputActive~: (active: bool) -> void {
+        if this->window == null || active == this->textInputActive {
+            return;
+        }
+        this->textInputActive = active;
+        unsafe {
+            if active {
+                Sdl:::SDL_StartTextInput(this->window);
+            }
+            else {
+                Sdl:::SDL_StopTextInput(this->window);
+            }
+        }
+    }
+
+    PumpEvents~: () -> bool {
+        now~ u64 = 0;
+        unsafe {
+            now = Sdl:::SDL_GetTicksNS();
+        }
+        delta~ f32 = 0.0f;
+        if now >= this->lastFrameTicks {
+            delta = f32(f64(now - this->lastFrameTicks) / 1000000000.0f);
+        }
+        this->lastFrameTicks = now;
+        if delta > this->maxFrameDeltaSeconds {
+            delta = this->maxFrameDeltaSeconds;
+        }
+        this->deltaTimeSeconds = delta;
+
+        cleared: string! = "";
+        delete this->typedText;
+        this->typedText = cleared!;
+        this->pressedKeys.clear();
+        this->keyEvents.clear();
+        this->wheelDelta = 0.0f;
+        this->wheelDeltaX = 0.0f;
+        pressedByEvent~ bool[3] = [false, false, false];
+        releasedByEvent~ bool[3] = [false, false, false];
+        keepRunning~ bool = true;
+
+        event~ SdlEvent = SdlEvent { };
+        unsafe {
+            while Sdl:::SDL_PollEvent(event) {
+                if event.type == SdlConstants:::EventQuit {
+                    keepRunning = false;
+                }
+                if event.type == SdlConstants:::EventMouseWheel {
+                    wheel: SdlMouseWheelEvent* = reinterpret<SdlMouseWheelEvent>(event);
+                    this->wheelDelta = this->wheelDelta + wheel->y;
+                    this->wheelDeltaX = this->wheelDeltaX + wheel->x;
+                }
+                if event.type == SdlConstants:::EventTextInput {
+                    textEvent: SdlTextInputEvent* = reinterpret<SdlTextInputEvent>(event);
+                    typed: string! = copyCString(textEvent->text);
+                    joined: string! = this->typedText + typed;
+                    delete typed;
+                    delete this->typedText;
+                    this->typedText = joined!;
+                }
+                if event.type == SdlConstants:::EventKeyDown || event.type == SdlConstants:::EventKeyUp {
+                    isDown: bool = event.type == SdlConstants:::EventKeyDown;
+                    keyEvent: SdlKeyboardEvent* = reinterpret<SdlKeyboardEvent>(event);
+                    code: Key = SdlKeys:::Map(keyEvent->keyCode);
+                    if isDown {
+                        this->pressedKeys.push(code);
+                    }
+                    this->keyEvents.push(KeyEvent {
+                        code: code,
+                        down: isDown,
+                        repeat: isDown && keyEvent->repeat,
+                        modifierState: this->ModifiersFrom(keyEvent->modifierBits)
+                    });
+                }
+                if event.type == SdlConstants:::EventMouseButtonDown || event.type == SdlConstants:::EventMouseButtonUp {
+                    isPress: bool = event.type == SdlConstants:::EventMouseButtonDown;
+                    buttonEvent: SdlMouseButtonEvent* = reinterpret<SdlMouseButtonEvent>(event);
+                    if buttonEvent->button >= 1 && buttonEvent->button <= 3 {
+                        buttonIndex: usize = usize(buttonEvent->button - 1);
+                        if isPress {
+                            pressedByEvent[buttonIndex] = true;
+                        }
+                        else {
+                            releasedByEvent[buttonIndex] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        mouseX~ f32 = 0.0f;
+        mouseY~ f32 = 0.0f;
+        buttons~ u32 = 0;
+        modifierBits~ u16 = 0;
+        unsafe {
+            buttons = Sdl:::SDL_GetMouseState(mouseX, mouseY);
+            modifierBits = Sdl:::SDL_GetModState();
+        }
+        this->mousePosition = Point { x: mouseX, y: mouseY };
+        buttonIndex~ usize = 0;
+        while buttonIndex < 3 {
+            isDown: bool = buttons & (u32(1) << buttonIndex) != 0;
+            wasDown: bool = this->previousButtonDown[buttonIndex];
+            this->buttonDown[buttonIndex] = isDown;
+            this->buttonPressed[buttonIndex] = (isDown && !wasDown) || pressedByEvent[buttonIndex];
+            this->buttonReleased[buttonIndex] = (!isDown && wasDown) || (releasedByEvent[buttonIndex] && !isDown);
+            this->previousButtonDown[buttonIndex] = isDown;
+            buttonIndex = buttonIndex + 1;
+        }
+        this->modifierState = this->ModifiersFrom(modifierBits);
+        return keepRunning;
+    }
+
+    FrameInput :: () -> InputState {
+        input~ InputState = InputState {
+            mousePosition: this->mousePosition,
+            mouseButtonDown: this->buttonDown,
+            mouseButtonPressedThisFrame: this->buttonPressed,
+            mouseButtonReleasedThisFrame: this->buttonReleased,
+            mouseWheelDelta: this->wheelDelta,
+            mouseWheelDeltaX: this->wheelDeltaX,
+            modifierState: this->modifierState,
+            deltaTimeSeconds: this->deltaTimeSeconds
+        };
+        input.textInputThisFrame = this->typedText;
+        input.keysPressedThisFrame = this->pressedKeys;
+        input.keyEvents = this->keyEvents;
+        return input;
+    }
+
+private:
+    initialised~ bool = false;
+    textInputActive~ bool = false;
+    shortcutIsSuper~ bool = false;
+    lastFrameTicks~ u64 = 0;
+    deltaTimeSeconds~ f32 = 0.0f;
+    typedText~ string! = "";
+    pressedKeys~ Array<Key>! = [];
+    keyEvents~ Array<KeyEvent>! = [];
+    wheelDelta~ f32 = 0.0f;
+    wheelDeltaX~ f32 = 0.0f;
+    mousePosition~ Point = Point { };
+    modifierState~ Modifiers = Modifiers { };
+    buttonDown~ bool[3] = [false, false, false];
+    buttonPressed~ bool[3] = [false, false, false];
+    buttonReleased~ bool[3] = [false, false, false];
+    previousButtonDown~ bool[3] = [false, false, false];
+
+    ModifiersFrom :: (bits: u16) -> Modifiers {
+        state~ Modifiers = Modifiers {
+            shift: bits & SdlConstants:::ModifierShift != 0,
+            control: bits & SdlConstants:::ModifierControl != 0,
+            alt: bits & SdlConstants:::ModifierAlt != 0,
+            super: bits & SdlConstants:::ModifierGui != 0
+        };
+        state.shortcut = state.control;
+        if this->shortcutIsSuper {
+            state.shortcut = state.super;
+        }
+        return state;
+    }
+}
+
+SdlClipboard :: class {
+    implements:
+        IClipboard;
+public:
+    SetClipboardText~: (text: string) -> void {
+        unsafe {
+            Sdl:::SDL_SetClipboardText(text);
+        }
+    }
+
+    GetClipboardText :: () -> string! {
+        unsafe {
+            if !Sdl:::SDL_HasClipboardText() {
+                return "";
+            }
+            raw: raw u8~* = Sdl:::SDL_GetClipboardText();
+            text: string! = copyCString(raw);
+            Sdl:::SDL_free(raw);
+            return text!;
+        }
+    }
+}
+
+SdlKeys :: namespace {
+    Map :: (keyCode: u32) -> Key {
+        if keyCode & SdlConstants:::ScancodeMask != 0 {
+            return FromScancode(keyCode ^ SdlConstants:::ScancodeMask);
+        }
+        return FromCharacter(keyCode);
+    }
+
+    FromCharacter :: (keyCode: u32) -> Key {
+        return when keyCode {
+            8 -> Key:::Backspace,
+            9 -> Key:::Tab,
+            13 -> Key:::Enter,
+            27 -> Key:::Escape,
+            32 -> Key:::Space,
+            39 -> Key:::Apostrophe,
+            44 -> Key:::Comma,
+            45 -> Key:::Minus,
+            46 -> Key:::Period,
+            47 -> Key:::Slash,
+            48 -> Key:::Digit0,
+            49 -> Key:::Digit1,
+            50 -> Key:::Digit2,
+            51 -> Key:::Digit3,
+            52 -> Key:::Digit4,
+            53 -> Key:::Digit5,
+            54 -> Key:::Digit6,
+            55 -> Key:::Digit7,
+            56 -> Key:::Digit8,
+            57 -> Key:::Digit9,
+            59 -> Key:::Semicolon,
+            61 -> Key:::Equals,
+            91 -> Key:::LeftBracket,
+            92 -> Key:::Backslash,
+            93 -> Key:::RightBracket,
+            96 -> Key:::Grave,
+            97 -> Key:::A,
+            98 -> Key:::B,
+            99 -> Key:::C,
+            100 -> Key:::D,
+            101 -> Key:::E,
+            102 -> Key:::F,
+            103 -> Key:::G,
+            104 -> Key:::H,
+            105 -> Key:::I,
+            106 -> Key:::J,
+            107 -> Key:::K,
+            108 -> Key:::L,
+            109 -> Key:::M,
+            110 -> Key:::N,
+            111 -> Key:::O,
+            112 -> Key:::P,
+            113 -> Key:::Q,
+            114 -> Key:::R,
+            115 -> Key:::S,
+            116 -> Key:::T,
+            117 -> Key:::U,
+            118 -> Key:::V,
+            119 -> Key:::W,
+            120 -> Key:::X,
+            121 -> Key:::Y,
+            122 -> Key:::Z,
+            127 -> Key:::Delete,
+            default -> Key:::Unknown,
+        };
+    }
+
+    FromScancode :: (scancode: u32) -> Key {
+        return when scancode {
+            57 -> Key:::CapsLock,
+            58 -> Key:::F1,
+            59 -> Key:::F2,
+            60 -> Key:::F3,
+            61 -> Key:::F4,
+            62 -> Key:::F5,
+            63 -> Key:::F6,
+            64 -> Key:::F7,
+            65 -> Key:::F8,
+            66 -> Key:::F9,
+            67 -> Key:::F10,
+            68 -> Key:::F11,
+            69 -> Key:::F12,
+            70 -> Key:::PrintScreen,
+            72 -> Key:::Pause,
+            73 -> Key:::Insert,
+            74 -> Key:::Home,
+            75 -> Key:::PageUp,
+            77 -> Key:::End,
+            78 -> Key:::PageDown,
+            79 -> Key:::Right,
+            80 -> Key:::Left,
+            81 -> Key:::Down,
+            82 -> Key:::Up,
+            84 -> Key:::NumpadDivide,
+            85 -> Key:::NumpadMultiply,
+            86 -> Key:::NumpadSubtract,
+            87 -> Key:::NumpadAdd,
+            88 -> Key:::NumpadEnter,
+            89 -> Key:::Numpad1,
+            90 -> Key:::Numpad2,
+            91 -> Key:::Numpad3,
+            92 -> Key:::Numpad4,
+            93 -> Key:::Numpad5,
+            94 -> Key:::Numpad6,
+            95 -> Key:::Numpad7,
+            96 -> Key:::Numpad8,
+            97 -> Key:::Numpad9,
+            98 -> Key:::Numpad0,
+            99 -> Key:::NumpadDecimal,
+            224 -> Key:::LeftControl,
+            225 -> Key:::LeftShift,
+            226 -> Key:::LeftAlt,
+            227 -> Key:::LeftSuper,
+            228 -> Key:::RightControl,
+            229 -> Key:::RightShift,
+            230 -> Key:::RightAlt,
+            231 -> Key:::RightSuper,
+            default -> Key:::Unknown,
+        };
+    }
+}

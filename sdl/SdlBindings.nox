@@ -1,0 +1,191 @@
+SdlFPoint :: struct {
+    x~ f32 = 0.0f;
+    y~ f32 = 0.0f;
+}
+
+SdlFColor :: struct {
+    red~ f32 = 0.0f;
+    green~ f32 = 0.0f;
+    blue~ f32 = 0.0f;
+    alpha~ f32 = 0.0f;
+}
+
+SdlColor :: struct {
+    red~ u8 = 0;
+    green~ u8 = 0;
+    blue~ u8 = 0;
+    alpha~ u8 = 0;
+}
+
+SdlVertex :: struct {
+    position~ SdlFPoint = SdlFPoint { };
+    color~ SdlFColor = SdlFColor { };
+    textureCoordinate~ SdlFPoint = SdlFPoint { };
+}
+
+SdlRect :: struct {
+    x~ i32 = 0;
+    y~ i32 = 0;
+    width~ i32 = 0;
+    height~ i32 = 0;
+}
+
+SdlFRect :: struct {
+    x~ f32 = 0.0f;
+    y~ f32 = 0.0f;
+    width~ f32 = 0.0f;
+    height~ f32 = 0.0f;
+}
+
+SdlEvent :: struct {
+    type~ u32 = 0;
+    reserved~ u32 = 0;
+    timestamp~ u64 = 0;
+    payload~ u64[14] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+}
+
+SdlKeyboardEvent :: struct {
+    type~ u32 = 0;
+    reserved~ u32 = 0;
+    timestamp~ u64 = 0;
+    windowId~ u32 = 0;
+    keyboardId~ u32 = 0;
+    scancode~ u32 = 0;
+    keyCode~ u32 = 0;
+    modifierBits~ u16 = 0;
+    rawCode~ u16 = 0;
+    down~ bool = false;
+    repeat~ bool = false;
+}
+
+SdlTextInputEvent :: struct {
+    type~ u32 = 0;
+    reserved~ u32 = 0;
+    timestamp~ u64 = 0;
+    windowId~ u32 = 0;
+    padding~ u32 = 0;
+    text~ raw u8* = null;
+}
+
+SdlMouseButtonEvent :: struct {
+    type~ u32 = 0;
+    reserved~ u32 = 0;
+    timestamp~ u64 = 0;
+    windowId~ u32 = 0;
+    mouseId~ u32 = 0;
+    button~ u8 = 0;
+    down~ bool = false;
+    clicks~ u8 = 0;
+    padding~ u8 = 0;
+    x~ f32 = 0.0f;
+    y~ f32 = 0.0f;
+}
+
+SdlMouseWheelEvent :: struct {
+    type~ u32 = 0;
+    reserved~ u32 = 0;
+    timestamp~ u64 = 0;
+    windowId~ u32 = 0;
+    mouseId~ u32 = 0;
+    x~ f32 = 0.0f;
+    y~ f32 = 0.0f;
+    direction~ u32 = 0;
+}
+
+SdlConstants :: namespace {
+    InitVideo : u32 : 32;
+    WindowResizable : u64 : 32;
+    WindowHighPixelDensity : u64 : 8192;
+    BlendModeBlend : u32 : 1;
+    PixelFormatRgba8888 : u32 : 373694468;
+    TextureAccessTarget : i32 : 2;
+    ScaleModeLinear : i32 : 1;
+    FlipNone : i32 : 0;
+
+    EventQuit : u32 : 256;
+    EventWindowFocusLost : u32 : 527;
+    EventKeyDown : u32 : 768;
+    EventKeyUp : u32 : 769;
+    EventTextInput : u32 : 771;
+    EventMouseButtonDown : u32 : 1025;
+    EventMouseButtonUp : u32 : 1026;
+    EventMouseWheel : u32 : 1027;
+
+    ModifierShift : u16 : 3;
+    ModifierControl : u16 : 192;
+    ModifierAlt : u16 : 768;
+    ModifierGui : u16 : 3072;
+
+    ScancodeMask : u32 : 1073741824;
+}
+
+Sdl :: foreign "SDL3" {
+    Window :: opaque;
+    Renderer :: opaque;
+    Texture :: opaque;
+    Surface :: opaque;
+
+    SDL_Init :: (flags: u32) -> bool;
+    SDL_Quit :: () -> void;
+    SDL_GetError :: () -> raw u8*;
+    SDL_GetPlatform :: () -> raw u8*;
+    SDL_free :: (memory: raw u8~*) -> void;
+    SDL_GetTicksNS :: () -> u64;
+
+    SDL_CreateWindow :: (title: string, width: i32, height: i32, flags: u64) -> raw Window~*;
+    SDL_DestroyWindow :: (window: raw Window~*) -> void;
+    SDL_GetWindowSize :: (window: raw Window~*, width: i32~*, height: i32~*) -> bool;
+    SDL_GetWindowSizeInPixels :: (window: raw Window~*, width: i32~*, height: i32~*) -> bool;
+    SDL_GetWindowDisplayScale :: (window: raw Window~*) -> f32;
+    SDL_SetWindowTitle :: (window: raw Window~*, title: string) -> bool;
+    SDL_StartTextInput :: (window: raw Window~*) -> bool;
+    SDL_StopTextInput :: (window: raw Window~*) -> bool;
+
+    SDL_PollEvent :: (event: SdlEvent~*) -> bool;
+    SDL_GetMouseState :: (x: f32~*, y: f32~*) -> u32;
+    SDL_GetModState :: () -> u16;
+
+    SDL_SetClipboardText :: (text: string) -> bool;
+    SDL_HasClipboardText :: () -> bool;
+    SDL_GetClipboardText :: () -> raw u8~*;
+
+    SDL_CreateRenderer :: (window: raw Window~*, driverName: raw u8*) -> raw Renderer~*;
+    SDL_DestroyRenderer :: (renderer: raw Renderer~*) -> void;
+    SDL_SetRenderVSync :: (renderer: raw Renderer~*, interval: i32) -> bool;
+    SDL_SetRenderDrawBlendMode :: (renderer: raw Renderer~*, mode: u32) -> bool;
+    SDL_SetRenderDrawColor :: (renderer: raw Renderer~*, red: u8, green: u8, blue: u8, alpha: u8) -> bool;
+    SDL_RenderClear :: (renderer: raw Renderer~*) -> bool;
+    SDL_RenderPresent :: (renderer: raw Renderer~*) -> bool;
+    SDL_RenderFillRect :: (renderer: raw Renderer~*, rect: SdlFRect*) -> bool;
+    SDL_RenderGeometry :: (renderer: raw Renderer~*, texture: raw Texture~*, vertices: Array<SdlVertex>, vertexCount: i32, indices: Array<i32>, indexCount: i32) -> bool;
+    SDL_SetRenderClipRect :: (renderer: raw Renderer~*, rect: SdlRect*?) -> bool;
+    SDL_GetRenderTarget :: (renderer: raw Renderer~*) -> raw Texture~*;
+    SDL_SetRenderTarget :: (renderer: raw Renderer~*, texture: raw Texture~*) -> bool;
+
+    SDL_CreateTexture :: (renderer: raw Renderer~*, format: u32, access: i32, width: i32, height: i32) -> raw Texture~*;
+    SDL_CreateTextureFromSurface :: (renderer: raw Renderer~*, surface: raw Surface~*) -> raw Texture~*;
+    SDL_DestroyTexture :: (texture: raw Texture~*) -> void;
+    SDL_DestroySurface :: (surface: raw Surface~*) -> void;
+    SDL_GetTextureSize :: (texture: raw Texture~*, width: f32~*, height: f32~*) -> bool;
+    SDL_SetTextureBlendMode :: (texture: raw Texture~*, mode: u32) -> bool;
+    SDL_SetTextureScaleMode :: (texture: raw Texture~*, mode: i32) -> bool;
+    SDL_SetTextureAlphaModFloat :: (texture: raw Texture~*, alpha: f32) -> bool;
+    SDL_RenderTexture :: (renderer: raw Renderer~*, texture: raw Texture~*, source: SdlFRect*?, destination: SdlFRect*) -> bool;
+    SDL_RenderTextureRotated :: (renderer: raw Renderer~*, texture: raw Texture~*, source: SdlFRect*?, destination: SdlFRect*, angle: f64, centre: SdlFPoint*, flip: i32) -> bool;
+}
+
+SdlTtf :: foreign "SDL3_ttf" {
+    Font :: opaque;
+
+    TTF_Init :: () -> bool;
+    TTF_Quit :: () -> void;
+    TTF_OpenFont :: (filePath: string, pointSize: f32) -> raw Font~*;
+    TTF_CloseFont :: (font: raw Font~*) -> void;
+    TTF_GetStringSize :: (font: raw Font~*, text: string, length: usize, width: i32~*, height: i32~*) -> bool;
+    TTF_GetFontAscent :: (font: raw Font~*) -> i32;
+    TTF_RenderText_Blended :: (font: raw Font~*, text: string, length: usize, foreground: SdlColor) -> raw Sdl:::Surface~*;
+}
+
+SdlImage :: foreign "SDL3_image" {
+    IMG_LoadTexture :: (renderer: raw Sdl:::Renderer~*, filePath: string) -> raw Sdl:::Texture~*;
+}

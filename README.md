@@ -12,6 +12,14 @@ was ported from lives on the `proto` branch.
 - `nox.json` is the Nox project: every `.nox` file under `src/`, with `src/Demo/main.nox` as the
   entry file, built to `build/penumbra-demo`.
 - `tests/check-demo.sh` runs the demo and diffs its output against `tests/demo-expected.txt`.
+- `sdl/` is the SDL3 layer, also in Nox, and `sdl/Gallery/` a windowed gallery that uses it.
+  `sdl/nox.json` is its own project: the library under `src/` without the headless demo, plus
+  `sdl/`, built to `build/penumbra-gallery`. Keeping it out of `nox.json` keeps SDL out of the
+  headless build.
+- `tests/check-gallery-with-stub-sdl.sh` builds the gallery against `tests/sdl-stub/stub.c`, a small
+  C stand-in for SDL3, SDL3_ttf and SDL3_image that checks every call's arguments (vertex colours
+  and positions, index ranges, texture lifetimes, balanced render targets) and scripts 41 frames of
+  input. It needs a Linux C compiler and no SDL, so it runs in a cloud session.
 
 ## Build and check
 
@@ -27,6 +35,21 @@ tests/check-demo.sh                              # runs it and diffs the output
 the checkout. Extra arguments to `tests/check-demo.sh` go to `nox run`, so
 `tests/check-demo.sh --checked` builds with runtime provenance checks. `nox` compiles through a C
 compiler (`$NOX_CC`, `$CC` or `cc`), which is a detail of the prototype's backend.
+
+## The SDL window
+
+The gallery opens a 960×680 window with buttons, a checkbox, a text field and the three charts,
+drawn through `sdl/SdlRenderer.nox`. On macOS:
+
+```sh
+brew install sdl3 sdl3_ttf sdl3_image
+cd sdl
+LIBRARY_PATH=/opt/homebrew/lib nox run
+```
+
+`LIBRARY_PATH` tells the C compiler where Homebrew's libraries are; Linux finds them without it.
+The gallery looks for its font in `sdl/assets/` relative to the directory it runs from, so run it
+from `sdl/` or from the repository root.
 
 ## The demo
 
@@ -96,12 +119,17 @@ It also runs clean under ASan and UBSan.
 | `Widgets/Chart.h/.cpp`, `Widgets/BarChart.h/.cpp` | `src/Widgets/Chart.nox` (`ChartStyle`, `ChartSeries`, `ChartBase`, `AxisChartBase` with tick planning, grid, baseline and category labels) and `src/Widgets/BarChart.nox`. `ChartStyle` holds its `BoxStyle` as `box`, since structs don't inherit. `ForEachTick`'s visitor became a tick count and `TickAt`, and `DrawCategoryLabels`' centre callback a virtual `CategoryCentre`, since a lambda can't borrow `this`. Tick labels pick their decimals with a `when` over fixed-precision templates, as a template's precision is a literal. `IRenderer` gained `GetFrameIndex` and `GetFrameDeltaSeconds` for the appear and transition clock. Bars use `barCornerRadiusLogical` |
 | `Widgets/LineChart.h/.cpp`, `Widgets/DonutChart.h/.cpp` | `src/Widgets/LineChart.nox` and `src/Widgets/DonutChart.nox`. The line chart keeps every series' points in one flat array and hands each series a `slice`, since an array element can't own an array. The donut's centre font is a size (`centreFontSizeLogical`), as the Nox font backend measures by size. `IRenderer` gained `DrawFilledCircle`, `DrawArc`, `DrawPolyline` (with `LineJoin` and `LineCap`) and `DrawFilledPolygon` |
 | `Widgets/Checkbox.h/.cpp` | `src/Widgets/Checkbox.nox`, with `OnChanged(bool)` as `onCheckedChanged`, since `WidgetBase` already has an `onChanged` field |
+| SDL3's headers | `sdl/SdlBindings.nox`: foreign blocks for SDL3, SDL3_ttf and SDL3_image, the C-layout structs they pass (`SdlVertex`, `SdlFRect`, the 128-byte `SdlEvent` and the event structs read out of it with `reinterpret`) and the constants Penumbra uses. Handles are `raw` pointers to opaque types |
+| `Platform/PlatformWindow.h/.cpp` | `sdl/SdlWindow.nox`: `SdlWindow` (window, renderer, the event pump, mouse edges, modifiers with `shortcut` as super on macOS, typed text, key events, DPI and text input), `SdlClipboard` and `SdlKeys:::Map`. `FrameInput` lends the frame's typed text and key arrays into an `InputState` |
+| `Render/Renderer.h/.cpp` | `sdl/SdlRenderer.nox` with `sdl/SdlGeometry.nox` and `sdl/SdlMesh.nox`: every `IRenderer` call, with the C++'s anti-aliased geometry (rounded rings, gradients, outlines, drop shadows, lines, arcs, polylines with joins and caps, ear-clipped polygons), the clip stack, transform groups through capture textures, and texture targets. Texture handles are slots in the renderer, shared with images. A transform group or texture target pushes an unbounded clip while it draws, where the C++ cleared the clip without pushing |
+| `Render/SdlTtfFontBackend.h/.cpp` | `sdl/SdlFonts.nox`: `SdlFonts` implements `IFontBackend`, opening one `TTF_Font` per physical size, and `FontCache` caches rendered text textures, evicting ones unused for 120 frames |
+| `Backends/SdlImageBackend.h/.cpp` | `sdl/SdlImages.nox`, loading through `IMG_LoadTexture` into the renderer's texture slots |
 
 ## Not ported yet
 
-- The SDL platform layer, the SDL renderer and the SDL_ttf font backend. Foreign calls now carry
-  opaque handles, C strings and out-parameters of C-layout structs (nox #38, #39); SDL still needs
-  callbacks and a way to read its `SDL_Event` union as one of its member structs.
+- The SDL layer hasn't been run against real SDL3 yet: the cloud sessions have no SDL3, so it's
+  checked against the stub. The event and keycode constants in `sdl/SdlBindings.nox` were written
+  from SDL 3.2's headers from memory and are the first thing to check if input misbehaves.
 
 ## Language friction found so far
 
@@ -126,10 +154,25 @@ The Nox board's Penumbra card tracks this list:
 - **No tuples.** `PlaceCross` returns a small `CrossPlacement` struct instead.
 - **Callbacks can't borrow application state.** A callback is an owned closure,
   `(() -> void)!?`, and an owned closure may only copy or own what it captures (NOX0456). The
-  C++ callbacks capture `this` or app objects by reference; in Nox the demo's button owns its
-  counter. Wiring a callback to state the app also uses needs shared ownership or an unsafe
-  escape, which the language hasn't designed yet. Widgets that talk to their parts, like
-  `Dropdown`'s rows, write to a state object both sides borrow and the parent polls it.
+  C++ callbacks capture `this` or app objects by reference. Since nox #47 a callback can capture a
+  `raw` pointer inside `unsafe`, which the gallery's button uses to update a label and a counter.
+  Widgets that talk to their parts, like `Dropdown`'s rows, still write to a state object both
+  sides borrow and the parent polls it.
+- **SDL's C shapes.** Reading `SDL_Event` as its member structs needed `reinterpret<T>` (nox #46),
+  SDL handles and C strings in structs needed raw pointers (nox #47), and vertex arrays, structs
+  by value and `copyCString` came in nox #48. Flags and masks needed bitwise operators, which Nox
+  didn't have (nox #49).
+- **Interior mutability.** `IFontBackend.MeasureText` takes a shared receiver, but opening a font
+  on first use changes the cache. `SdlFonts` reaches its `FontCache` through a `raw` pointer, as
+  C++ would through a `mutable` member.
+- **Disjoint fields count as one borrow.** `SDL_GetTextureSize(texture, rendered.width,
+  rendered.height)` is NOX0461, since two mutable borrows of one local's different fields are
+  treated as overlapping. The font cache reads into two locals and copies them in.
+- **`reinterpret` keeps a mutable borrow.** Binding `reinterpret<T>(event)` as a shared `T*`
+  still records a mutable borrow of `event`, so reading `event.type` afterwards is NOX0459. The
+  pump reads the event type first.
+- **No program arguments.** `main` takes none, so the gallery tries a few font paths relative to
+  where it runs.
 - **Lists of borrowed widgets.** Stacking contexts keep the widgets they paint, so the prototype
   gained arrays of borrows (`Array<WidgetBase~*>!`) and arrays of structs that hold borrows. An
   entry's ancestors live in one pool array on the context, indexed by start and count, because a

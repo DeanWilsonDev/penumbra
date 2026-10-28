@@ -1,0 +1,6 @@
+{
+  "name": "penumbra-gallery",
+  "sources": ["../src/Geometry.nox", "../src/Maths.nox", "../src/Anim", "../src/Platform", "../src/Render", "../src/Widgets", "SdlBindings.nox", "SdlGeometry.nox", "SdlMesh.nox", "SdlFonts.nox", "SdlRenderer.nox", "SdlWindow.nox", "SdlImages.nox", "Gallery"],
+  "main": "Gallery/main.nox",
+  "output": "../build/penumbra-gallery"
+}

@@ -1,0 +1,314 @@
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+Insets :: import Insets;
+Lengths :: import Lengths;
+LayoutMode :: import LayoutMode;
+CrossAlign :: import CrossAlign;
+Justify :: import Justify;
+Box :: import Box;
+Label :: import Label;
+Button :: import Button;
+Checkbox :: import Checkbox;
+TextInput :: import TextInput;
+FocusState :: import FocusState;
+LayoutContext :: import LayoutContext;
+StackingTracker :: import StackingTracker;
+InputState :: import InputState;
+IFontBackend :: import IFontBackend;
+ChartStyle :: import ChartStyle;
+ChartSeries :: import ChartSeries;
+BarChart :: import BarChart;
+LineChart :: import LineChart;
+DonutChart :: import DonutChart;
+SdlWindow :: import SdlWindow;
+SdlClipboard :: import SdlClipboard;
+SdlFonts :: import SdlFonts;
+SdlRenderer :: import SdlRenderer;
+
+PressCount :: struct {
+    presses~ i32 = 0;
+}
+
+GalleryColors :: namespace {
+    Background :: () -> Color {
+        return Color { red: 18, green: 18, blue: 22, alpha: 255 };
+    }
+
+    Panel :: () -> Color {
+        return Color { red: 30, green: 30, blue: 38, alpha: 255 };
+    }
+
+    Text :: () -> Color {
+        return Color { red: 230, green: 230, blue: 235, alpha: 255 };
+    }
+
+    Muted :: () -> Color {
+        return Color { red: 150, green: 150, blue: 165, alpha: 255 };
+    }
+
+    Accent :: () -> Color {
+        return Color { red: 110, green: 90, blue: 220, alpha: 255 };
+    }
+}
+
+MakeLabel :: (font: IFontBackend*, text: string, sizeLogical: f32, color: Color) -> Label*! {
+    label: Label*! = new Label(font, text);
+    label->fontSizeLogical = sizeLogical;
+    label->colorText = color;
+    return label!;
+}
+
+MakeRow :: () -> Box*! {
+    row: Box*! = new Box();
+    row->layout = LayoutMode:::HorizontalStack;
+    row->childGap = 12.0f;
+    row->crossAlignment = CrossAlign:::Center;
+    return row!;
+}
+
+MakePanel :: (font: IFontBackend*, title: string) -> Box*! {
+    panel: Box*! = new Box();
+    panel->layout = LayoutMode:::VerticalStack;
+    panel->childGap = 10.0f;
+    panel->crossAlignment = CrossAlign:::Stretch;
+    panel->style.padding = Insets:::All(14.0f);
+    panel->style.colorBackground = GalleryColors:::Panel();
+    panel->style.borderRadius = 10.0f;
+    panel->AddChild(MakeLabel(font, title, 13.0f, GalleryColors:::Muted()));
+    return panel!;
+}
+
+MakeButton :: (font: IFontBackend*, text: string) -> Button*! {
+    button: Button*! = new Button();
+    button->layout = LayoutMode:::HorizontalStack;
+    button->style.padding = Insets:::Symmetric(16.0f, 8.0f);
+    button->style.borderRadius = 6.0f;
+    button->style.colorBackground = GalleryColors:::Accent();
+    button->style.colorBackgroundHovered = Color { red: 135, green: 115, blue: 240, alpha: 255 };
+    button->style.colorBackgroundPressed = Color { red: 80, green: 62, blue: 180, alpha: 255 };
+    button->AddChild(MakeLabel(font, text, 15.0f, GalleryColors:::Text()));
+    return button!;
+}
+
+ChartLook :: () -> ChartStyle {
+    look~ ChartStyle = ChartStyle { };
+    look.colorAxis = Color { red: 90, green: 90, blue: 105, alpha: 255 };
+    look.colorGridLine = Color { red: 50, green: 50, blue: 62, alpha: 255 };
+    look.colorLabel = GalleryColors:::Muted();
+    look.colorHover = Color { red: 255, green: 255, blue: 255, alpha: 40 };
+    look.axisThicknessLogical = 1.0f;
+    look.gridLineThicknessLogical = 1.0f;
+    look.tickSpacingLogical = 30.0f;
+    look.labelGapLogical = 6.0f;
+    look.barGapFraction = 0.25f;
+    look.barCornerRadiusLogical = 3.0f;
+    look.lineThicknessLogical = 2.5f;
+    look.pointRadiusLogical = 3.0f;
+    look.hoverPointRadiusLogical = 5.0f;
+    look.areaOpacity = 0.25f;
+    look.donutThicknessLogical = 18.0f;
+    look.segmentGapDegrees = 3.0f;
+    look.appearSeconds = 0.6f;
+    look.transitionSeconds = 0.3f;
+    return look;
+}
+
+BuildCharts :: (font: IFontBackend*) -> Box*! {
+    row: Box*! = MakeRow();
+    row->crossAlignment = CrossAlign:::Start;
+
+    bars: BarChart*! = new BarChart();
+    bars->fontBackend = font;
+    bars->preferredWidthLogical = 260.0f;
+    bars->preferredHeightLogical = 170.0f;
+    bars->ApplyStyle(ChartLook());
+    bars->AddLabel("Mon");
+    bars->AddLabel("Tue");
+    bars->AddLabel("Wed");
+    bars->AddLabel("Thu");
+    bars->AddLabel("Fri");
+    visits: ChartSeries~* = bars->AddSeries("visits", Color { red: 110, green: 90, blue: 220, alpha: 255 });
+    visits->values.push(4.0f);
+    visits->values.push(10.0f);
+    visits->values.push(6.0f);
+    visits->values.push(8.0f);
+    visits->values.push(3.0f);
+    row->AddChild(bars!);
+
+    trend: LineChart*! = new LineChart();
+    trend->fontBackend = font;
+    trend->preferredWidthLogical = 260.0f;
+    trend->preferredHeightLogical = 170.0f;
+    trend->ApplyStyle(ChartLook());
+    trend->AddLabel("Q1");
+    trend->AddLabel("Q2");
+    trend->AddLabel("Q3");
+    trend->AddLabel("Q4");
+    profit: ChartSeries~* = trend->AddSeries("profit", Color { red: 80, green: 200, blue: 160, alpha: 255 });
+    profit->values.push(2.0f);
+    profit->values.push(-1.0f);
+    profit->values.push(3.0f);
+    profit->values.push(1.5f);
+    row->AddChild(trend!);
+
+    ring: DonutChart*! = new DonutChart();
+    ring->fontBackend = font;
+    ring->preferredWidthLogical = 170.0f;
+    ring->preferredHeightLogical = 170.0f;
+    ring->ApplyStyle(ChartLook());
+    ring->AddSlice("design", 3.0f, Color { red: 110, green: 90, blue: 220, alpha: 255 });
+    ring->AddSlice("build", 5.0f, Color { red: 80, green: 200, blue: 160, alpha: 255 });
+    ring->AddSlice("test", 2.0f, Color { red: 230, green: 160, blue: 70, alpha: 255 });
+    ring->SetCentreText("10", "tasks");
+    row->AddChild(ring!);
+    return row!;
+}
+
+BuildGallery :: (font: IFontBackend*, focus: FocusState~*, clipboard: SdlClipboard~*, count: raw PressCount~*) -> Box*! {
+    root: Box*! = new Box();
+    root->layout = LayoutMode:::VerticalStack;
+    root->childGap = 16.0f;
+    root->crossAlignment = CrossAlign:::Stretch;
+    root->style.padding = Insets:::All(24.0f);
+    root->style.colorBackground = GalleryColors:::Background();
+
+    header: Box*! = MakeRow();
+    header->AddChild(MakeLabel(font, "Penumbra", 28.0f, GalleryColors:::Text()));
+    header->AddChild(MakeLabel(font, "written in Nox, drawn through SDL3", 15.0f, GalleryColors:::Muted()));
+    root->AddChild(header!);
+
+    controls: Box*! = MakePanel(font, "CONTROLS");
+    buttons: Box*! = MakeRow();
+    pressButton: Button*! = MakeButton(font, "Press me");
+    pressedLabel: Label*! = MakeLabel(font, "not pressed yet", 15.0f, GalleryColors:::Text());
+    unsafe {
+        labelForCallback: raw Label~* = pressedLabel;
+        pressButton->onClicked = new () -> void [labelForCallback: raw Label~*, count: raw PressCount~*] {
+            count->presses += 1;
+            message: string! = `presses: ${count->presses}`;
+            labelForCallback->SetText(message);
+            delete message;
+        };
+    }
+    buttons->AddChild(pressButton!);
+    buttons->AddChild(pressedLabel!);
+    controls->AddChild(buttons!);
+
+    checkRow: Box*! = MakeRow();
+    checkbox: Checkbox*! = new Checkbox();
+    checkbox->glyphSizeLogical = 18.0f;
+    checkbox->style.borderWidth = 1.5f;
+    checkbox->style.borderRadius = 4.0f;
+    checkbox->style.colorBorder = GalleryColors:::Muted();
+    checkbox->colorBoxChecked = GalleryColors:::Accent();
+    checkbox->colorCheckMark = GalleryColors:::Text();
+    checkRow->AddChild(checkbox!);
+    checkRow->AddChild(MakeLabel(font, "a checkbox", 15.0f, GalleryColors:::Text()));
+    controls->AddChild(checkRow!);
+
+    field: TextInput*! = new TextInput(font);
+    field->preferredWidthLogical = 320.0f;
+    field->fontSizeLogical = 15.0f;
+    field->caretWidthLogical = 1.5f;
+    field->style.padding = Insets:::Symmetric(10.0f, 6.0f);
+    field->style.borderWidth = 1.0f;
+    field->style.borderRadius = 6.0f;
+    field->style.colorBorder = Color { red: 70, green: 70, blue: 85, alpha: 255 };
+    field->style.colorBackground = GalleryColors:::Background();
+    field->colorText = GalleryColors:::Text();
+    field->colorCaret = GalleryColors:::Text();
+    field->colorSelection = Color { red: 70, green: 60, blue: 150, alpha: 255 };
+    field->focus = focus;
+    field->clipboard = clipboard;
+    field->SetText("click and type here");
+    controls->AddChild(field!);
+    root->AddChild(controls!);
+
+    charts: Box*! = MakePanel(font, "CHARTS");
+    charts->AddChild(BuildCharts(font));
+    root->AddChild(charts!);
+    return root!;
+}
+
+FontCandidates :: () -> Array<string>! {
+    candidates~ Array<string>! = [];
+    candidates.push("sdl/assets/JetBrainsMonoNerdFontMono-Regular.ttf");
+    candidates.push("assets/JetBrainsMonoNerdFontMono-Regular.ttf");
+    candidates.push("../sdl/assets/JetBrainsMonoNerdFontMono-Regular.ttf");
+    return candidates!;
+}
+
+main :: () -> i32 {
+    window: SdlWindow*! = new SdlWindow();
+    defer delete window;
+    if !window->Open("Penumbra in Nox", 960, 680) {
+        reason: string! = window->LastError();
+        print(`could not open the window: ${reason}`);
+        delete reason;
+        return 1;
+    }
+    dpiScale~ f32 = window->DpiScaleFactor();
+
+    candidates: Array<string>! = FontCandidates();
+    fonts~ SdlFonts*! = new SdlFonts(candidates[0]);
+    index~ usize = 0;
+    unsafe {
+        fonts->cache->renderer = window->renderer;
+    }
+    fonts->dpiScaleFactor = dpiScale;
+    while !fonts->IsReady() && index + 1 < candidates.length() {
+        index = index + 1;
+        delete fonts;
+        fonts = new SdlFonts(candidates[index]);
+        unsafe {
+            fonts->cache->renderer = window->renderer;
+        }
+        fonts->dpiScaleFactor = dpiScale;
+    }
+    delete candidates;
+    defer delete fonts;
+    if !fonts->IsReady() {
+        print("could not load the font; run from the repository root or from sdl/");
+        return 1;
+    }
+
+    renderer: SdlRenderer*! = new SdlRenderer(window->renderer, fonts->cache, dpiScale);
+    defer delete renderer;
+    focus~ FocusState = FocusState { };
+    clipboard: SdlClipboard*! = new SdlClipboard();
+    defer delete clipboard;
+    count~ PressCount = PressCount { };
+    countForCallbacks~ raw PressCount~* = null;
+    unsafe {
+        countForCallbacks = count;
+    }
+    root: Box*! = BuildGallery(fonts, focus, clipboard, countForCallbacks);
+    defer delete root;
+    layout: LayoutContext*! = new LayoutContext();
+    defer delete layout;
+    stacking: StackingTracker*! = new StackingTracker();
+    defer delete stacking;
+
+    running~ bool = true;
+    while running {
+        running = window->PumpEvents();
+        dpiScale = window->DpiScaleFactor();
+        renderer->SetDpiScaleFactor(dpiScale);
+        fonts->dpiScaleFactor = dpiScale;
+        viewport: Point = window->LogicalSize();
+        layout->viewportLogical = viewport;
+        stacking->keys->viewportLogical = viewport;
+        layout->BeginPass();
+        root->Measure(viewport, layout);
+        root->Arrange(Rect { x: 0.0f, y: 0.0f, width: viewport.x, height: viewport.y }, layout);
+        layout->EndPass();
+        input: InputState = window->FrameInput();
+        root->UpdateInteractionState(input, stacking);
+        window->SetTextInputActive(focus.focused != null);
+        renderer->BeginFrame(GalleryColors:::Background());
+        root->Draw(renderer, stacking);
+        renderer->EndFrameAndPresent();
+    }
+    return 0;
+}

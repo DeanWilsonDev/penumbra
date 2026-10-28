@@ -1,0 +1,203 @@
+SdlFPoint :: import SdlFPoint;
+SdlFColor :: import SdlFColor;
+SdlVertex :: import SdlVertex;
+Color :: import Color;
+Maths :: import Maths;
+
+RingPoint :: struct {
+    point~ SdlFPoint = SdlFPoint { };
+    normal~ SdlFPoint = SdlFPoint { };
+}
+
+ArcCorner :: struct {
+    centreX: f32 = 0.0f;
+    centreY: f32 = 0.0f;
+    angleStart: f32 = 0.0f;
+    angleEnd: f32 = 0.0f;
+}
+
+SdlGeometry :: namespace {
+    Pi : f32 : 3.14159265358979323846f;
+    AntiAliasFeatherPhysical : f32 : 1.0f;
+    MiterLimit : f32 : 4.0f;
+    MinimumPointSpacingPhysical : f32 : 0.01f;
+
+    Add :: (first: SdlFPoint, second: SdlFPoint) -> SdlFPoint {
+        return SdlFPoint { x: first.x + second.x, y: first.y + second.y };
+    }
+
+    Subtract :: (first: SdlFPoint, second: SdlFPoint) -> SdlFPoint {
+        return SdlFPoint { x: first.x - second.x, y: first.y - second.y };
+    }
+
+    Negated :: (point: SdlFPoint) -> SdlFPoint {
+        return SdlFPoint { x: -point.x, y: -point.y };
+    }
+
+    Scaled :: (point: SdlFPoint, scale: f32) -> SdlFPoint {
+        return SdlFPoint { x: point.x * scale, y: point.y * scale };
+    }
+
+    Dot :: (first: SdlFPoint, second: SdlFPoint) -> f32 {
+        return first.x * second.x + first.y * second.y;
+    }
+
+    Cross :: (first: SdlFPoint, second: SdlFPoint) -> f32 {
+        return first.x * second.y - first.y * second.x;
+    }
+
+    Length :: (point: SdlFPoint) -> f32 {
+        return Maths:::SquareRoot(Dot(point, point));
+    }
+
+    Normal :: (direction: SdlFPoint) -> SdlFPoint {
+        return SdlFPoint { x: -direction.y, y: direction.x };
+    }
+
+    Rotated :: (point: SdlFPoint, radians: f32) -> SdlFPoint {
+        cosine: f32 = Maths:::Cos(radians);
+        sine: f32 = Maths:::Sin(radians);
+        return SdlFPoint { x: point.x * cosine - point.y * sine, y: point.x * sine + point.y * cosine };
+    }
+
+    ToFColor :: (color: Color) -> SdlFColor {
+        return SdlFColor {
+            red: f32(color.red) / 255.0f,
+            green: f32(color.green) / 255.0f,
+            blue: f32(color.blue) / 255.0f,
+            alpha: f32(color.alpha) / 255.0f
+        };
+    }
+
+    Transparent :: (color: SdlFColor) -> SdlFColor {
+        return SdlFColor { red: color.red, green: color.green, blue: color.blue, alpha: 0.0f };
+    }
+
+    Vertex :: (position: SdlFPoint, color: SdlFColor) -> SdlVertex {
+        return SdlVertex { position: position, color: color };
+    }
+
+    ClampInteger :: (value: i32, lowest: i32, highest: i32) -> i32 {
+        if value < lowest {
+            return lowest;
+        }
+        if value > highest {
+            return highest;
+        }
+        return value;
+    }
+
+    SegmentsForRadius :: (radiusPhysical: f32) -> i32 {
+        return ClampInteger(i32(Maths:::Ceil(radiusPhysical / 2.0f)), 2, 48);
+    }
+
+    BuildRoundedRing :: (x: f32, y: f32, width: f32, height: f32, radius: f32, segments: i32) -> Array<RingPoint>! {
+        corners: ArcCorner[4] = [
+            ArcCorner { centreX: x + radius, centreY: y + radius, angleStart: Pi, angleEnd: Pi * 1.5f },
+            ArcCorner { centreX: x + width - radius, centreY: y + radius, angleStart: Pi * 1.5f, angleEnd: Pi * 2.0f },
+            ArcCorner { centreX: x + width - radius, centreY: y + height - radius, angleStart: 0.0f, angleEnd: Pi * 0.5f },
+            ArcCorner { centreX: x + radius, centreY: y + height - radius, angleStart: Pi * 0.5f, angleEnd: Pi }
+        ];
+        ring~ Array<RingPoint>! = [];
+        for corner in corners {
+            step~ i32 = 0;
+            while step <= segments {
+                progress: f32 = f32(step) / f32(segments);
+                angle: f32 = corner.angleStart + (corner.angleEnd - corner.angleStart) * progress;
+                cosine: f32 = Maths:::Cos(angle);
+                sine: f32 = Maths:::Sin(angle);
+                ring.push(RingPoint {
+                    point: SdlFPoint { x: corner.centreX + radius * cosine, y: corner.centreY + radius * sine },
+                    normal: SdlFPoint { x: cosine, y: sine }
+                });
+                step = step + 1;
+            }
+        }
+        return ring!;
+    }
+
+    DropDegenerateTriangles :: (vertices: Array<SdlVertex>, indices: Array<i32>) -> Array<i32>! {
+        kept~ Array<i32>! = [];
+        index~ usize = 0;
+        while index + 2 < indices.length() {
+            first: SdlFPoint = vertices[usize(indices[index])].position;
+            second: SdlFPoint = vertices[usize(indices[index + 1])].position;
+            third: SdlFPoint = vertices[usize(indices[index + 2])].position;
+            if Maths:::Absolute(Cross(Subtract(second, first), Subtract(third, first))) > 0.000001f {
+                kept.push(indices[index]);
+                kept.push(indices[index + 1]);
+                kept.push(indices[index + 2]);
+            }
+            index = index + 3;
+        }
+        return kept!;
+    }
+
+    TurnOf :: (path: Array<SdlFPoint>, winding: f32, first: i32, second: i32, third: i32) -> f32 {
+        origin: SdlFPoint = path[usize(first)];
+        return winding * Cross(Subtract(path[usize(second)], origin), Subtract(path[usize(third)], origin));
+    }
+
+    PreviousOf :: (position: usize, count: usize) -> usize {
+        return (position + count - 1) % count;
+    }
+
+    NextOf :: (position: usize, count: usize) -> usize {
+        return (position + 1) % count;
+    }
+
+    IsEar :: (path: Array<SdlFPoint>, winding: f32, remaining: Array<i32>, position: usize) -> bool {
+        count: usize = remaining.length();
+        first: i32 = remaining[PreviousOf(position, count)];
+        second: i32 = remaining[position];
+        third: i32 = remaining[NextOf(position, count)];
+        if TurnOf(path, winding, first, second, third) <= 0.0f {
+            return false;
+        }
+        for other in remaining {
+            if other != first && other != second && other != third
+                && TurnOf(path, winding, first, second, other) > 0.0f
+                && TurnOf(path, winding, second, third, other) > 0.0f
+                && TurnOf(path, winding, third, first, other) > 0.0f {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    TriangulatePolygon :: (path: Array<SdlFPoint>, winding: f32) -> Array<i32>! {
+        remaining~ Array<i32>! = [];
+        pathIndex~ usize = 0;
+        while pathIndex < path.length() {
+            remaining.push(i32(pathIndex));
+            pathIndex = pathIndex + 1;
+        }
+        triangles~ Array<i32>! = [];
+        position~ usize = 0;
+        misses~ usize = 0;
+        while remaining.length() > 3 && misses < remaining.length() {
+            if IsEar(path, winding, remaining, position) {
+                count: usize = remaining.length();
+                triangles.push(remaining[PreviousOf(position, count)]);
+                triangles.push(remaining[position]);
+                triangles.push(remaining[NextOf(position, count)]);
+                remaining.remove(position);
+                position = PreviousOf(position, remaining.length());
+                misses = 0;
+            }
+            else {
+                position = NextOf(position, remaining.length());
+                misses = misses + 1;
+            }
+        }
+        fanIndex~ usize = 1;
+        while fanIndex + 1 < remaining.length() {
+            triangles.push(remaining[0]);
+            triangles.push(remaining[fanIndex]);
+            triangles.push(remaining[fanIndex + 1]);
+            fanIndex = fanIndex + 1;
+        }
+        delete remaining;
+        return triangles!;
+    }
+}

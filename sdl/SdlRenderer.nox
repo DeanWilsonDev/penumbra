@@ -1,0 +1,1018 @@
+Sdl :: import Sdl;
+SdlConstants :: import SdlConstants;
+SdlFPoint :: import SdlFPoint;
+SdlFColor :: import SdlFColor;
+SdlFRect :: import SdlFRect;
+SdlRect :: import SdlRect;
+SdlGeometry :: import SdlGeometry;
+RingPoint :: import RingPoint;
+MeshBuilder :: import MeshBuilder;
+FontCache :: import FontCache;
+TextTexture :: import TextTexture;
+Point :: import Point;
+Rect :: import Rect;
+Color :: import Color;
+Transform :: import Transform;
+Maths :: import Maths;
+Numbers :: import Numbers;
+IRenderer :: import IRenderer;
+LineJoin :: import LineJoin;
+LineCap :: import LineCap;
+
+TextureSlot :: struct {
+    texture~ raw Sdl:::Texture~* = null;
+}
+
+ClipEntry :: struct {
+    bounded~ bool = false;
+    rect~ SdlRect = SdlRect { };
+}
+
+TransformFrame :: struct {
+    captureTexture~ raw Sdl:::Texture~* = null;
+    previousTarget~ raw Sdl:::Texture~* = null;
+    previousOriginLogical~ Point = Point { };
+    subjectLogical~ Rect = Rect { };
+    transform~ Transform = Transform { };
+}
+
+TargetFrame :: struct {
+    previousTarget~ raw Sdl:::Texture~* = null;
+    previousOriginLogical~ Point = Point { };
+}
+
+ColumnStop :: struct {
+    radius~ f32 = 0.0f;
+    isSolid~ bool = false;
+}
+
+PolylineBuilder :: class : MeshBuilder {
+public:
+    halfWidth~ f32 = 0.0f;
+    feather~ f32 = 0.0f;
+    solid~ SdlFColor = SdlFColor { };
+    clear~ SdlFColor = SdlFColor { };
+    join~ LineJoin = LineJoin:::Miter;
+    cap~ LineCap = LineCap:::Butt;
+    path~ Array<SdlFPoint>! = [];
+    directions~ Array<SdlFPoint>! = [];
+    lengths~ Array<f32>! = [];
+
+    !PolylineBuilder~: () {
+        delete this->path;
+        delete this->directions;
+        delete this->lengths;
+    }
+
+    AddBands~: (previousBase: i32, nextBase: i32) -> void {
+        lane~ i32 = 0;
+        while lane < 3 {
+            this->Triangle(previousBase + lane, previousBase + lane + 1, nextBase + lane + 1);
+            this->Triangle(previousBase + lane, nextBase + lane + 1, nextBase + lane);
+            lane = lane + 1;
+        }
+    }
+
+    PushSection~: (at: SdlFPoint, normalSide: SdlFPoint, otherSide: SdlFPoint, isClearSection: bool) -> void {
+        base: i32 = this->VertexCount();
+        core~ SdlFColor = this->solid;
+        if isClearSection {
+            core = this->clear;
+        }
+        this->Push(SdlGeometry:::Add(at, SdlGeometry:::Scaled(normalSide, this->halfWidth + this->feather)), this->clear);
+        this->Push(SdlGeometry:::Add(at, SdlGeometry:::Scaled(normalSide, this->halfWidth)), core);
+        this->Push(SdlGeometry:::Add(at, SdlGeometry:::Scaled(otherSide, this->halfWidth)), core);
+        this->Push(SdlGeometry:::Add(at, SdlGeometry:::Scaled(otherSide, this->halfWidth + this->feather)), this->clear);
+        if base > 0 {
+            this->AddBands(base - 4, base);
+        }
+    }
+
+    PushCap~: (at: SdlFPoint, outward: SdlFPoint, across: SdlFPoint, isStart: bool) -> void {
+        if this->cap == LineCap:::Round {
+            roundSteps: i32 = 2 * SdlGeometry:::SegmentsForRadius(this->halfWidth);
+            step~ i32 = 0;
+            while step <= roundSteps {
+                stepIndex~ i32 = step;
+                if isStart {
+                    stepIndex = roundSteps - step;
+                }
+                angle: f32 = (SdlGeometry:::Pi * 0.5f) * f32(stepIndex) / f32(roundSteps);
+                ahead: SdlFPoint = SdlGeometry:::Scaled(outward, Maths:::Sin(angle));
+                side: SdlFPoint = SdlGeometry:::Scaled(across, Maths:::Cos(angle));
+                this->PushSection(at, SdlGeometry:::Add(side, ahead), SdlGeometry:::Add(SdlGeometry:::Negated(side), ahead), false);
+                step = step + 1;
+            }
+            return;
+        }
+        extension~ f32 = 0.0f;
+        if this->cap == LineCap:::Square {
+            extension = this->halfWidth;
+        }
+        solidEnd: SdlFPoint = SdlGeometry:::Add(at, SdlGeometry:::Scaled(outward, extension));
+        fadeEnd: SdlFPoint = SdlGeometry:::Add(at, SdlGeometry:::Scaled(outward, extension + this->feather));
+        if isStart {
+            this->PushSection(fadeEnd, across, SdlGeometry:::Negated(across), true);
+            this->PushSection(solidEnd, across, SdlGeometry:::Negated(across), false);
+        }
+        else {
+            this->PushSection(solidEnd, across, SdlGeometry:::Negated(across), false);
+            this->PushSection(fadeEnd, across, SdlGeometry:::Negated(across), true);
+        }
+    }
+
+    PushTurnSection~: (at: SdlFPoint, outside: SdlFPoint, insideMeets: bool, miterOffset: SdlFPoint, insideSign: f32) -> void {
+        inside~ SdlFPoint = SdlGeometry:::Negated(outside);
+        if insideMeets {
+            inside = SdlGeometry:::Scaled(miterOffset, insideSign);
+        }
+        if insideSign > 0.0f {
+            this->PushSection(at, inside, outside, false);
+        }
+        else {
+            this->PushSection(at, outside, inside, false);
+        }
+    }
+
+    PushJoin~: (vertex: usize, inSegment: usize, outSegment: usize) -> void {
+        at: SdlFPoint = this->path[vertex];
+        inDirection: SdlFPoint = this->directions[inSegment];
+        outDirection: SdlFPoint = this->directions[outSegment];
+        inNormal: SdlFPoint = SdlGeometry:::Normal(inDirection);
+        outNormal: SdlFPoint = SdlGeometry:::Normal(outDirection);
+
+        bisector: SdlFPoint = SdlGeometry:::Add(inNormal, outNormal);
+        bisectorLength: f32 = SdlGeometry:::Length(bisector);
+        if bisectorLength < 0.0001f {
+            this->PushSection(at, inNormal, SdlGeometry:::Negated(inNormal), false);
+            this->PushSection(at, outNormal, SdlGeometry:::Negated(outNormal), false);
+            return;
+        }
+        miter: SdlFPoint = SdlGeometry:::Scaled(bisector, 1.0f / bisectorLength);
+        miterScale: f32 = 1.0f / SdlGeometry:::Dot(miter, inNormal);
+        miterOffset: SdlFPoint = SdlGeometry:::Scaled(miter, miterScale);
+
+        turn: f32 = SdlGeometry:::Cross(inDirection, outDirection);
+        insideSign~ f32 = -1.0f;
+        if turn > 0.0f {
+            insideSign = 1.0f;
+        }
+
+        insideReach: f32 = (this->halfWidth + this->feather) * Maths:::Absolute(SdlGeometry:::Dot(miterOffset, inDirection));
+        insideMeets: bool = insideReach <= Numbers:::Smaller(this->lengths[inSegment], this->lengths[outSegment]);
+
+        if this->join == LineJoin:::Miter && miterScale <= SdlGeometry:::MiterLimit && insideMeets {
+            this->PushSection(at, miterOffset, SdlGeometry:::Negated(miterOffset), false);
+            return;
+        }
+
+        outsideIn: SdlFPoint = SdlGeometry:::Scaled(inNormal, -insideSign);
+        if this->join == LineJoin:::Round {
+            turnAngle: f32 = Maths:::AngleOf(Maths:::Absolute(turn), SdlGeometry:::Dot(inDirection, outDirection));
+            stepCount~ i32 = i32(Maths:::Ceil(turnAngle / (SdlGeometry:::Pi * 0.5f) * f32(SdlGeometry:::SegmentsForRadius(this->halfWidth))));
+            if stepCount < 1 {
+                stepCount = 1;
+            }
+            signedTurn~ f32 = -turnAngle;
+            if turn > 0.0f {
+                signedTurn = turnAngle;
+            }
+            step~ i32 = 0;
+            while step <= stepCount {
+                angle: f32 = signedTurn * f32(step) / f32(stepCount);
+                this->PushTurnSection(at, SdlGeometry:::Rotated(outsideIn, angle), insideMeets, miterOffset, insideSign);
+                step = step + 1;
+            }
+            return;
+        }
+        this->PushTurnSection(at, outsideIn, insideMeets, miterOffset, insideSign);
+        this->PushTurnSection(at, SdlGeometry:::Scaled(outNormal, -insideSign), insideMeets, miterOffset, insideSign);
+    }
+}
+
+SdlRenderer :: class {
+    implements:
+        IRenderer;
+public:
+    maxFrameDeltaSeconds~ f32 = 0.1f;
+
+    SdlRenderer~: (renderer: raw Sdl:::Renderer~*, fonts: raw FontCache~*, dpiScaleFactor: f32) : renderer(renderer), fonts(fonts) {
+        this->SetDpiScaleFactor(dpiScaleFactor);
+        unsafe {
+            Sdl:::SDL_SetRenderDrawBlendMode(this->renderer, SdlConstants:::BlendModeBlend);
+        }
+    }
+
+    !SdlRenderer~: () {
+        unsafe {
+            for slot in this->textures {
+                if slot.texture != null {
+                    Sdl:::SDL_DestroyTexture(slot.texture);
+                }
+            }
+        }
+        delete this->textures;
+        delete this->clipStack;
+        delete this->transformStack;
+        delete this->targetStack;
+    }
+
+    SetDpiScaleFactor~: (dpiScaleFactor: f32) -> void {
+        if dpiScaleFactor > 0.0f {
+            this->dpiScaleFactor = dpiScaleFactor;
+        }
+    }
+
+    BeginFrame~: (clearColor: Color) -> void {
+        now~ u64 = 0;
+        unsafe {
+            now = Sdl:::SDL_GetTicksNS();
+        }
+        delta~ f32 = 0.0f;
+        if this->lastBeginFrameTicks != 0 && now >= this->lastBeginFrameTicks {
+            delta = f32(f64(now - this->lastBeginFrameTicks) / 1000000000.0f);
+        }
+        this->lastBeginFrameTicks = now;
+        this->frameIndex = this->frameIndex + 1;
+        this->frameDeltaSeconds = Maths:::Clamp(delta, 0.0f, this->maxFrameDeltaSeconds);
+        unsafe {
+            Sdl:::SDL_SetRenderDrawColor(this->renderer, clearColor.red, clearColor.green, clearColor.blue, clearColor.alpha);
+            Sdl:::SDL_RenderClear(this->renderer);
+        }
+    }
+
+    EndFrameAndPresent~: () -> void {
+        assert(this->clipStack.length() == 0);
+        assert(this->transformStack.length() == 0);
+        assert(this->targetStack.length() == 0);
+        unsafe {
+            Sdl:::SDL_RenderPresent(this->renderer);
+            this->fonts->EvictUnused(this->frameIndex);
+        }
+    }
+
+    RegisterTexture~: (texture: raw Sdl:::Texture~*) -> u64 {
+        if texture == null {
+            return 0;
+        }
+        index~ usize = 0;
+        while index < this->textures.length() {
+            if this->textures[index].texture == null {
+                this->textures[index].texture = texture;
+                return u64(index) + 1;
+            }
+            index = index + 1;
+        }
+        this->textures.push(TextureSlot { texture: texture });
+        return u64(this->textures.length());
+    }
+
+    SdlHandle :: () -> raw Sdl:::Renderer~* {
+        return this->renderer;
+    }
+
+    TextureAt :: (handle: u64) -> raw Sdl:::Texture~* {
+        if handle == 0 || handle > u64(this->textures.length()) {
+            return null;
+        }
+        return this->textures[usize(handle - 1)].texture;
+    }
+
+    TextureSizePhysical :: (handle: u64) -> Point {
+        texture: raw Sdl:::Texture~* = this->TextureAt(handle);
+        width~ f32 = 0.0f;
+        height~ f32 = 0.0f;
+        if texture != null {
+            unsafe {
+                Sdl:::SDL_GetTextureSize(texture, width, height);
+            }
+        }
+        return Point { x: width, y: height };
+    }
+
+    GetFrameIndex :: () -> u64 {
+        return this->frameIndex;
+    }
+
+    GetFrameDeltaSeconds :: () -> f32 {
+        return this->frameDeltaSeconds;
+    }
+
+    GetDpiScaleFactor :: () -> f32 {
+        return this->dpiScaleFactor;
+    }
+
+    FillRect~: (rect: Rect, color: Color) -> void {
+        this->FillShape(rect, color, 0.0f);
+    }
+
+    FillRoundedRect~: (rect: Rect, color: Color, cornerRadiusLogical: f32) -> void {
+        this->FillShape(rect, color, cornerRadiusLogical);
+    }
+
+    StrokeRect~: (rect: Rect, color: Color, thicknessLogical: f32) -> void {
+        this->StrokeShape(rect, color, thicknessLogical, 0.0f);
+    }
+
+    StrokeRoundedRect~: (rect: Rect, color: Color, thicknessLogical: f32, cornerRadiusLogical: f32) -> void {
+        this->StrokeShape(rect, color, thicknessLogical, cornerRadiusLogical);
+    }
+
+    FillGradientRect~: (rect: Rect, topColor: Color, bottomColor: Color, cornerRadiusLogical: f32) -> void {
+        physical: SdlFRect = this->ToPhysicalRect(rect);
+        if physical.width <= 0.0f || physical.height <= 0.0f {
+            return;
+        }
+        top: SdlFColor = SdlGeometry:::ToFColor(topColor);
+        bottom: SdlFColor = SdlGeometry:::ToFColor(bottomColor);
+        radius~ f32 = cornerRadiusLogical * this->dpiScaleFactor;
+        mesh: MeshBuilder*! = new MeshBuilder();
+        defer delete mesh;
+        if radius <= 0.0f {
+            mesh->Push(SdlFPoint { x: physical.x, y: physical.y }, top);
+            mesh->Push(SdlFPoint { x: physical.x + physical.width, y: physical.y }, top);
+            mesh->Push(SdlFPoint { x: physical.x + physical.width, y: physical.y + physical.height }, bottom);
+            mesh->Push(SdlFPoint { x: physical.x, y: physical.y + physical.height }, bottom);
+            mesh->Quad(0, 1, 2, 3);
+            mesh->Submit(this->renderer);
+            return;
+        }
+        radius = Numbers:::Smaller(radius, Numbers:::Smaller(physical.width, physical.height) * 0.5f);
+        ring: Array<RingPoint>! = SdlGeometry:::BuildRoundedRing(physical.x, physical.y, physical.width, physical.height, radius, SdlGeometry:::SegmentsForRadius(radius));
+        defer delete ring;
+        count: i32 = i32(ring.length());
+        feather: f32 = SdlGeometry:::AntiAliasFeatherPhysical * 0.5f;
+        centre: SdlFPoint = SdlFPoint { x: physical.x + physical.width * 0.5f, y: physical.y + physical.height * 0.5f };
+        mesh->Push(centre, LerpColorAtY(top, bottom, physical, centre.y));
+        for entry in ring {
+            inner: SdlFPoint = SdlGeometry:::Subtract(entry.point, SdlGeometry:::Scaled(entry.normal, feather));
+            mesh->Push(inner, LerpColorAtY(top, bottom, physical, inner.y));
+        }
+        for entry in ring {
+            outer: SdlFPoint = SdlGeometry:::Add(entry.point, SdlGeometry:::Scaled(entry.normal, feather));
+            mesh->Push(outer, SdlGeometry:::Transparent(LerpColorAtY(top, bottom, physical, outer.y)));
+        }
+        this->AddFilledRing(mesh, count);
+        mesh->Submit(this->renderer);
+    }
+
+    DrawDropShadow~: (rect: Rect, color: Color, blurRadiusLogical: f32, cornerRadiusLogical: f32) -> void {
+        if blurRadiusLogical <= 0.0f {
+            return;
+        }
+        physical: SdlFRect = this->ToPhysicalRect(rect);
+        radius: f32 = Numbers:::NonNegative(Numbers:::Smaller(cornerRadiusLogical * this->dpiScaleFactor, Numbers:::Smaller(physical.width, physical.height) * 0.5f));
+        blur: f32 = blurRadiusLogical * this->dpiScaleFactor;
+        ring: Array<RingPoint>! = SdlGeometry:::BuildRoundedRing(physical.x, physical.y, physical.width, physical.height, radius, SdlGeometry:::SegmentsForRadius(radius + blur));
+        defer delete ring;
+        solid: SdlFColor = SdlGeometry:::ToFColor(color);
+        mesh: MeshBuilder*! = new MeshBuilder();
+        defer delete mesh;
+        for entry in ring {
+            mesh->Push(entry.point, solid);
+        }
+        for entry in ring {
+            mesh->Push(SdlGeometry:::Add(entry.point, SdlGeometry:::Scaled(entry.normal, blur)), SdlGeometry:::Transparent(solid));
+        }
+        count: i32 = i32(ring.length());
+        mesh->Band(0, count, count);
+        mesh->Submit(this->renderer);
+    }
+
+    DrawLine~: (from: Point, to: Point, color: Color, thicknessLogical: f32) -> void {
+        start: SdlFPoint = this->ToPhysicalPoint(from);
+        end: SdlFPoint = this->ToPhysicalPoint(to);
+        thickness: f32 = thicknessLogical * this->dpiScaleFactor;
+        length: f32 = SdlGeometry:::Length(SdlGeometry:::Subtract(end, start));
+        if length <= 0.0f || thickness <= 0.0f {
+            return;
+        }
+        direction: SdlFPoint = SdlGeometry:::Scaled(SdlGeometry:::Subtract(end, start), 1.0f / length);
+        across: SdlFPoint = SdlGeometry:::Normal(direction);
+        halfThickness: f32 = thickness * 0.5f;
+        feather: f32 = SdlGeometry:::AntiAliasFeatherPhysical * 0.5f;
+        coreStart: SdlFPoint = SdlGeometry:::Subtract(start, SdlGeometry:::Scaled(direction, feather));
+        coreEnd: SdlFPoint = SdlGeometry:::Add(end, SdlGeometry:::Scaled(direction, feather));
+        solid: SdlFColor = SdlGeometry:::ToFColor(color);
+        clear: SdlFColor = SdlGeometry:::Transparent(solid);
+        mesh: MeshBuilder*! = new MeshBuilder();
+        defer delete mesh;
+        mesh->Push(SdlGeometry:::Add(coreStart, SdlGeometry:::Scaled(across, halfThickness)), solid);
+        mesh->Push(SdlGeometry:::Add(coreEnd, SdlGeometry:::Scaled(across, halfThickness)), solid);
+        mesh->Push(SdlGeometry:::Add(coreEnd, SdlGeometry:::Scaled(across, -halfThickness)), solid);
+        mesh->Push(SdlGeometry:::Add(coreStart, SdlGeometry:::Scaled(across, -halfThickness)), solid);
+        mesh->Push(SdlGeometry:::Add(coreStart, SdlGeometry:::Scaled(across, halfThickness + feather)), clear);
+        mesh->Push(SdlGeometry:::Add(coreEnd, SdlGeometry:::Scaled(across, halfThickness + feather)), clear);
+        mesh->Push(SdlGeometry:::Add(coreEnd, SdlGeometry:::Scaled(across, -halfThickness - feather)), clear);
+        mesh->Push(SdlGeometry:::Add(coreStart, SdlGeometry:::Scaled(across, -halfThickness - feather)), clear);
+        mesh->Quad(0, 1, 2, 3);
+        mesh->Quad(0, 1, 5, 4);
+        mesh->Quad(2, 3, 7, 6);
+        mesh->Submit(this->renderer);
+    }
+
+    DrawText~: (text: string, origin: Point, sizeLogical: f32, color: Color) -> void {
+        if text.length() == 0 || sizeLogical <= 0.0f {
+            return;
+        }
+        rendered~ TextTexture = TextTexture { };
+        unsafe {
+            rendered = this->fonts->TextureFor(text, sizeLogical * this->dpiScaleFactor, color, this->frameIndex);
+        }
+        if rendered.texture == null {
+            return;
+        }
+        position: SdlFPoint = this->ToPhysicalPoint(origin);
+        destination: SdlFRect = SdlFRect {
+            x: f32(Maths:::RoundToInteger(position.x)),
+            y: f32(Maths:::RoundToInteger(position.y)),
+            width: rendered.widthPhysical,
+            height: rendered.heightPhysical
+        };
+        unsafe {
+            Sdl:::SDL_RenderTexture(this->renderer, rendered.texture, null, destination);
+        }
+    }
+
+    PushClipRect~: (rect: Rect) -> void {
+        requested: SdlRect = this->ToPhysicalPixels(rect);
+        effective~ SdlRect = requested;
+        if this->clipStack.length() > 0 {
+            top: ClipEntry = this->clipStack[this->clipStack.length() - 1];
+            if top.bounded {
+                effective = Intersection(top.rect, requested);
+            }
+        }
+        this->clipStack.push(ClipEntry { bounded: true, rect: effective });
+        this->ApplyClipStack();
+    }
+
+    PushClipRectUnbounded~: (rect: Rect?) -> void {
+        if area := rect {
+            this->clipStack.push(ClipEntry { bounded: true, rect: this->ToPhysicalPixels(area) });
+        }
+        else {
+            this->clipStack.push(ClipEntry { bounded: false });
+        }
+        this->ApplyClipStack();
+    }
+
+    PopClipRect~: () -> void {
+        assert(this->clipStack.length() > 0);
+        this->clipStack.pop();
+        this->ApplyClipStack();
+    }
+
+    PushTransform~: (subjectRectLogical: Rect, transform: Transform, opacity: f32) -> void {
+        clampedOpacity: f32 = Maths:::Clamp(opacity, 0.0f, 1.0f);
+        if transform.IsIdentity() && clampedOpacity >= 1.0f {
+            this->transformStack.push(TransformFrame { previousOriginLogical: this->originOffsetLogical, subjectLogical: subjectRectLogical, transform: transform });
+            return;
+        }
+        widthPhysical~ i32 = i32(Maths:::Ceil(subjectRectLogical.width * this->dpiScaleFactor));
+        if widthPhysical < 1 {
+            widthPhysical = 1;
+        }
+        heightPhysical~ i32 = i32(Maths:::Ceil(subjectRectLogical.height * this->dpiScaleFactor));
+        if heightPhysical < 1 {
+            heightPhysical = 1;
+        }
+        unsafe {
+            capture: raw Sdl:::Texture~* = Sdl:::SDL_CreateTexture(this->renderer, SdlConstants:::PixelFormatRgba8888, SdlConstants:::TextureAccessTarget, widthPhysical, heightPhysical);
+            if capture == null {
+                this->transformStack.push(TransformFrame { previousOriginLogical: this->originOffsetLogical, subjectLogical: subjectRectLogical, transform: transform });
+                return;
+            }
+            Sdl:::SDL_SetTextureBlendMode(capture, SdlConstants:::BlendModeBlend);
+            Sdl:::SDL_SetTextureScaleMode(capture, SdlConstants:::ScaleModeLinear);
+            Sdl:::SDL_SetTextureAlphaModFloat(capture, clampedOpacity);
+            this->transformStack.push(TransformFrame {
+                captureTexture: capture,
+                previousTarget: Sdl:::SDL_GetRenderTarget(this->renderer),
+                previousOriginLogical: this->originOffsetLogical,
+                subjectLogical: subjectRectLogical,
+                transform: transform
+            });
+            this->clipStack.push(ClipEntry { bounded: false });
+            this->ApplyClipStack();
+            Sdl:::SDL_SetRenderTarget(this->renderer, capture);
+            this->originOffsetLogical = Point { x: subjectRectLogical.x, y: subjectRectLogical.y };
+            Sdl:::SDL_SetRenderDrawColor(this->renderer, 0, 0, 0, 0);
+            Sdl:::SDL_RenderClear(this->renderer);
+        }
+    }
+
+    PopTransform~: () -> void {
+        assert(this->transformStack.length() > 0);
+        frame: TransformFrame = this->transformStack[this->transformStack.length() - 1];
+        this->transformStack.pop();
+        if frame.captureTexture == null {
+            return;
+        }
+        this->clipStack.pop();
+        unsafe {
+            Sdl:::SDL_SetRenderTarget(this->renderer, frame.previousTarget);
+        }
+        this->originOffsetLogical = frame.previousOriginLogical;
+        this->ApplyClipStack();
+
+        subject: Rect = frame.subjectLogical;
+        destinationWidth: f32 = subject.width * frame.transform.scaleX * this->dpiScaleFactor;
+        destinationHeight: f32 = subject.height * frame.transform.scaleY * this->dpiScaleFactor;
+        centre: SdlFPoint = this->ToPhysicalPoint(Point {
+            x: subject.x + subject.width * 0.5f + frame.transform.translateXLogical,
+            y: subject.y + subject.height * 0.5f + frame.transform.translateYLogical
+        });
+        destination: SdlFRect = SdlFRect {
+            x: centre.x - destinationWidth * 0.5f,
+            y: centre.y - destinationHeight * 0.5f,
+            width: destinationWidth,
+            height: destinationHeight
+        };
+        pivot: SdlFPoint = SdlFPoint { x: destinationWidth * 0.5f, y: destinationHeight * 0.5f };
+        unsafe {
+            Sdl:::SDL_RenderTextureRotated(this->renderer, frame.captureTexture, null, destination, f64(frame.transform.rotationDegrees), pivot, SdlConstants:::FlipNone);
+            Sdl:::SDL_DestroyTexture(frame.captureTexture);
+        }
+    }
+
+    DrawFilledCircle~: (centre: Point, radiusLogical: f32, color: Color) -> void {
+        this->DrawArc(centre, 0.0f, radiusLogical, 0.0f, 360.0f, color);
+    }
+
+    DrawArc~: (centre: Point, innerRadiusLogical: f32, outerRadiusLogical: f32, startDegrees: f32, sweepDegrees: f32, color: Color) -> void {
+        outer: f32 = outerRadiusLogical * this->dpiScaleFactor;
+        inner: f32 = Numbers:::NonNegative(innerRadiusLogical * this->dpiScaleFactor);
+        if outer <= 0.0f || inner >= outer || sweepDegrees == 0.0f {
+            return;
+        }
+        start~ f32 = startDegrees;
+        sweep~ f32 = sweepDegrees;
+        if sweep < 0.0f {
+            start = start + sweep;
+            sweep = -sweep;
+        }
+        isWholeRing: bool = sweep >= 360.0f;
+        startRadians: f32 = start * Maths:::RadiansPerDegree();
+        sweepRadians: f32 = Numbers:::Smaller(sweep, 360.0f) * Maths:::RadiansPerDegree();
+        centrePhysical: SdlFPoint = this->ToPhysicalPoint(centre);
+        feather: f32 = SdlGeometry:::AntiAliasFeatherPhysical * 0.5f;
+
+        stops~ Array<ColumnStop>! = [];
+        defer delete stops;
+        if inner <= 0.0f {
+            stops.push(ColumnStop { radius: 0.0f, isSolid: true });
+            stops.push(ColumnStop { radius: Numbers:::NonNegative(outer - feather), isSolid: true });
+            stops.push(ColumnStop { radius: outer + feather, isSolid: false });
+        }
+        else {
+            middle: f32 = (inner + outer) * 0.5f;
+            stops.push(ColumnStop { radius: Numbers:::NonNegative(inner - feather), isSolid: false });
+            stops.push(ColumnStop { radius: Numbers:::Smaller(inner + feather, middle), isSolid: true });
+            stops.push(ColumnStop { radius: Numbers:::Larger(outer - feather, middle), isSolid: true });
+            stops.push(ColumnStop { radius: outer + feather, isSolid: false });
+        }
+        stopCount: i32 = i32(stops.length());
+
+        segments~ i32 = i32(Maths:::Ceil(4.0f * f32(SdlGeometry:::SegmentsForRadius(outer)) * sweepRadians / (2.0f * SdlGeometry:::Pi)));
+        if segments < 1 {
+            segments = 1;
+        }
+        segmentSweep: f32 = sweepRadians / f32(segments);
+        solid: SdlFColor = SdlGeometry:::ToFColor(color);
+
+        mesh: MeshBuilder*! = new MeshBuilder();
+        defer delete mesh;
+        if isWholeRing {
+            step~ i32 = 0;
+            while step < segments {
+                this->PushArcColumn(mesh, centrePhysical, stops, segmentSweep, startRadians + segmentSweep * f32(step), 0.0f, false, solid);
+                step = step + 1;
+            }
+        }
+        else {
+            this->PushArcColumn(mesh, centrePhysical, stops, segmentSweep, startRadians, -feather, true, solid);
+            this->PushArcColumn(mesh, centrePhysical, stops, segmentSweep, startRadians, feather, false, solid);
+            step~ i32 = 1;
+            while step < segments {
+                this->PushArcColumn(mesh, centrePhysical, stops, segmentSweep, startRadians + segmentSweep * f32(step), 0.0f, false, solid);
+                step = step + 1;
+            }
+            this->PushArcColumn(mesh, centrePhysical, stops, segmentSweep, startRadians + sweepRadians, -feather, false, solid);
+            this->PushArcColumn(mesh, centrePhysical, stops, segmentSweep, startRadians + sweepRadians, feather, true, solid);
+        }
+
+        columnCount: i32 = mesh->VertexCount() / stopCount;
+        bandCount~ i32 = columnCount - 1;
+        if isWholeRing {
+            bandCount = columnCount;
+        }
+        column~ i32 = 0;
+        while column < bandCount {
+            first: i32 = column * stopCount;
+            second: i32 = ((column + 1) % columnCount) * stopCount;
+            stop~ i32 = 0;
+            while stop + 1 < stopCount {
+                mesh->Triangle(first + stop, first + stop + 1, second + stop + 1);
+                mesh->Triangle(first + stop, second + stop + 1, second + stop);
+                stop = stop + 1;
+            }
+            column = column + 1;
+        }
+        mesh->DropDegenerateTriangles();
+        mesh->Submit(this->renderer);
+    }
+
+    DrawPolyline~: (points: Array<Point>, color: Color, thicknessLogical: f32, join: LineJoin, cap: LineCap) -> void {
+        halfWidth: f32 = thicknessLogical * this->dpiScaleFactor * 0.5f;
+        builder: PolylineBuilder*! = new PolylineBuilder();
+        defer delete builder;
+        replacement: Array<SdlFPoint>! = this->ToPhysicalPath(points, false);
+        delete builder->path;
+        builder->path = replacement!;
+        pointCount: usize = builder->path.length();
+        if halfWidth <= 0.0f || pointCount < 2 {
+            return;
+        }
+        segmentIndex~ usize = 0;
+        while segmentIndex + 1 < pointCount {
+            delta: SdlFPoint = SdlGeometry:::Subtract(builder->path[segmentIndex + 1], builder->path[segmentIndex]);
+            length: f32 = SdlGeometry:::Length(delta);
+            builder->lengths.push(length);
+            builder->directions.push(SdlGeometry:::Scaled(delta, 1.0f / length));
+            segmentIndex = segmentIndex + 1;
+        }
+        builder->halfWidth = halfWidth;
+        builder->feather = SdlGeometry:::AntiAliasFeatherPhysical * 0.5f;
+        builder->solid = SdlGeometry:::ToFColor(color);
+        builder->clear = SdlGeometry:::Transparent(builder->solid);
+        builder->join = join;
+        builder->cap = cap;
+
+        firstDirection: SdlFPoint = builder->directions[0];
+        lastDirection: SdlFPoint = builder->directions[builder->directions.length() - 1];
+        builder->PushCap(builder->path[0], SdlGeometry:::Negated(firstDirection), SdlGeometry:::Normal(firstDirection), true);
+        vertex~ usize = 1;
+        while vertex + 1 < pointCount {
+            builder->PushJoin(vertex, vertex - 1, vertex);
+            vertex = vertex + 1;
+        }
+        builder->PushCap(builder->path[pointCount - 1], lastDirection, SdlGeometry:::Normal(lastDirection), false);
+        builder->DropDegenerateTriangles();
+        builder->Submit(this->renderer);
+    }
+
+    DrawFilledPolygon~: (points: Array<Point>, color: Color) -> void {
+        path: Array<SdlFPoint>! = this->ToPhysicalPath(points, true);
+        defer delete path;
+        count: usize = path.length();
+        if count < 3 {
+            return;
+        }
+        twiceArea~ f32 = 0.0f;
+        index~ usize = 0;
+        while index < count {
+            twiceArea = twiceArea + SdlGeometry:::Cross(path[index], path[(index + 1) % count]);
+            index = index + 1;
+        }
+        if Maths:::Absolute(twiceArea) < 0.0001f {
+            return;
+        }
+        winding~ f32 = -1.0f;
+        if twiceArea > 0.0f {
+            winding = 1.0f;
+        }
+        feather: f32 = SdlGeometry:::AntiAliasFeatherPhysical * 0.5f;
+        solid: SdlFColor = SdlGeometry:::ToFColor(color);
+
+        offsets~ Array<SdlFPoint>! = [];
+        defer delete offsets;
+        index = 0;
+        while index < count {
+            previous: SdlFPoint = path[(index + count - 1) % count];
+            current: SdlFPoint = path[index];
+            next: SdlFPoint = path[(index + 1) % count];
+            inOutward: SdlFPoint = SdlGeometry:::Scaled(SdlGeometry:::Normal(SdlGeometry:::Subtract(current, previous)), -winding / SdlGeometry:::Length(SdlGeometry:::Subtract(current, previous)));
+            outOutward: SdlFPoint = SdlGeometry:::Scaled(SdlGeometry:::Normal(SdlGeometry:::Subtract(next, current)), -winding / SdlGeometry:::Length(SdlGeometry:::Subtract(next, current)));
+            offset~ SdlFPoint = inOutward;
+            bisector: SdlFPoint = SdlGeometry:::Add(inOutward, outOutward);
+            bisectorLength: f32 = SdlGeometry:::Length(bisector);
+            if bisectorLength >= 0.0001f {
+                miter: SdlFPoint = SdlGeometry:::Scaled(bisector, 1.0f / bisectorLength);
+                offset = SdlGeometry:::Scaled(miter, Numbers:::Smaller(SdlGeometry:::MiterLimit, 1.0f / SdlGeometry:::Dot(miter, inOutward)));
+            }
+            offsets.push(offset);
+            index = index + 1;
+        }
+
+        mesh: MeshBuilder*! = new MeshBuilder();
+        defer delete mesh;
+        index = 0;
+        while index < count {
+            mesh->Push(SdlGeometry:::Subtract(path[index], SdlGeometry:::Scaled(offsets[index], feather)), solid);
+            index = index + 1;
+        }
+        index = 0;
+        while index < count {
+            mesh->Push(SdlGeometry:::Add(path[index], SdlGeometry:::Scaled(offsets[index], feather)), SdlGeometry:::Transparent(solid));
+            index = index + 1;
+        }
+        triangles: Array<i32>! = SdlGeometry:::TriangulatePolygon(path, winding);
+        for corner in triangles {
+            mesh->indices.push(corner);
+        }
+        delete triangles;
+        mesh->Band(0, i32(count), i32(count));
+        mesh->DropDegenerateTriangles();
+        mesh->Submit(this->renderer);
+    }
+
+    CreateTargetTexture~: (widthPhysical: i32, heightPhysical: i32) -> u64 {
+        created~ raw Sdl:::Texture~* = null;
+        unsafe {
+            created = Sdl:::SDL_CreateTexture(this->renderer, SdlConstants:::PixelFormatRgba8888, SdlConstants:::TextureAccessTarget, widthPhysical, heightPhysical);
+            if created != null {
+                Sdl:::SDL_SetTextureBlendMode(created, SdlConstants:::BlendModeBlend);
+            }
+        }
+        return this->RegisterTexture(created);
+    }
+
+    DestroyTexture~: (texture: u64) -> void {
+        found: raw Sdl:::Texture~* = this->TextureAt(texture);
+        if found == null {
+            return;
+        }
+        unsafe {
+            Sdl:::SDL_DestroyTexture(found);
+        }
+        this->textures[usize(texture - 1)].texture = null;
+    }
+
+    BeginTextureTarget~: (texture: u64, clearColor: Color) -> void {
+        target: raw Sdl:::Texture~* = this->TextureAt(texture);
+        unsafe {
+            this->targetStack.push(TargetFrame { previousTarget: Sdl:::SDL_GetRenderTarget(this->renderer), previousOriginLogical: this->originOffsetLogical });
+        }
+        this->clipStack.push(ClipEntry { bounded: false });
+        this->ApplyClipStack();
+        this->originOffsetLogical = Point { };
+        unsafe {
+            Sdl:::SDL_SetRenderTarget(this->renderer, target);
+            Sdl:::SDL_SetRenderDrawColor(this->renderer, clearColor.red, clearColor.green, clearColor.blue, clearColor.alpha);
+            Sdl:::SDL_RenderClear(this->renderer);
+        }
+    }
+
+    EndTextureTarget~: () -> void {
+        assert(this->targetStack.length() > 0);
+        frame: TargetFrame = this->targetStack[this->targetStack.length() - 1];
+        this->targetStack.pop();
+        this->clipStack.pop();
+        unsafe {
+            Sdl:::SDL_SetRenderTarget(this->renderer, frame.previousTarget);
+        }
+        this->originOffsetLogical = frame.previousOriginLogical;
+        this->ApplyClipStack();
+    }
+
+    DrawTexture~: (texture: u64, destinationLogical: Rect) -> void {
+        found: raw Sdl:::Texture~* = this->TextureAt(texture);
+        if found == null {
+            return;
+        }
+        physical: SdlFRect = this->ToPhysicalRect(destinationLogical);
+        destination: SdlFRect = SdlFRect {
+            x: physical.x,
+            y: physical.y,
+            width: f32(Maths:::RoundToInteger(physical.width)),
+            height: f32(Maths:::RoundToInteger(physical.height))
+        };
+        unsafe {
+            Sdl:::SDL_RenderTexture(this->renderer, found, null, destination);
+        }
+    }
+
+private:
+    renderer~ raw Sdl:::Renderer~* = null;
+    fonts~ raw FontCache~* = null;
+    dpiScaleFactor~ f32 = 1.0f;
+    frameIndex~ u64 = 0;
+    frameDeltaSeconds~ f32 = 0.0f;
+    lastBeginFrameTicks~ u64 = 0;
+    originOffsetLogical~ Point = Point { };
+    textures~ Array<TextureSlot>! = [];
+    clipStack~ Array<ClipEntry>! = [];
+    transformStack~ Array<TransformFrame>! = [];
+    targetStack~ Array<TargetFrame>! = [];
+
+    ToPhysicalPoint :: (pointLogical: Point) -> SdlFPoint {
+        return SdlFPoint {
+            x: (pointLogical.x - this->originOffsetLogical.x) * this->dpiScaleFactor,
+            y: (pointLogical.y - this->originOffsetLogical.y) * this->dpiScaleFactor
+        };
+    }
+
+    ToPhysicalRect :: (rectLogical: Rect) -> SdlFRect {
+        origin: SdlFPoint = this->ToPhysicalPoint(Point { x: rectLogical.x, y: rectLogical.y });
+        return SdlFRect { x: origin.x, y: origin.y, width: rectLogical.width * this->dpiScaleFactor, height: rectLogical.height * this->dpiScaleFactor };
+    }
+
+    ToPhysicalPixels :: (rectLogical: Rect) -> SdlRect {
+        physical: SdlFRect = this->ToPhysicalRect(rectLogical);
+        return SdlRect {
+            x: i32(Maths:::RoundToInteger(physical.x)),
+            y: i32(Maths:::RoundToInteger(physical.y)),
+            width: i32(Maths:::RoundToInteger(physical.width)),
+            height: i32(Maths:::RoundToInteger(physical.height))
+        };
+    }
+
+    ToPhysicalPath :: (pointsLogical: Array<Point>, isClosed: bool) -> Array<SdlFPoint>! {
+        path~ Array<SdlFPoint>! = [];
+        for pointLogical in pointsLogical {
+            next: SdlFPoint = this->ToPhysicalPoint(pointLogical);
+            if path.length() == 0 {
+                path.push(next);
+            }
+            else {
+                if SdlGeometry:::Length(SdlGeometry:::Subtract(next, path[path.length() - 1])) > SdlGeometry:::MinimumPointSpacingPhysical {
+                    path.push(next);
+                }
+            }
+        }
+        if isClosed && path.length() > 1 {
+            if SdlGeometry:::Length(SdlGeometry:::Subtract(path[0], path[path.length() - 1])) <= SdlGeometry:::MinimumPointSpacingPhysical {
+                path.remove(path.length() - 1);
+            }
+        }
+        return path!;
+    }
+
+    ApplyClipStack~: () -> void {
+        unsafe {
+            if this->clipStack.length() > 0 {
+                top: ClipEntry = this->clipStack[this->clipStack.length() - 1];
+                if top.bounded {
+                    clipRect: SdlRect = top.rect;
+                    Sdl:::SDL_SetRenderClipRect(this->renderer, clipRect);
+                    return;
+                }
+            }
+            Sdl:::SDL_SetRenderClipRect(this->renderer, null);
+        }
+    }
+
+    FillShape~: (rect: Rect, color: Color, cornerRadiusLogical: f32) -> void {
+        physical: SdlFRect = this->ToPhysicalRect(rect);
+        if physical.width <= 0.0f || physical.height <= 0.0f {
+            return;
+        }
+        radius~ f32 = cornerRadiusLogical * this->dpiScaleFactor;
+        if radius <= 0.0f {
+            unsafe {
+                Sdl:::SDL_SetRenderDrawColor(this->renderer, color.red, color.green, color.blue, color.alpha);
+                Sdl:::SDL_RenderFillRect(this->renderer, physical);
+            }
+            return;
+        }
+        radius = Numbers:::Smaller(radius, Numbers:::Smaller(physical.width, physical.height) * 0.5f);
+        ring: Array<RingPoint>! = SdlGeometry:::BuildRoundedRing(physical.x, physical.y, physical.width, physical.height, radius, SdlGeometry:::SegmentsForRadius(radius));
+        defer delete ring;
+        feather: f32 = SdlGeometry:::AntiAliasFeatherPhysical * 0.5f;
+        solid: SdlFColor = SdlGeometry:::ToFColor(color);
+        mesh: MeshBuilder*! = new MeshBuilder();
+        defer delete mesh;
+        mesh->Push(SdlFPoint { x: physical.x + physical.width * 0.5f, y: physical.y + physical.height * 0.5f }, solid);
+        for entry in ring {
+            mesh->Push(SdlGeometry:::Subtract(entry.point, SdlGeometry:::Scaled(entry.normal, feather)), solid);
+        }
+        for entry in ring {
+            mesh->Push(SdlGeometry:::Add(entry.point, SdlGeometry:::Scaled(entry.normal, feather)), SdlGeometry:::Transparent(solid));
+        }
+        this->AddFilledRing(mesh, i32(ring.length()));
+        mesh->Submit(this->renderer);
+    }
+
+    AddFilledRing :: (mesh: MeshBuilder~*, count: i32) -> void {
+        index~ i32 = 0;
+        while index < count {
+            next: i32 = (index + 1) % count;
+            mesh->Triangle(0, 1 + index, 1 + next);
+            index = index + 1;
+        }
+        mesh->Band(1, 1 + count, count);
+    }
+
+    StrokeShape~: (rect: Rect, color: Color, thicknessLogical: f32, cornerRadiusLogical: f32) -> void {
+        physical: SdlFRect = this->ToPhysicalRect(rect);
+        if physical.width <= 0.0f || physical.height <= 0.0f {
+            return;
+        }
+        thickness: f32 = thicknessLogical * this->dpiScaleFactor;
+        radius~ f32 = cornerRadiusLogical * this->dpiScaleFactor;
+        if radius <= 0.0f {
+            edges: SdlFRect[4] = [
+                SdlFRect { x: physical.x, y: physical.y, width: physical.width, height: thickness },
+                SdlFRect { x: physical.x, y: physical.y + physical.height - thickness, width: physical.width, height: thickness },
+                SdlFRect { x: physical.x, y: physical.y, width: thickness, height: physical.height },
+                SdlFRect { x: physical.x + physical.width - thickness, y: physical.y, width: thickness, height: physical.height }
+            ];
+            unsafe {
+                Sdl:::SDL_SetRenderDrawColor(this->renderer, color.red, color.green, color.blue, color.alpha);
+                for edge in edges {
+                    Sdl:::SDL_RenderFillRect(this->renderer, edge);
+                }
+            }
+            return;
+        }
+        radius = Numbers:::Smaller(radius, Numbers:::Smaller(physical.width, physical.height) * 0.5f);
+        innerWidth: f32 = physical.width - 2.0f * thickness;
+        innerHeight: f32 = physical.height - 2.0f * thickness;
+        if innerWidth <= 0.0f || innerHeight <= 0.0f {
+            this->FillShape(rect, color, cornerRadiusLogical);
+            return;
+        }
+        segments: i32 = SdlGeometry:::SegmentsForRadius(radius);
+        outerRing: Array<RingPoint>! = SdlGeometry:::BuildRoundedRing(physical.x, physical.y, physical.width, physical.height, radius, segments);
+        defer delete outerRing;
+        innerRing: Array<RingPoint>! = SdlGeometry:::BuildRoundedRing(physical.x + thickness, physical.y + thickness, innerWidth, innerHeight, Numbers:::NonNegative(radius - thickness), segments);
+        defer delete innerRing;
+        feather: f32 = SdlGeometry:::AntiAliasFeatherPhysical * 0.5f;
+        solid: SdlFColor = SdlGeometry:::ToFColor(color);
+        clear: SdlFColor = SdlGeometry:::Transparent(solid);
+        mesh: MeshBuilder*! = new MeshBuilder();
+        defer delete mesh;
+        for entry in outerRing {
+            mesh->Push(SdlGeometry:::Add(entry.point, SdlGeometry:::Scaled(entry.normal, feather)), clear);
+        }
+        for entry in outerRing {
+            mesh->Push(SdlGeometry:::Subtract(entry.point, SdlGeometry:::Scaled(entry.normal, feather)), solid);
+        }
+        for entry in innerRing {
+            mesh->Push(SdlGeometry:::Add(entry.point, SdlGeometry:::Scaled(entry.normal, feather)), solid);
+        }
+        for entry in innerRing {
+            mesh->Push(SdlGeometry:::Subtract(entry.point, SdlGeometry:::Scaled(entry.normal, feather)), clear);
+        }
+        count: i32 = i32(outerRing.length());
+        mesh->Band(0, count, count);
+        mesh->Band(count, 2 * count, count);
+        mesh->Band(2 * count, 3 * count, count);
+        mesh->Submit(this->renderer);
+    }
+
+    PushArcColumn :: (mesh: MeshBuilder~*, centre: SdlFPoint, stops: Array<ColumnStop>, segmentSweep: f32, angle: f32, shift: f32, isClearColumn: bool, solid: SdlFColor) -> void {
+        outward: SdlFPoint = SdlFPoint { x: Maths:::Cos(angle), y: Maths:::Sin(angle) };
+        along: SdlFPoint = SdlGeometry:::Normal(outward);
+        for stop in stops {
+            stopShift~ f32 = shift;
+            if !isClearColumn {
+                maximumShift: f32 = stop.radius * segmentSweep * 0.5f;
+                stopShift = Maths:::Clamp(shift, -maximumShift, maximumShift);
+            }
+            position: SdlFPoint = SdlGeometry:::Add(SdlGeometry:::Add(centre, SdlGeometry:::Scaled(outward, stop.radius)), SdlGeometry:::Scaled(along, stopShift));
+            vertexColor~ SdlFColor = SdlGeometry:::Transparent(solid);
+            if stop.isSolid && !isClearColumn {
+                vertexColor = solid;
+            }
+            mesh->Push(position, vertexColor);
+        }
+    }
+}
+
+LerpColorAtY :: (top: SdlFColor, bottom: SdlFColor, area: SdlFRect, y: f32) -> SdlFColor {
+    progress~ f32 = 0.0f;
+    if area.height > 0.0f {
+        progress = Maths:::Clamp((y - area.y) / area.height, 0.0f, 1.0f);
+    }
+    return SdlFColor {
+        red: top.red + (bottom.red - top.red) * progress,
+        green: top.green + (bottom.green - top.green) * progress,
+        blue: top.blue + (bottom.blue - top.blue) * progress,
+        alpha: top.alpha + (bottom.alpha - top.alpha) * progress
+    };
+}
+
+Intersection :: (first: SdlRect, second: SdlRect) -> SdlRect {
+    left~ i32 = first.x;
+    if second.x > left {
+        left = second.x;
+    }
+    top~ i32 = first.y;
+    if second.y > top {
+        top = second.y;
+    }
+    right~ i32 = first.x + first.width;
+    if second.x + second.width < right {
+        right = second.x + second.width;
+    }
+    bottom~ i32 = first.y + first.height;
+    if second.y + second.height < bottom {
+        bottom = second.y + second.height;
+    }
+    if right <= left || bottom <= top {
+        return SdlRect { };
+    }
+    return SdlRect { x: left, y: top, width: right - left, height: bottom - top };
+}
