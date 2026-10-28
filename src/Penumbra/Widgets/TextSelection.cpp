@@ -230,13 +230,15 @@ void TextSelection::Update(WidgetBase& Scope, Rect Region, const Platform::Input
     }
 
     if (Focus == nullptr || Focus->Focused == &Scope) {
-        for (const Platform::Key Key : Input.KeysPressedThisFrame) {
+        for (const Platform::KeyEvent& Press : Input.KeyPressesInOrder()) {
+            const Platform::Key Key      = Press.Code;
+            const bool          Shortcut = Press.ModifierState.Shortcut;
             if (Key == Platform::Key::Escape) {
                 Anchored = false;
-            } else if (Input.ModifierState.Shortcut && Key == Platform::Key::A) {
+            } else if (Shortcut && Key == Platform::Key::A) {
                 SelectAll(Scope);
                 Collected = false;
-            } else if (Input.ModifierState.Shortcut && Key == Platform::Key::C && HasSelection() && Clipboard) {
+            } else if (Shortcut && Key == Platform::Key::C && HasSelection() && Clipboard) {
                 Clipboard->SetClipboardText(TextOf(Ensure()));
             }
         }

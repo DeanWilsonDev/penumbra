@@ -306,19 +306,27 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
         return Hovered || Consumed;
     }
 
-    const bool Shortcut = Input.ModifierState.Shortcut;
-    const bool Shift    = Input.ModifierState.Shift;
     bool Changed = false;
 
-    if (!Input.TextInputThisFrame.empty()) {
+    std::size_t TypedBytesInserted = 0;
+    const auto InsertTypedTextUpTo = [&](std::size_t TypedBytesEnd) {
+        TypedBytesEnd = std::min(TypedBytesEnd, Input.TextInputThisFrame.size());
+        if (TypedBytesEnd <= TypedBytesInserted) {
+            return;
+        }
         if (HasSelection()) {
             DeleteSelection();
         }
-        InsertText(Input.TextInputThisFrame);
+        InsertText(Input.TextInputThisFrame.substr(TypedBytesInserted, TypedBytesEnd - TypedBytesInserted));
+        TypedBytesInserted = TypedBytesEnd;
         Changed = true;
-    }
+    };
 
-    for (const Platform::Key Key : Input.KeysPressedThisFrame) {
+    for (const Platform::KeyEvent& Press : Input.KeyPressesInOrder()) {
+        InsertTypedTextUpTo(Press.TextInputBefore);
+        const Platform::Key Key      = Press.Code;
+        const bool          Shortcut = Press.ModifierState.Shortcut;
+        const bool          Shift    = Press.ModifierState.Shift;
         // A multi-line field types, edits and moves, but has no use for Escape or Tab, nor
         // any shortcut but select-all, copy, cut and paste: those go on to whatever
         // handles keys (KeyDispatch).
@@ -326,7 +334,7 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
                                       Key == Platform::Key::X || Key == Platform::Key::V)
                                    : (Key != Platform::Key::Escape && Key != Platform::Key::Tab);
         if (Uses) {
-            KeyDispatch::MarkUsed(Key);
+            KeyDispatch::MarkUsed(Press);
         }
         RebuildLinesIfNeeded(WrapWidth);
 
@@ -450,6 +458,8 @@ bool TextArea::UpdateInteractionState(const Platform::InputState& Input) {
             break;
         }
     }
+
+    InsertTypedTextUpTo(Input.TextInputThisFrame.size());
 
     RebuildLinesIfNeeded(WrapWidth);
     ScrollCaretIntoView(Content.H);

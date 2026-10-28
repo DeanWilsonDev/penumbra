@@ -232,7 +232,8 @@ bool PlatformWindow::PumpEventsAndBuildInput(InputState& OutInputState) {
         case SDL_EVENT_KEY_DOWN: {
             const Key Code = MapKey(Event.key.key);
             OutInputState.KeysPressedThisFrame.push_back(Code);
-            OutInputState.KeyEvents.push_back({Code, true, Event.key.repeat, MapModifiers(Event.key.mod)});
+            OutInputState.KeyEvents.push_back(
+                {Code, true, Event.key.repeat, MapModifiers(Event.key.mod), OutInputState.TextInputThisFrame.size()});
             if (!Event.key.repeat && Code != Key::Unknown && !OutInputState.IsKeyHeld(Code)) {
                 OutInputState.KeysHeld.push_back(Code);
             }
@@ -240,7 +241,8 @@ bool PlatformWindow::PumpEventsAndBuildInput(InputState& OutInputState) {
         }
         case SDL_EVENT_KEY_UP: {
             const Key Code = MapKey(Event.key.key);
-            OutInputState.KeyEvents.push_back({Code, false, false, MapModifiers(Event.key.mod)});
+            OutInputState.KeyEvents.push_back(
+                {Code, false, false, MapModifiers(Event.key.mod), OutInputState.TextInputThisFrame.size()});
             std::erase(OutInputState.KeysHeld, Code);
             break;
         }

@@ -16,6 +16,7 @@ struct Pass {
     std::vector<Platform::Key>      Keys;
     std::vector<Platform::KeyEvent> Events;
     std::vector<Platform::Key>      Used;
+    std::vector<Platform::KeyEvent> UsedPresses;
     WidgetBase*                Target{nullptr};
     bool                       Withheld{false};
 };
@@ -38,7 +39,7 @@ KeyDispatch::KeyDispatch(WidgetBase& Root, const Platform::InputState& Input) {
         return;
     }
     Outermost = true;
-    Current   = Pass{true, &Root, Input.KeysPressedThisFrame, Input.KeyEvents, {}, nullptr, false};
+    Current   = Pass{true, &Root, Input.KeysPressedThisFrame, Input.KeyEvents, {}, {}, nullptr, false};
     if (Current.Events.empty()) {
         for (const Platform::Key Key : Current.Keys) {
             Current.Events.push_back(Platform::KeyEvent{Key, true, false, Input.ModifierState});
@@ -61,7 +62,8 @@ KeyDispatch::~KeyDispatch() {
     if (!Target) {
         return;
     }
-    std::vector<Platform::Key> UsedForEvents = Finished.Used;
+    std::vector<Platform::Key>      UsedForEvents  = Finished.Used;
+    std::vector<Platform::KeyEvent> PressesForEvents = Finished.UsedPresses;
     if (Target->OnKeyPressed) {
         for (const Platform::Key Key : Finished.Keys) {
             // Each use a focused widget marked accounts for one press of that key.
@@ -76,8 +78,23 @@ KeyDispatch::~KeyDispatch() {
     if (Target->OnKeyEvent) {
         for (const Platform::KeyEvent& Event : Finished.Events) {
             if (Event.Down) {
+                // A use marked with its press accounts for that press, modifiers included.
+                const auto SamePress = std::find_if(PressesForEvents.begin(), PressesForEvents.end(),
+                                                    [&Event](const Platform::KeyEvent& Used) {
+                                                        return Used.Code == Event.Code &&
+                                                               Used.ModifierState == Event.ModifierState;
+                                                    });
+                if (SamePress != PressesForEvents.end()) {
+                    PressesForEvents.erase(SamePress);
+                    UsedForEvents.erase(std::find(UsedForEvents.begin(), UsedForEvents.end(), Event.Code));
+                    continue;
+                }
                 const auto Use = std::find(UsedForEvents.begin(), UsedForEvents.end(), Event.Code);
-                if (Use != UsedForEvents.end()) {
+                const bool UseBelongsToAnotherPress =
+                    std::ranges::count(UsedForEvents, Event.Code) <=
+                    std::ranges::count_if(PressesForEvents,
+                                          [&Event](const Platform::KeyEvent& Used) { return Used.Code == Event.Code; });
+                if (Use != UsedForEvents.end() && !UseBelongsToAnotherPress) {
                     UsedForEvents.erase(Use);
                     continue;
                 }
@@ -90,6 +107,13 @@ KeyDispatch::~KeyDispatch() {
 void KeyDispatch::MarkUsed(Platform::Key Key) {
     if (Current.Open) {
         Current.Used.push_back(Key);
+    }
+}
+
+void KeyDispatch::MarkUsed(const Platform::KeyEvent& Press) {
+    if (Current.Open) {
+        Current.Used.push_back(Press.Code);
+        Current.UsedPresses.push_back(Press);
     }
 }
 

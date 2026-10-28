@@ -4,6 +4,7 @@
 
 #include "Penumbra/Render/Utf8.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string_view>
 
@@ -88,22 +89,31 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
         return Hovered;
     }
 
-    const bool Shortcut = Input.ModifierState.Shortcut;
-    const bool Shift    = Input.ModifierState.Shift;
     bool Changed = false;
 
-    // Typed text replaces any selection.
-    if (!Input.TextInputThisFrame.empty()) {
+    // Typed text replaces any selection, and lands between the key presses it came between.
+    std::size_t TypedBytesInserted = 0;
+    const auto InsertTypedTextUpTo = [&](std::size_t TypedBytesEnd) {
+        TypedBytesEnd = std::min(TypedBytesEnd, Input.TextInputThisFrame.size());
+        if (TypedBytesEnd <= TypedBytesInserted) {
+            return;
+        }
         if (HasSelection()) {
             DeleteSelection();
         }
-        Text.insert(CaretIndex, Input.TextInputThisFrame);
-        CaretIndex += Input.TextInputThisFrame.size();
+        const std::size_t TypedLength = TypedBytesEnd - TypedBytesInserted;
+        Text.insert(CaretIndex, Input.TextInputThisFrame, TypedBytesInserted, TypedLength);
+        CaretIndex += TypedLength;
         SelectionAnchor = CaretIndex;
+        TypedBytesInserted = TypedBytesEnd;
         Changed = true;
-    }
+    };
 
-    for (const Platform::Key Key : Input.KeysPressedThisFrame) {
+    for (const Platform::KeyEvent& Press : Input.KeyPressesInOrder()) {
+        InsertTypedTextUpTo(Press.TextInputBefore);
+        const Platform::Key Key      = Press.Code;
+        const bool          Shortcut = Press.ModifierState.Shortcut;
+        const bool          Shift    = Press.ModifierState.Shift;
         // A single-line field types and edits, but has no use for Escape, Tab, Enter, Up
         // or Down, nor any shortcut but select-all, copy, cut and paste: those go on to
         // whatever handles keys (KeyDispatch).
@@ -113,7 +123,7 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
                                       Key != Platform::Key::Enter && Key != Platform::Key::Up &&
                                       Key != Platform::Key::Down);
         if (Uses) {
-            KeyDispatch::MarkUsed(Key);
+            KeyDispatch::MarkUsed(Press);
         }
         if (Shortcut) {
             switch (Key) {
@@ -212,6 +222,8 @@ bool TextInput::UpdateInteractionState(const Platform::InputState& Input) {
             break;
         }
     }
+
+    InsertTypedTextUpTo(Input.TextInputThisFrame.size());
 
     if (Changed && OnTextChanged) {
         OnTextChanged(Text);

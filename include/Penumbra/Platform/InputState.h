@@ -2,6 +2,7 @@
 
 #include "Penumbra/Geometry.h"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -36,16 +37,20 @@ struct Modifiers {
     bool Alt{false};
     bool Super{false};
     bool Shortcut{false};
+
+    bool operator==(const Modifiers&) const = default;
 };
 
 // One key transition this frame, in the order SDL reported them. Down is true for a
 // press (Repeat when the key was already held and the OS repeated it) and false for a
 // release. ModifierState is the modifier set at that moment, not at the end of the frame.
+// TextInputBefore is how many bytes of TextInputThisFrame were typed before it.
 struct KeyEvent {
-    Key       Code{Key::Unknown};
-    bool      Down{true};
-    bool      Repeat{false};
-    Modifiers ModifierState{};
+    Key         Code{Key::Unknown};
+    bool        Down{true};
+    bool        Repeat{false};
+    Modifiers   ModifierState{};
+    std::size_t TextInputBefore{0};
 };
 
 // A snapshot of all OS input for a single frame, built by PlatformWindow.
@@ -67,6 +72,24 @@ struct InputState {
     std::vector<KeyEvent> KeyEvents;                   // every press and release, in order
     std::vector<Key>  KeysHeld;                        // down at the end of the frame
     Modifiers         ModifierState{};
+
+    // Every press this frame, in order, with the modifiers held at the time. A hand-built
+    // state with no KeyEvents gets its KeysPressedThisFrame, after its typed text.
+    std::vector<KeyEvent> KeyPressesInOrder() const {
+        std::vector<KeyEvent> Presses;
+        if (KeyEvents.empty()) {
+            for (const Key Pressed : KeysPressedThisFrame) {
+                Presses.push_back(KeyEvent{Pressed, true, false, ModifierState, TextInputThisFrame.size()});
+            }
+            return Presses;
+        }
+        for (const KeyEvent& Event : KeyEvents) {
+            if (Event.Down) {
+                Presses.push_back(Event);
+            }
+        }
+        return Presses;
+    }
 
     bool IsKeyHeld(Key Code) const {
         for (const Key Held : KeysHeld) {

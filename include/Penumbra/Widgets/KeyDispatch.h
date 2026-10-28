@@ -33,6 +33,8 @@ public:
 
     // A focused widget took Key this frame, so no handler gets it.
     static void MarkUsed(Platform::Key Key);
+    // A focused widget took this press: OnKeyEvent skips the press with the same modifiers.
+    static void MarkUsed(const Platform::KeyEvent& Press);
 
     // The input to hand a child: Input itself, or once a full-window widget above it has
     // had its turn, Input without keys or typed text, filled into Storage.
