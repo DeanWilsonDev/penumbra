@@ -8,7 +8,7 @@ CrossPlacement :: import CrossPlacement;
 Box :: import Box;
 
 InlineLineItem :: struct {
-    child: WidgetBase~*;
+    childIndex: usize;
     desired: Point;
     margin: EdgeInsets;
     lineIndex: usize;
@@ -89,7 +89,8 @@ public:
             }
             left: f32 = cursorX + item.margin.left;
             cross: CrossPlacement = this->PlaceCross(cursorY, lineHeights[currentLine], item.desired.y, item.margin.top, item.margin.bottom);
-            item.child->Arrange(Rect { x: left, y: cross.position, width: item.desired.x, height: cross.extent }, layout);
+            child: WidgetBase~* = this->children[item.childIndex];
+            child->Arrange(Rect { x: left, y: cross.position, width: item.desired.x, height: cross.extent }, layout);
             cursorX = left + item.desired.x + item.margin.right;
             firstOnLine = false;
         }
@@ -128,7 +129,7 @@ private:
             }
             cursorX = cursorX + itemWidth;
             lineIsEmpty = false;
-            items.push(InlineLineItem { child: child, desired: desired, margin: margin, lineIndex: lineIndex });
+            items.push(InlineLineItem { childIndex: index - 1, desired: desired, margin: margin, lineIndex: lineIndex });
         }
         return items!;
     }

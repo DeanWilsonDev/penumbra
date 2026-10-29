@@ -20,9 +20,90 @@ TextSelectionEntry :: struct {
     paragraph: usize;
 }
 
-TextSelectionVisit :: struct {
-    widget: WidgetBase~*;
-    paragraph: usize;
+TextSelectionRange :: struct {
+    anchor: TextSelectionPosition;
+    caret: TextSelectionPosition;
+    anchored: bool;
+
+    HasSelection :: () -> bool {
+        return this.anchored && (this.anchor.label != this.caret.label || this.anchor.index != this.caret.index);
+    }
+
+    SelectedText :: (scope: WidgetBase~*) -> string! {
+        labels: Array<TextSelectionEntry>! = TextSelectionCollect(scope);
+        defer delete labels;
+        return this.TextOf(labels);
+    }
+
+    Start :: () -> TextSelectionPosition {
+        if TextSelectionBefore(this.caret, this.anchor) {
+            return this.caret;
+        }
+        return this.anchor;
+    }
+
+    End :: () -> TextSelectionPosition {
+        if TextSelectionBefore(this.anchor, this.caret) {
+            return this.caret;
+        }
+        return this.anchor;
+    }
+
+    TextOf :: (labels: Array<TextSelectionEntry>) -> string! {
+        result~ string! = "";
+        if !this.HasSelection() {
+            return result!;
+        }
+        start: TextSelectionPosition = this.Start();
+        end: TextSelectionPosition = this.End();
+        first~ bool = true;
+        previous~ Rect = Rect { };
+        previousParagraph~ usize = 0;
+        index~ usize = start.label;
+        while index <= end.label && index < labels.length() {
+            entry: TextSelectionEntry = labels[index];
+            index = index + 1;
+            length: usize = entry.target->SelectableLength();
+            from~ usize = 0;
+            if index - 1 == start.label {
+                from = TextSelectionSmallerIndex(start.index, length);
+            }
+            to~ usize = length;
+            if index - 1 == end.label {
+                to = TextSelectionSmallerIndex(end.index, length);
+            }
+            if from >= to {
+                continue;
+            }
+            begin: Rect = entry.target->CaretRectAt(from);
+            if !first {
+                separator~ string = "";
+                if TextSelectionOnSameLine(previous, begin) {
+                    if begin.x - previous.x > 0.5f {
+                        separator = " ";
+                    }
+                }
+                else if entry.paragraph != 0 && entry.paragraph == previousParagraph {
+                    separator = " ";
+                }
+                else {
+                    separator = "\n";
+                }
+                joined: string! = result + separator;
+                delete result;
+                result = joined!;
+            }
+            piece: string! = entry.target->SelectableRange(from, to);
+            extended: string! = result + piece;
+            delete piece;
+            delete result;
+            result = extended!;
+            previous = entry.target->CaretRectAt(to);
+            previousParagraph = entry.paragraph;
+            first = false;
+        }
+        return result!;
+    }
 }
 
 TextSelection :: class {
@@ -92,13 +173,11 @@ public:
     }
 
     HasSelection :: () -> bool {
-        return this->anchored && (this->anchor.label != this->caret.label || this->anchor.index != this->caret.index);
+        return this->Range().HasSelection();
     }
 
-    SelectedText :: (scope: WidgetBase~*) -> string! {
-        labels: Array<TextSelectionEntry>! = TextSelectionCollect(scope);
-        defer delete labels;
-        return this->TextOf(labels);
+    Range :: () -> TextSelectionRange {
+        return TextSelectionRange { anchor: this->anchor, caret: this->caret, anchored: this->anchored };
     }
 
     SelectAll~: (scope: WidgetBase~*) -> void {
@@ -142,73 +221,15 @@ private:
     }
 
     SelectionStart :: () -> TextSelectionPosition {
-        if TextSelectionBefore(this->caret, this->anchor) {
-            return this->caret;
-        }
-        return this->anchor;
+        return this->Range().Start();
     }
 
     SelectionEnd :: () -> TextSelectionPosition {
-        if TextSelectionBefore(this->anchor, this->caret) {
-            return this->caret;
-        }
-        return this->anchor;
+        return this->Range().End();
     }
 
     TextOf :: (labels: Array<TextSelectionEntry>) -> string! {
-        result~ string! = "";
-        if !this->HasSelection() {
-            return result!;
-        }
-        start: TextSelectionPosition = this->SelectionStart();
-        end: TextSelectionPosition = this->SelectionEnd();
-        first~ bool = true;
-        previous~ Rect = Rect { };
-        previousParagraph~ usize = 0;
-        index~ usize = start.label;
-        while index <= end.label && index < labels.length() {
-            entry: TextSelectionEntry = labels[index];
-            index = index + 1;
-            length: usize = entry.target->SelectableLength();
-            from~ usize = 0;
-            if index - 1 == start.label {
-                from = TextSelectionSmallerIndex(start.index, length);
-            }
-            to~ usize = length;
-            if index - 1 == end.label {
-                to = TextSelectionSmallerIndex(end.index, length);
-            }
-            if from >= to {
-                continue;
-            }
-            begin: Rect = entry.target->CaretRectAt(from);
-            if !first {
-                separator~ string = "";
-                if TextSelectionOnSameLine(previous, begin) {
-                    if begin.x - previous.x > 0.5f {
-                        separator = " ";
-                    }
-                }
-                else if entry.paragraph != 0 && entry.paragraph == previousParagraph {
-                    separator = " ";
-                }
-                else {
-                    separator = "\n";
-                }
-                joined: string! = result + separator;
-                delete result;
-                result = joined!;
-            }
-            piece: string! = entry.target->SelectableRange(from, to);
-            extended: string! = result + piece;
-            delete piece;
-            delete result;
-            result = extended!;
-            previous = entry.target->CaretRectAt(to);
-            previousParagraph = entry.paragraph;
-            first = false;
-        }
-        return result!;
+        return this->Range().TextOf(labels);
     }
 
     Paint~: (labels: Array<TextSelectionEntry>) -> void {
@@ -253,47 +274,45 @@ private:
     }
 }
 
-TextSelectionCollect :: (scope: WidgetBase~*) -> Array<TextSelectionEntry>! {
+TextSelectionCollection :: struct {
     labels~ Array<TextSelectionEntry>! = [];
-    pending~ Array<TextSelectionVisit>! = [];
     nextParagraph~ usize = 1;
+}
+
+TextSelectionCollect :: (scope: WidgetBase~*) -> Array<TextSelectionEntry>! {
+    collection~ TextSelectionCollection = TextSelectionCollection { };
     scopeParagraph~ usize = 0;
     if scope->StartsTextParagraph() {
-        scopeParagraph = nextParagraph;
-        nextParagraph = nextParagraph + 1;
+        scopeParagraph = collection.nextParagraph;
+        collection.nextParagraph = collection.nextParagraph + 1;
     }
-    childIndex~ usize = scope->GetChildCount();
-    while childIndex > 0 {
-        childIndex = childIndex - 1;
-        if child := scope->GetMutableChildAt(childIndex) {
+    TextSelectionVisitChildren(scope, scopeParagraph, collection);
+    return collection.labels!;
+}
+
+TextSelectionVisitChildren :: (widget: WidgetBase~*, paragraph: usize, collection: TextSelectionCollection~*) -> void {
+    childCount: usize = widget->GetChildCount();
+    childIndex~ usize = 0;
+    while childIndex < childCount {
+        if child := widget->GetMutableChildAt(childIndex) {
             if child->GetIsVisible() {
-                pending.push(TextSelectionVisit { widget: child, paragraph: scopeParagraph });
+                TextSelectionVisit(child, paragraph, collection);
             }
         }
+        childIndex = childIndex + 1;
     }
-    while pending.length() > 0 {
-        visit: TextSelectionVisit = pending.remove(pending.length() - 1);
-        widget: WidgetBase~* = visit.widget;
-        if target := widget->AsSelectableText() {
-            labels.push(TextSelectionEntry { target: target, paragraph: visit.paragraph });
-        }
-        paragraph~ usize = visit.paragraph;
-        if widget->StartsTextParagraph() {
-            paragraph = nextParagraph;
-            nextParagraph = nextParagraph + 1;
-        }
-        grandchildIndex~ usize = widget->GetChildCount();
-        while grandchildIndex > 0 {
-            grandchildIndex = grandchildIndex - 1;
-            if grandchild := widget->GetMutableChildAt(grandchildIndex) {
-                if grandchild->GetIsVisible() {
-                    pending.push(TextSelectionVisit { widget: grandchild, paragraph: paragraph });
-                }
-            }
-        }
+}
+
+TextSelectionVisit :: (widget: WidgetBase~*, paragraph: usize, collection: TextSelectionCollection~*) -> void {
+    if target := widget->AsSelectableText() {
+        collection->labels.push(TextSelectionEntry { target: target, paragraph: paragraph });
     }
-    delete pending;
-    return labels!;
+    childParagraph~ usize = paragraph;
+    if widget->StartsTextParagraph() {
+        childParagraph = collection->nextParagraph;
+        collection->nextParagraph = collection->nextParagraph + 1;
+    }
+    TextSelectionVisitChildren(widget, childParagraph, collection);
 }
 
 TextSelectionInteractiveAt :: (widget: WidgetBase*, at: Point) -> bool {

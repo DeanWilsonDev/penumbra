@@ -185,6 +185,10 @@ The Nox board's Penumbra card tracks this list:
   field defaults, optional owned callables, arrays of borrows and arrays of structs holding borrows,
   owned strings with substrings, pointer identity across a class hierarchy, and `~=` unwraps that
   borrow an optional owner mutably.
+- **Borrows into the widget tree.** Since nox's heap-interior rule, a mutating call through a pointer makes other borrows into
+  the same object stale. `TextSelectionCollect` walked the tree with a stack of `GetMutableChildAt` results and now recurses,
+  so each child borrow ends before the next; `InlineContainer`'s line items keep child indices instead of borrows; and the demo
+  copies the selection's range out before passing the page to `SelectedText`.
 - **GCC 13.3 miscompiled the emitted C.** At `-O1`, it dropped the stores building a large struct
   temporary that was also zero-initialised at the top of `Box`'s constructor. Nox now leaves
   aggregate temporaries uninitialised (nox #42), since each is assigned before it's read.
