@@ -176,8 +176,10 @@ The Nox board's Penumbra card tracks this list:
   runs. `main` can take `arguments: Array<string>` now, and the gallery takes a font path first.
 - **Lists of borrowed widgets.** Stacking contexts keep the widgets they paint, so the prototype
   gained arrays of borrows (`Array<WidgetBase~*>!`) and arrays of structs that hold borrows. An
-  entry's ancestors live in one pool array on the context, indexed by start and count, because an
-  array element can't hold borrows and own an array at once.
+  entry's ancestors lived in one pool array on the context at first, indexed by start and count,
+  because an array element couldn't hold borrows and own an array at once. Each entry owns its
+  ancestor list now. Entries move during the sort with `remove` and `insert`, since an element that
+  owns something isn't copied.
 - **No dereference copy** at first, so `InputState.Occluded()` rebuilt its copy field by field. It
   copies the receiver now.
 - **No maths library** at first, so Penumbra declared its own libm foreign block, with every call
