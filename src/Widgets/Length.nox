@@ -23,22 +23,20 @@ Length :: struct {
             LengthUnit:::ViewportHeight -> viewportLogical.y * value / 100.0f
         };
     }
-}
 
-Lengths :: namespace {
-    Logical :: (value: f32) -> Length {
+    static Logical :: (value: f32) -> Length {
         return Length { value: value, unit: LengthUnit:::Logical };
     }
 
-    Percent :: (value: f32) -> Length {
+    static Percent :: (value: f32) -> Length {
         return Length { value: value, unit: LengthUnit:::Percent };
     }
 
-    ViewportWidth :: (value: f32) -> Length {
+    static ViewportWidth :: (value: f32) -> Length {
         return Length { value: value, unit: LengthUnit:::ViewportWidth };
     }
 
-    ViewportHeight :: (value: f32) -> Length {
+    static ViewportHeight :: (value: f32) -> Length {
         return Length { value: value, unit: LengthUnit:::ViewportHeight };
     }
 }

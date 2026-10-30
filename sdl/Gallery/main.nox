@@ -2,7 +2,7 @@ Point :: import Point;
 Rect :: import Rect;
 Color :: import Color;
 Insets :: import Insets;
-Lengths :: import Lengths;
+Length :: import Length;
 LayoutMode :: import LayoutMode;
 CrossAlign :: import CrossAlign;
 Justify :: import Justify;
@@ -231,15 +231,18 @@ BuildGallery :: (font: IFontBackend*, focus: FocusState~*, clipboard: SdlClipboa
     return root!;
 }
 
-FontCandidates :: () -> Array<string>! {
+FontCandidates :: (arguments: Array<string>) -> Array<string>! {
     candidates~ Array<string>! = [];
+    if arguments.length() > 1 {
+        candidates.push(arguments[1]);
+    }
     candidates.push("sdl/assets/JetBrainsMonoNerdFontMono-Regular.ttf");
     candidates.push("assets/JetBrainsMonoNerdFontMono-Regular.ttf");
     candidates.push("../sdl/assets/JetBrainsMonoNerdFontMono-Regular.ttf");
     return candidates!;
 }
 
-main :: () -> i32 {
+main :: (arguments: Array<string>) -> i32 {
     window: SdlWindow*! = new SdlWindow();
     defer delete window;
     if !window->Open("Penumbra in Nox", 960, 680) {
@@ -250,7 +253,7 @@ main :: () -> i32 {
     }
     dpiScale~ f32 = window->DpiScaleFactor();
 
-    candidates: Array<string>! = FontCandidates();
+    candidates: Array<string>! = FontCandidates(arguments);
     fonts~ SdlFonts*! = new SdlFonts(candidates[0]);
     index~ usize = 0;
     unsafe {
@@ -269,7 +272,7 @@ main :: () -> i32 {
     delete candidates;
     defer delete fonts;
     if !fonts->IsReady() {
-        print("could not load the font; run from the repository root or from sdl/");
+        print("could not load the font; pass a font path, or run from the repository root or from sdl/");
         return 1;
     }
 

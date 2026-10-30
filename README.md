@@ -48,8 +48,9 @@ LIBRARY_PATH=/opt/homebrew/lib nox run
 ```
 
 `LIBRARY_PATH` tells the C compiler where Homebrew's libraries are; Linux finds them without it.
-The gallery looks for its font in `sdl/assets/` relative to the directory it runs from, so run it
-from `sdl/` or from the repository root.
+The gallery takes a font path as its first argument. Without one, it looks for its font in
+`sdl/assets/` relative to the directory it runs from, so run it from `sdl/` or from the repository
+root.
 
 ## The demo
 
@@ -135,12 +136,13 @@ It also runs clean under ASan and UBSan.
 
 The Nox board's Penumbra card tracks this list:
 
-- **No file-level mutable state.** Penumbra keeps the layout viewport, the current layout pass and
-  the containing-block stack in globals. The port passes a `LayoutContext` to `Measure` and
-  `Arrange` instead, which holds the viewport, the running pass and the block and scrollport
-  stacks.
-- **No static members.** `Length::Logical(…)` became the namespace function
-  `Lengths:::Logical(…)`.
+- **No file-level mutable state** at first. Penumbra keeps the layout viewport, the current layout
+  pass and the containing-block stack in globals. The port passes a `LayoutContext` to `Measure`
+  and `Arrange` instead, which holds the viewport, the running pass and the block and scrollport
+  stacks. Nox has file-level bindings now, but writing a mutable one needs `unsafe`, so the port
+  keeps `LayoutContext`.
+- **No static members** at first, so `Length::Logical(…)` was the namespace function
+  `Lengths:::Logical(…)`. Nox has static members now, and it's `Length:::Logical(…)` again.
 - **`print` takes one value.** The recording renderer prints one value per line. Floats printed
   whole numbers in exponent form (`6.4e+02`) until nox #34 fixed it.
 - **Text needed owned strings.** `TextInput` edits its text, so the prototype gained `string!`
@@ -167,11 +169,11 @@ The Nox board's Penumbra card tracks this list:
   C++ would through a `mutable` member.
 - **Disjoint fields counted as one borrow** until nox #80: `SDL_GetTextureSize(texture,
   rendered.width, rendered.height)` was NOX0461. Fixed; the font cache passes the fields directly.
-- **`reinterpret` keeps a mutable borrow.** Binding `reinterpret<T>(event)` as a shared `T*`
-  still records a mutable borrow of `event`, so reading `event.type` afterwards is NOX0459. The
-  pump reads the event type first.
-- **No program arguments.** `main` takes none, so the gallery tries a few font paths relative to
-  where it runs.
+- **`reinterpret` kept a mutable borrow.** Binding `reinterpret<T>(event)` as a shared `T*`
+  recorded a mutable borrow of `event`, so reading `event.type` afterwards was NOX0459, and the
+  pump reads the event type first. Nox now borrows the source shared there.
+- **No program arguments** at first, so the gallery tried a few font paths relative to where it
+  runs. `main` can take `arguments: Array<string>` now, and the gallery takes a font path first.
 - **Lists of borrowed widgets.** Stacking contexts keep the widgets they paint, so the prototype
   gained arrays of borrows (`Array<WidgetBase~*>!`) and arrays of structs that hold borrows. An
   entry's ancestors live in one pool array on the context, indexed by start and count, because a

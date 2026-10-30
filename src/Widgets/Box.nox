@@ -28,7 +28,6 @@ TransitionSpec :: import TransitionSpec;
 Easing :: import Easing;
 EasedTrack :: import EasedTrack;
 Anim :: import Anim;
-Lengths :: import Lengths;
 Tween :: import Tween;
 TextSelection :: import TextSelection;
 
@@ -435,11 +434,11 @@ protected:
 
         widthNow~ Length = Length { };
         if this->eased.lastWidthLogical >= 0.0f {
-            widthNow = Lengths:::Logical(this->eased.lastWidthLogical);
+            widthNow = Length:::Logical(this->eased.lastWidthLogical);
         }
         heightNow~ Length = Length { };
         if this->eased.lastHeightLogical >= 0.0f {
-            heightNow = Lengths:::Logical(this->eased.lastHeightLogical);
+            heightNow = Length:::Logical(this->eased.lastHeightLogical);
         }
         if !this->eased.width.known || !BoxTransitions:::SameLength(this->eased.width.target, widthTarget) {
             canEase: bool = this->eased.width.known && widthTarget.IsSet() && widthNow.IsSet();

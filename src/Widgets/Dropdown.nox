@@ -11,7 +11,7 @@ MouseButton :: import MouseButton;
 Key :: import Key;
 Tween :: import Tween;
 Anim :: import Anim;
-Lengths :: import Lengths;
+Length :: import Length;
 Position :: import Position;
 LayoutMode :: import LayoutMode;
 CrossAlign :: import CrossAlign;
@@ -159,10 +159,10 @@ public:
     Place~: () -> void {
         panel: Rect = this->state->PanelRect();
         this->style.positionMode = Position:::Absolute;
-        this->style.left = Lengths:::Logical(panel.x);
-        this->style.top = Lengths:::Logical(panel.y);
-        this->style.width = Lengths:::Logical(panel.width);
-        this->style.height = Lengths:::Logical(panel.height);
+        this->style.left = Length:::Logical(panel.x);
+        this->style.top = Length:::Logical(panel.y);
+        this->style.width = Length:::Logical(panel.width);
+        this->style.height = Length:::Logical(panel.height);
     }
 
     UpdateInteractionState~: (input: InputState, stacking: StackingTracker~*) -> bool override {
@@ -384,10 +384,10 @@ private:
         backdrop: DropdownBackdrop*! = new DropdownBackdrop(this->state);
         backdrop->className = "dropdown backdrop";
         backdrop->style.positionMode = Position:::Fixed;
-        backdrop->style.top = Lengths:::Logical(0.0f);
-        backdrop->style.right = Lengths:::Logical(0.0f);
-        backdrop->style.bottom = Lengths:::Logical(0.0f);
-        backdrop->style.left = Lengths:::Logical(0.0f);
+        backdrop->style.top = Length:::Logical(0.0f);
+        backdrop->style.right = Length:::Logical(0.0f);
+        backdrop->style.bottom = Length:::Logical(0.0f);
+        backdrop->style.left = Length:::Logical(0.0f);
         backdrop->style.zIndex = visualStyle.menuZIndex;
         backdrop->AddChild(menu!);
         this->InsertChildAt(0, backdrop!);
@@ -408,7 +408,7 @@ private:
         if selected {
             row->style = visualStyle.selectedRow;
         }
-        row->style.height = Lengths:::Logical(visualStyle.rowHeightLogical);
+        row->style.height = Length:::Logical(visualStyle.rowHeightLogical);
         return row!;
     }
 }
