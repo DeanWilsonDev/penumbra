@@ -193,12 +193,12 @@ public:
 
         paneConsumed~ bool = layeredTook;
         if pane ~= this->second {
-            if this->DispatchToPane(pane, input, occluded, paneConsumed, stacking) {
+            if DispatchToPane(pane, input, occluded, paneConsumed, stacking) {
                 paneConsumed = true;
             }
         }
         if pane ~= this->first {
-            if this->DispatchToPane(pane, input, occluded, paneConsumed, stacking) {
+            if DispatchToPane(pane, input, occluded, paneConsumed, stacking) {
                 paneConsumed = true;
             }
         }
@@ -246,7 +246,7 @@ private:
     handleHovered~ bool = false;
     lastPointerMain~ f32 = 0.0f;
 
-    DispatchToPane~: (pane: WidgetBase~*, input: InputState, occluded: InputState, paneConsumed: bool, stacking: StackingTracker~*) -> bool {
+    static DispatchToPane :: (pane: WidgetBase~*, input: InputState, occluded: InputState, paneConsumed: bool, stacking: StackingTracker~*) -> bool {
         if stacking->IsLayeredOut(pane) {
             return false;
         }

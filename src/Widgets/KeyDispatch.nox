@@ -85,8 +85,12 @@ public:
         }
     }
 
-    ForChild :: (input: InputState) -> InputState {
-        if !this->withheld || (input.keysPressedThisFrame.length() == 0 && input.keyEvents.length() == 0 && input.textInputThisFrame.length() == 0) {
+    Withholds :: () -> bool {
+        return this->withheld;
+    }
+
+    static ForChild :: (input: InputState, withheld: bool) -> InputState {
+        if !withheld || (input.keysPressedThisFrame.length() == 0 && input.keyEvents.length() == 0 && input.textInputThisFrame.length() == 0) {
             return input;
         }
         stripped~ InputState = input;

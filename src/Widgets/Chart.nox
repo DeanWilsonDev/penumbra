@@ -208,12 +208,12 @@ protected:
         renderer->PopClipRect();
     }
 
-    SyncValues :: (values: TweenedValues~*, target: Array<f32>, snap: bool, deltaSeconds: f32) -> void {
+    static SyncValues :: (values: TweenedValues~*, target: Array<f32>, snap: bool, deltaSeconds: f32, transitionSeconds: f32) -> void {
         if snap {
             values->SnapTo(target);
             return;
         }
-        values->RetargetTo(target, this->chartVisualStyle.transitionSeconds);
+        values->RetargetTo(target, transitionSeconds);
         values->Update(deltaSeconds);
     }
 
@@ -370,7 +370,7 @@ protected:
                 }
                 category = category + 1;
             }
-            this->SyncValues(this->seriesValues[seriesIndex], target, snap, deltaSeconds);
+            SyncValues(this->seriesValues[seriesIndex], target, snap, deltaSeconds, this->chartVisualStyle.transitionSeconds);
             delete target;
             seriesIndex = seriesIndex + 1;
         }
@@ -450,7 +450,7 @@ protected:
         this->plotRect = plot;
 
         rangeTarget: f32[2] = [extent.low, extent.high];
-        this->SyncValues(this->range, rangeTarget.borrow(), snap, deltaSeconds);
+        SyncValues(this->range, rangeTarget.borrow(), snap, deltaSeconds, this->chartVisualStyle.transitionSeconds);
         this->rangeLow = this->range->ValueAt(0);
         this->rangeHigh = Numbers:::Larger(this->range->ValueAt(1), this->rangeLow + ChartTicks:::Tolerance());
     }

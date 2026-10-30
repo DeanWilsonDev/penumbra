@@ -48,6 +48,8 @@ Dropdown :: import Dropdown;
 DropdownStyle :: import DropdownStyle;
 InlineContainer :: import InlineContainer;
 TextSelection :: import TextSelection;
+TextSelectionRange :: import TextSelectionRange;
+TextSelectionPosition :: import TextSelectionPosition;
 IconWidget :: import IconWidget;
 RecordingIconBackend :: import RecordingIconBackend;
 ChartStyle :: import ChartStyle;
@@ -1400,9 +1402,15 @@ ShowSurfaces :: () -> void {
 SelectionFrame :: (page: Box~*, stacking: StackingTracker~*, label: string, input: InputState) -> void {
     print(label);
     page->UpdateInteractionState(input, stacking);
-    if selection ~= page->GetTextSelection() {
+    range~ TextSelectionRange = TextSelectionRange { anchor: TextSelectionPosition { }, caret: TextSelectionPosition { }, anchored: false };
+    found~ bool = false;
+    if selection := page->GetTextSelection() {
         print(selection->HasSelection());
-        selected: string! = selection->SelectedText(page);
+        range = selection->Range();
+        found = true;
+    }
+    if found {
+        selected: string! = range.SelectedText(page);
         print(selected);
         delete selected;
     }

@@ -82,7 +82,7 @@ public:
     }
 
     DispatchToChild~: (child: WidgetBase~*, input: InputState) -> bool {
-        given: InputState = this->keys->ForChild(Stacking:::ForPointerEvents(child->GetPlacement().pointerEventsMode, input));
+        given: InputState = KeyDispatch:::ForChild(Stacking:::ForPointerEvents(child->GetPlacement().pointerEventsMode, input), this->keys->Withholds());
         took: bool = child->UpdateInteractionState(given, this);
         this->keys->AfterChild(child, given);
         return took;
@@ -352,7 +352,7 @@ private:
         inherited: bool = entry.passThroughAbove ?? input.pointerPassThrough;
         given.pointerPassThrough = Stacking:::PassThroughFor(placement.pointerEventsMode, inherited) ?? false;
 
-        handed: InputState = this->tracker->keys->ForChild(given);
+        handed: InputState = KeyDispatch:::ForChild(given, this->tracker->keys->Withholds());
         previous: WidgetBase*? = this->current;
         this->current = entry.widget;
         took~ bool = entry.widget->UpdateInteractionState(handed, this->tracker);

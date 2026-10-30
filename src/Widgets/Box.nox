@@ -208,9 +208,12 @@ public:
             untransformed.mousePosition = Transforms:::InversePoint(input.mousePosition, pivot, this->style.transform);
         }
         effective~ InputState = Stacking:::ForPointerEvents(this->style.pointerEventsMode, untransformed);
-        if active ~= this->selection {
+        taken~ TextSelection*!? = this->selection!;
+        this->selection = null;
+        if active ~= taken {
             active->Update(this, this->arrangedRect, effective);
         }
+        this->selection = taken!;
         outermostKeys: bool = stacking->keys->Begin(this, effective);
         defer stacking->keys->End(outermostKeys);
         context: StackingContext*! = new StackingContext(this, StackingPass:::Input, stacking);
