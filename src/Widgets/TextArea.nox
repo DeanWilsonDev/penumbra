@@ -2,7 +2,6 @@ LayoutContext :: import LayoutContext;
 Point :: import Point;
 Rect :: import Rect;
 Numbers :: import Numbers;
-Maths :: import Maths;
 Color :: import Color;
 IRenderer :: import IRenderer;
 IFontBackend :: import IFontBackend;
@@ -516,11 +515,11 @@ private:
             return line.contentStart;
         }
         best~ usize = line.contentStart;
-        bestDistance~ f32 = Maths:::Absolute(localX);
+        bestDistance~ f32 = Math:::abs(localX);
         index~ usize = line.contentStart;
         while index < line.contentEnd {
             index = Numbers:::SmallerIndex(Utf8:::NextCodePoint(this->text, index), line.contentEnd);
-            distance: f32 = Maths:::Absolute(localX - this->MeasureRange(line.contentStart, index));
+            distance: f32 = Math:::abs(localX - this->MeasureRange(line.contentStart, index));
             if distance < bestDistance {
                 bestDistance = distance;
                 best = index;

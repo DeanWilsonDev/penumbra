@@ -90,7 +90,7 @@ protected:
             seriesIndex = 0;
             while seriesIndex < this->series.length() {
                 fill~ Color = this->series[seriesIndex]->seriesColor;
-                fill.alpha = u8(Maths:::RoundToInteger(f32(fill.alpha) * Maths:::Clamp(look.areaOpacity, 0.0f, 1.0f)));
+                fill.alpha = u8(Maths:::RoundToInteger(f32(fill.alpha) * Math:::clamp(look.areaOpacity, 0.0f, 1.0f)));
                 LineCharts:::FillToBaseline(renderer, points.slice(seriesIndex * categories, (seriesIndex + 1) * categories), baselineY, fill);
                 seriesIndex = seriesIndex + 1;
             }
@@ -137,7 +137,7 @@ protected:
             return 0;
         }
         nearest: f32 = f32(Maths:::RoundToInteger((mouseLogical.x - this->plotRect.x) / this->PointSpacing()));
-        return i32(Maths:::Clamp(nearest, 0.0f, f32(categories - 1)));
+        return i32(Math:::clamp(nearest, 0.0f, f32(categories - 1)));
     }
 
 private:

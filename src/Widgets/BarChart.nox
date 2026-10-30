@@ -1,7 +1,6 @@
 Point :: import Point;
 Rect :: import Rect;
 Numbers :: import Numbers;
-Maths :: import Maths;
 IRenderer :: import IRenderer;
 RoundedRects :: import RoundedRects;
 ChartStyle :: import ChartStyle;
@@ -72,7 +71,7 @@ protected:
             renderer->FillRect(this->BandRect(usize(hovered), 0.0f, band, start, end), look.colorHover);
         }
 
-        group: f32 = band * (1.0f - Maths:::Clamp(look.barGapFraction, 0.0f, 1.0f));
+        group: f32 = band * (1.0f - Math:::clamp(look.barGapFraction, 0.0f, 1.0f));
         groupLead: f32 = (band - group) * 0.5f;
         thickness~ f32 = group;
         if !this->stacked && this->series.length() > 0 {
@@ -132,7 +131,7 @@ protected:
         if this->orientation == BarOrientation:::Horizontal {
             along = mouseLogical.y - plot.y;
         }
-        index: usize = usize(Numbers:::Larger(0.0f, Maths:::Floor(along / band)));
+        index: usize = usize(Numbers:::Larger(0.0f, Math:::floor(along / band)));
         if index > categories - 1 {
             return i32(categories - 1);
         }
@@ -162,7 +161,7 @@ private:
 
     BandRect :: (category: usize, offset: f32, thickness: f32, from: f32, to: f32) -> Rect {
         low: f32 = Numbers:::Smaller(from, to);
-        size: f32 = Maths:::Absolute(to - from);
+        size: f32 = Math:::abs(to - from);
         at: f32 = this->BandStart(category) + offset;
         if this->orientation == BarOrientation:::Horizontal {
             return Rect { x: low, y: at, width: size, height: thickness };

@@ -98,8 +98,8 @@ public:
                     stepIndex = roundSteps - step;
                 }
                 angle: f32 = (SdlGeometry:::Pi * 0.5f) * f32(stepIndex) / f32(roundSteps);
-                ahead: SdlFPoint = SdlGeometry:::Scaled(outward, Maths:::Sin(angle));
-                side: SdlFPoint = SdlGeometry:::Scaled(across, Maths:::Cos(angle));
+                ahead: SdlFPoint = SdlGeometry:::Scaled(outward, Math:::sin(angle));
+                side: SdlFPoint = SdlGeometry:::Scaled(across, Math:::cos(angle));
                 this->PushSection(at, SdlGeometry:::Add(side, ahead), SdlGeometry:::Add(SdlGeometry:::Negated(side), ahead), false);
                 step = step + 1;
             }
@@ -158,7 +158,7 @@ public:
             insideSign = 1.0f;
         }
 
-        insideReach: f32 = (this->halfWidth + this->feather) * Maths:::Absolute(SdlGeometry:::Dot(miterOffset, inDirection));
+        insideReach: f32 = (this->halfWidth + this->feather) * Math:::abs(SdlGeometry:::Dot(miterOffset, inDirection));
         insideMeets: bool = insideReach <= Numbers:::Smaller(this->lengths[inSegment], this->lengths[outSegment]);
 
         if this->join == LineJoin:::Miter && miterScale <= SdlGeometry:::MiterLimit && insideMeets {
@@ -168,8 +168,8 @@ public:
 
         outsideIn: SdlFPoint = SdlGeometry:::Scaled(inNormal, -insideSign);
         if this->join == LineJoin:::Round {
-            turnAngle: f32 = Maths:::AngleOf(Maths:::Absolute(turn), SdlGeometry:::Dot(inDirection, outDirection));
-            stepCount~ i32 = i32(Maths:::Ceil(turnAngle / (SdlGeometry:::Pi * 0.5f) * f32(SdlGeometry:::SegmentsForRadius(this->halfWidth))));
+            turnAngle: f32 = Math:::atan2(Math:::abs(turn), SdlGeometry:::Dot(inDirection, outDirection));
+            stepCount~ i32 = i32(Math:::ceil(turnAngle / (SdlGeometry:::Pi * 0.5f) * f32(SdlGeometry:::SegmentsForRadius(this->halfWidth))));
             if stepCount < 1 {
                 stepCount = 1;
             }
@@ -234,7 +234,7 @@ public:
         }
         this->lastBeginFrameTicks = now;
         this->frameIndex = this->frameIndex + 1;
-        this->frameDeltaSeconds = Maths:::Clamp(delta, 0.0f, this->maxFrameDeltaSeconds);
+        this->frameDeltaSeconds = Math:::clamp(delta, 0.0f, this->maxFrameDeltaSeconds);
         unsafe {
             Sdl:::SDL_SetRenderDrawColor(this->renderer, clearColor.red, clearColor.green, clearColor.blue, clearColor.alpha);
             Sdl:::SDL_RenderClear(this->renderer);
@@ -464,16 +464,16 @@ public:
     }
 
     PushTransform~: (subjectRectLogical: Rect, transform: Transform, opacity: f32) -> void {
-        clampedOpacity: f32 = Maths:::Clamp(opacity, 0.0f, 1.0f);
+        clampedOpacity: f32 = Math:::clamp(opacity, 0.0f, 1.0f);
         if transform.IsIdentity() && clampedOpacity >= 1.0f {
             this->transformStack.push(TransformFrame { previousOriginLogical: this->originOffsetLogical, subjectLogical: subjectRectLogical, transform: transform });
             return;
         }
-        widthPhysical~ i32 = i32(Maths:::Ceil(subjectRectLogical.width * this->dpiScaleFactor));
+        widthPhysical~ i32 = i32(Math:::ceil(subjectRectLogical.width * this->dpiScaleFactor));
         if widthPhysical < 1 {
             widthPhysical = 1;
         }
-        heightPhysical~ i32 = i32(Maths:::Ceil(subjectRectLogical.height * this->dpiScaleFactor));
+        heightPhysical~ i32 = i32(Math:::ceil(subjectRectLogical.height * this->dpiScaleFactor));
         if heightPhysical < 1 {
             heightPhysical = 1;
         }
@@ -553,8 +553,8 @@ public:
             sweep = -sweep;
         }
         isWholeRing: bool = sweep >= 360.0f;
-        startRadians: f32 = start * Maths:::RadiansPerDegree();
-        sweepRadians: f32 = Numbers:::Smaller(sweep, 360.0f) * Maths:::RadiansPerDegree();
+        startRadians: f32 = start * Math:::DEG_TO_RAD;
+        sweepRadians: f32 = Numbers:::Smaller(sweep, 360.0f) * Math:::DEG_TO_RAD;
         centrePhysical: SdlFPoint = this->ToPhysicalPoint(centre);
         feather: f32 = SdlGeometry:::AntiAliasFeatherPhysical * 0.5f;
 
@@ -574,7 +574,7 @@ public:
         }
         stopCount: i32 = i32(stops.length());
 
-        segments~ i32 = i32(Maths:::Ceil(4.0f * f32(SdlGeometry:::SegmentsForRadius(outer)) * sweepRadians / (2.0f * SdlGeometry:::Pi)));
+        segments~ i32 = i32(Math:::ceil(4.0f * f32(SdlGeometry:::SegmentsForRadius(outer)) * sweepRadians / (2.0f * SdlGeometry:::Pi)));
         if segments < 1 {
             segments = 1;
         }
@@ -675,7 +675,7 @@ public:
             twiceArea = twiceArea + SdlGeometry:::Cross(path[index], path[(index + 1) % count]);
             index = index + 1;
         }
-        if Maths:::Absolute(twiceArea) < 0.0001f {
+        if Math:::abs(twiceArea) < 0.0001f {
             return;
         }
         winding~ f32 = -1.0f;
@@ -963,13 +963,13 @@ private:
     }
 
     PushArcColumn :: (mesh: MeshBuilder~*, centre: SdlFPoint, stops: Array<ColumnStop>, segmentSweep: f32, angle: f32, shift: f32, isClearColumn: bool, solid: SdlFColor) -> void {
-        outward: SdlFPoint = SdlFPoint { x: Maths:::Cos(angle), y: Maths:::Sin(angle) };
+        outward: SdlFPoint = SdlFPoint { x: Math:::cos(angle), y: Math:::sin(angle) };
         along: SdlFPoint = SdlGeometry:::Normal(outward);
         for stop in stops {
             stopShift~ f32 = shift;
             if !isClearColumn {
                 maximumShift: f32 = stop.radius * segmentSweep * 0.5f;
-                stopShift = Maths:::Clamp(shift, -maximumShift, maximumShift);
+                stopShift = Math:::clamp(shift, -maximumShift, maximumShift);
             }
             position: SdlFPoint = SdlGeometry:::Add(SdlGeometry:::Add(centre, SdlGeometry:::Scaled(outward, stop.radius)), SdlGeometry:::Scaled(along, stopShift));
             vertexColor~ SdlFColor = SdlGeometry:::Transparent(solid);
@@ -984,7 +984,7 @@ private:
 LerpColorAtY :: (top: SdlFColor, bottom: SdlFColor, area: SdlFRect, y: f32) -> SdlFColor {
     progress~ f32 = 0.0f;
     if area.height > 0.0f {
-        progress = Maths:::Clamp((y - area.y) / area.height, 0.0f, 1.0f);
+        progress = Math:::clamp((y - area.y) / area.height, 0.0f, 1.0f);
     }
     return SdlFColor {
         red: top.red + (bottom.red - top.red) * progress,
