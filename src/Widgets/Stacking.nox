@@ -19,14 +19,17 @@ ClipRegion :: struct {
     area~ Rect? = null;
 }
 
-StackingEntry :: struct {
+StackingLayer :: struct {
     widget: WidgetBase~*;
     z~ i32 = 0;
     order~ usize = 0;
     clipping~ ClipRegion = ClipRegion { };
     passThroughAbove~ bool? = null;
-    ancestorStart~ usize = 0;
-    ancestorCount~ usize = 0;
+}
+
+StackingEntry :: struct {
+    layer~ StackingLayer;
+    ancestors~ Array<WidgetBase*>! = [];
 }
 
 StackingWalk :: struct {
@@ -156,9 +159,8 @@ public:
         if this->active {
             this->tracker->Pop();
         }
-        delete this->entries;
+        this->entries.freeAll();
         delete this->ancestorStack;
-        delete this->ancestorPool;
         delete this->pointerPath;
     }
 
@@ -193,9 +195,9 @@ public:
     PaintBelow~: (renderer: IRenderer~*) -> void {
         index~ usize = 0;
         while index < this->entries.length() {
-            entry: StackingEntry = this->entries[index];
-            if entry.z < 0 {
-                this->Paint(renderer, entry);
+            layer: StackingLayer = this->entries[index].layer;
+            if layer.z < 0 {
+                this->Paint(renderer, layer);
             }
             index = index + 1;
         }
@@ -204,9 +206,9 @@ public:
     PaintAbove~: (renderer: IRenderer~*) -> void {
         index~ usize = 0;
         while index < this->entries.length() {
-            entry: StackingEntry = this->entries[index];
-            if entry.z >= 0 {
-                this->Paint(renderer, entry);
+            layer: StackingLayer = this->entries[index].layer;
+            if layer.z >= 0 {
+                this->Paint(renderer, layer);
             }
             index = index + 1;
         }
@@ -217,8 +219,7 @@ public:
         index~ usize = this->entries.length();
         while index > 0 {
             index = index - 1;
-            entry: StackingEntry = this->entries[index];
-            if entry.z >= 0 && this->Dispatch(entry, input, taken) {
+            if this->entries[index].layer.z >= 0 && this->Dispatch(index, input, taken) {
                 taken = true;
             }
         }
@@ -230,8 +231,7 @@ public:
         index~ usize = this->entries.length();
         while index > 0 {
             index = index - 1;
-            entry: StackingEntry = this->entries[index];
-            if entry.z < 0 && this->Dispatch(entry, input, pointerTaken || taken) {
+            if this->entries[index].layer.z < 0 && this->Dispatch(index, input, pointerTaken || taken) {
                 taken = true;
             }
         }
@@ -248,7 +248,6 @@ private:
     current~ WidgetBase*? = null;
     entries~ Array<StackingEntry>! = [];
     ancestorStack~ Array<WidgetBase*>! = [];
-    ancestorPool~ Array<WidgetBase*>! = [];
     pointerPath~ Array<WidgetBase*>! = [];
     takerUsedWheel~ bool = false;
 
@@ -273,18 +272,16 @@ private:
             paintsAsGroup: bool = child->PaintsAsGroup();
             if Stacking:::IsLayered(placement, paintsAsGroup) {
                 this->entries.push(StackingEntry {
-                    widget: child,
-                    z: placement.zIndex ?? 0,
-                    order: this->nextOrder,
-                    clipping: own,
-                    passThroughAbove: walk.passThrough,
-                    ancestorStart: this->ancestorPool.length(),
-                    ancestorCount: this->ancestorStack.length()
+                    layer: StackingLayer {
+                        widget: child,
+                        z: placement.zIndex ?? 0,
+                        order: this->nextOrder,
+                        clipping: own,
+                        passThroughAbove: walk.passThrough
+                    },
+                    ancestors: [...this->ancestorStack]
                 });
                 this->nextOrder = this->nextOrder + 1;
-                for ancestor in this->ancestorStack {
-                    this->ancestorPool.push(ancestor);
-                }
                 child->layeredBy = this->serial;
                 child->layeredAsContext = Stacking:::FormsContext(placement, paintsAsGroup);
                 if child->layeredAsContext {
@@ -307,18 +304,20 @@ private:
     SortByZ~: () -> void {
         index~ usize = 1;
         while index < this->entries.length() {
-            moving: StackingEntry = this->entries[index];
+            z: i32 = this->entries[index].layer.z;
             position~ usize = index;
-            while position > 0 && this->entries[position - 1].z > moving.z {
-                this->entries[position] = this->entries[position - 1];
+            while position > 0 && this->entries[position - 1].layer.z > z {
                 position = position - 1;
             }
-            this->entries[position] = moving;
+            if position != index {
+                moving ~= this->entries.remove(index);
+                this->entries.insert(position, moving!);
+            }
             index = index + 1;
         }
     }
 
-    Paint~: (renderer: IRenderer~*, entry: StackingEntry) -> void {
+    Paint~: (renderer: IRenderer~*, entry: StackingLayer) -> void {
         pushed~ bool = true;
         if entry.clipping.replace {
             renderer->PushClipRectUnbounded(entry.clipping.area);
@@ -338,7 +337,8 @@ private:
         }
     }
 
-    Dispatch~: (entry: StackingEntry, input: InputState, pointerTaken: bool) -> bool {
+    Dispatch~: (index: usize, input: InputState, pointerTaken: bool) -> bool {
+        entry: StackingLayer = this->entries[index].layer;
         given~ InputState = input;
         if pointerTaken {
             given.pointerOccluded = true;
@@ -363,10 +363,8 @@ private:
             took = true;
         }
         if took && !given.pointerOccluded && this->pointerPath.length() == 0 && placement.positionMode != Position:::Fixed {
-            step~ usize = 0;
-            while step < entry.ancestorCount {
-                this->pointerPath.push(this->ancestorPool[entry.ancestorStart + step]);
-                step = step + 1;
+            for ancestor in this->entries[index].ancestors {
+                this->pointerPath.push(ancestor);
             }
             this->takerUsedWheel = entry.widget->ConsumedWheelThisFrame();
         }
