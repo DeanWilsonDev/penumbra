@@ -2,7 +2,7 @@ Point :: import Point;
 Rect :: import Rect;
 Color :: import Color;
 IFontBackend :: import IFontBackend;
-Lengths :: import Lengths;
+Length :: import Length;
 Insets :: import Insets;
 LayoutMode :: import LayoutMode;
 CrossAlign :: import CrossAlign;
@@ -120,7 +120,7 @@ BuildWindow :: (font: IFontBackend*) -> Box*! {
     body->childGap = 4.0f;
     body->crossAlignment = CrossAlign:::Stretch;
     sidebar: Box*! = MakeBox("sidebar", LayoutMode:::VerticalStack);
-    sidebar->style.width = Lengths:::Percent(25.0f);
+    sidebar->style.width = Length:::Percent(25.0f);
     sidebar->style.colorBackground = Color { red: 30, green: 30, blue: 36, alpha: 255 };
     sidebar->AddChild(MakeLabel(font, "Epics", 14.0f));
     sidebar->AddChild(MakeLabel(font, "Features", 14.0f));
@@ -137,7 +137,7 @@ BuildWindow :: (font: IFontBackend*) -> Box*! {
 
     footer: Box*! = MakeBox("footer", LayoutMode:::HorizontalStack);
     footer->justifyContentMode = Justify:::SpaceBetween;
-    footer->style.height = Lengths:::Logical(24.0f);
+    footer->style.height = Length:::Logical(24.0f);
     footer->AddChild(MakeLabel(font, "3 open", 12.0f));
     footer->AddChild(MakeLabel(font, "saved", 12.0f));
     window->AddChild(footer!);
@@ -160,8 +160,8 @@ BuildToolbar :: () -> Box*! {
     toolbar->style.colorBackgroundHovered = Color { red: 40, green: 40, blue: 48, alpha: 255 };
 
     button: Box*! = MakeBox("button", LayoutMode:::None);
-    button->style.width = Lengths:::Logical(80.0f);
-    button->style.height = Lengths:::Logical(24.0f);
+    button->style.width = Length:::Logical(80.0f);
+    button->style.height = Length:::Logical(24.0f);
     button->style.colorBackground = Color { red: 60, green: 60, blue: 70, alpha: 255 };
     button->style.colorBackgroundHovered = Color { red: 70, green: 70, blue: 90, alpha: 255 };
     button->style.colorBackgroundPressed = Color { red: 90, green: 90, blue: 120, alpha: 255 };
@@ -178,8 +178,8 @@ BuildToolbar :: () -> Box*! {
     toolbar->AddChild(button!);
 
     disabled: Box*! = MakeBox("disabled", LayoutMode:::None);
-    disabled->style.width = Lengths:::Logical(80.0f);
-    disabled->style.height = Lengths:::Logical(24.0f);
+    disabled->style.width = Length:::Logical(80.0f);
+    disabled->style.height = Length:::Logical(24.0f);
     disabled->style.colorBackground = Color { red: 60, green: 60, blue: 70, alpha: 255 };
     disabled->style.colorBackgroundDisabled = Color { red: 30, green: 30, blue: 30, alpha: 255 };
     disabled->onPressed = new () -> void [] { print("never printed"); };
@@ -235,8 +235,8 @@ SimulateInput :: () -> void {
 
 MakeSizedBox :: (name: string, width: f32, height: f32) -> Box*! {
     box: Box*! = MakeBox(name, LayoutMode:::None);
-    box->style.width = Lengths:::Logical(width);
-    box->style.height = Lengths:::Logical(height);
+    box->style.width = Length:::Logical(width);
+    box->style.height = Length:::Logical(height);
     return box!;
 }
 
@@ -251,22 +251,22 @@ BuildPositionedPanel :: () -> Box*! {
 
     relative: Box*! = MakeSizedBox("relative", 100.0f, 20.0f);
     relative->style.positionMode = Position:::Relative;
-    relative->style.top = Lengths:::Logical(5.0f);
-    relative->style.left = Lengths:::Percent(10.0f);
+    relative->style.top = Length:::Logical(5.0f);
+    relative->style.left = Length:::Percent(10.0f);
     panel->AddChild(relative!);
 
     corner: Box*! = MakeSizedBox("absolute corner", 40.0f, 20.0f);
     corner->style.positionMode = Position:::Absolute;
-    corner->style.top = Lengths:::Logical(8.0f);
-    corner->style.right = Lengths:::Logical(8.0f);
+    corner->style.top = Length:::Logical(8.0f);
+    corner->style.right = Length:::Logical(8.0f);
     panel->AddChild(corner!);
 
     strip: Box*! = MakeBox("absolute strip", LayoutMode:::None);
-    strip->style.height = Lengths:::Logical(10.0f);
+    strip->style.height = Length:::Logical(10.0f);
     strip->style.positionMode = Position:::Absolute;
-    strip->style.left = Lengths:::Logical(0.0f);
-    strip->style.right = Lengths:::Logical(0.0f);
-    strip->style.bottom = Lengths:::Logical(0.0f);
+    strip->style.left = Length:::Logical(0.0f);
+    strip->style.right = Length:::Logical(0.0f);
+    strip->style.bottom = Length:::Logical(0.0f);
     panel->AddChild(strip!);
 
     floating: Box*! = MakeSizedBox("absolute static", 30.0f, 30.0f);
@@ -275,13 +275,13 @@ BuildPositionedPanel :: () -> Box*! {
 
     badge: Box*! = MakeSizedBox("fixed badge", 24.0f, 12.0f);
     badge->style.positionMode = Position:::Fixed;
-    badge->style.bottom = Lengths:::Logical(4.0f);
-    badge->style.right = Lengths:::Logical(4.0f);
+    badge->style.bottom = Length:::Logical(4.0f);
+    badge->style.right = Length:::Logical(4.0f);
     panel->AddChild(badge!);
 
     sticky: Box*! = MakeSizedBox("sticky", 100.0f, 16.0f);
     sticky->style.positionMode = Position:::Sticky;
-    sticky->style.top = Lengths:::Logical(0.0f);
+    sticky->style.top = Length:::Logical(0.0f);
     panel->AddChild(sticky!);
     return panel!;
 }
@@ -325,8 +325,8 @@ BuildStage :: () -> ClippingBox*! {
     low: Box*! = MakeLayer("low", 2, 50.0f, 50.0f);
     low->style.positionMode = Position:::Absolute;
     low->style.zIndex = -1;
-    low->style.left = Lengths:::Logical(0.0f);
-    low->style.top = Lengths:::Logical(0.0f);
+    low->style.left = Length:::Logical(0.0f);
+    low->style.top = Length:::Logical(0.0f);
     stage->AddChild(low!);
 
     stage->AddChild(MakeLayer("card", 3, 100.0f, 60.0f));
@@ -334,20 +334,20 @@ BuildStage :: () -> ClippingBox*! {
     overlay: Box*! = MakeLayer("overlay", 4, 40.0f, 40.0f);
     overlay->style.positionMode = Position:::Absolute;
     overlay->style.zIndex = 2;
-    overlay->style.left = Lengths:::Logical(20.0f);
-    overlay->style.top = Lengths:::Logical(20.0f);
+    overlay->style.left = Length:::Logical(20.0f);
+    overlay->style.top = Length:::Logical(20.0f);
     stage->AddChild(overlay!);
 
     popup: Box*! = MakeLayer("popup", 5, 30.0f, 30.0f);
     popup->style.positionMode = Position:::Fixed;
     popup->style.zIndex = 1;
-    popup->style.right = Lengths:::Logical(0.0f);
-    popup->style.bottom = Lengths:::Logical(0.0f);
+    popup->style.right = Length:::Logical(0.0f);
+    popup->style.bottom = Length:::Logical(0.0f);
     stage->AddChild(popup!);
 
     badge: Box*! = MakeLayer("badge", 6, 20.0f, 10.0f);
     badge->style.positionMode = Position:::Relative;
-    badge->style.left = Lengths:::Logical(90.0f);
+    badge->style.left = Length:::Logical(90.0f);
     badge->style.pointerEventsMode = PointerEvents:::None;
     stage->AddChild(badge!);
     return stage!;
@@ -400,8 +400,8 @@ ClickCounter :: struct {
 MakeButton :: (name: string, x: f32) -> Button*! {
     button: Button*! = new Button();
     button->className = name;
-    button->style.width = Lengths:::Logical(80.0f);
-    button->style.height = Lengths:::Logical(24.0f);
+    button->style.width = Length:::Logical(80.0f);
+    button->style.height = Length:::Logical(24.0f);
     button->style.colorBackground = Color { red: 60, green: 60, blue: 70, alpha: 255 };
     button->style.colorBackgroundHovered = Color { red: 160, green: 60, blue: 70, alpha: 255 };
     button->style.colorBackgroundPressed = Color { red: 220, green: 60, blue: 70, alpha: 255 };
@@ -722,10 +722,10 @@ ShowKeyDispatch :: (font: IFontBackend*) -> void {
     root->AddChild(field!);
     overlay: Box*! = MakeBox("modal", LayoutMode:::None);
     overlay->style.positionMode = Position:::Fixed;
-    overlay->style.left = Lengths:::Logical(0.0f);
-    overlay->style.top = Lengths:::Logical(0.0f);
-    overlay->style.right = Lengths:::Logical(0.0f);
-    overlay->style.bottom = Lengths:::Logical(0.0f);
+    overlay->style.left = Length:::Logical(0.0f);
+    overlay->style.top = Length:::Logical(0.0f);
+    overlay->style.right = Length:::Logical(0.0f);
+    overlay->style.bottom = Length:::Logical(0.0f);
     overlay->onKeyPressed = new (key: Key) -> void {
         print("modal key");
         print(KeyLabel(key));
@@ -949,8 +949,8 @@ ShowDropdown :: (font: IFontBackend*) -> void {
     defer delete dropdown;
     visualStyle~ DropdownStyle = DropdownStyle { };
     visualStyle.trigger.padding = Insets:::All(2.0f);
-    visualStyle.trigger.width = Lengths:::Logical(80.0f);
-    visualStyle.trigger.height = Lengths:::Logical(20.0f);
+    visualStyle.trigger.width = Length:::Logical(80.0f);
+    visualStyle.trigger.height = Length:::Logical(20.0f);
     visualStyle.colorText = Color { red: 200, green: 200, blue: 200, alpha: 255 };
     visualStyle.colorTextHighlighted = Color { red: 255, green: 255, blue: 255, alpha: 255 };
     visualStyle.rowHeightLogical = 20.0f;
@@ -1538,13 +1538,13 @@ ShowTransitions :: () -> void {
 
     panel: Box*! = MakeBox("panel", LayoutMode:::None);
     defer delete panel;
-    panel->style.width = Lengths:::Logical(100.0f);
+    panel->style.width = Length:::Logical(100.0f);
     panel->style.colorBackground = Color { red: 100, green: 0, blue: 0, alpha: 255 };
     panel->style.colorBackgroundHovered = Color { red: 200, green: 0, blue: 0, alpha: 255 };
     panel->style.widthTransition = TransitionSpec { durationSeconds: 1.0f };
     panel->style.backgroundColorTransition = TransitionSpec { durationSeconds: 1.0f };
     starting~ BoxStyle = BoxStyle { };
-    starting.width = Lengths:::Logical(20.0f);
+    starting.width = Length:::Logical(20.0f);
     starting.colorBackground = Color { red: 0, green: 0, blue: 0, alpha: 255 };
     panel->startingStyle = starting;
     panel->onHovered = new () -> void { };
@@ -1554,7 +1554,7 @@ ShowTransitions :: () -> void {
         TransitionFrame(panel, renderer, stacking, layout, frame);
         frame = frame + 1;
     }
-    panel->style.width = Lengths:::Logical(60.0f);
+    panel->style.width = Length:::Logical(60.0f);
     print(panel->UpdateInteractionState(PointerAtPoint(5.0f, 5.0f, false, false, false), stacking));
     while frame <= 8 {
         TransitionFrame(panel, renderer, stacking, layout, frame);
@@ -1608,8 +1608,8 @@ ShowViewportUnitsAndMemo :: () -> void {
 
     sized: Box*! = MakeBox("sized", LayoutMode:::None);
     defer delete sized;
-    sized->style.width = Lengths:::ViewportWidth(50.0f);
-    sized->style.height = Lengths:::ViewportHeight(10.0f);
+    sized->style.width = Length:::ViewportWidth(50.0f);
+    sized->style.height = Length:::ViewportHeight(10.0f);
     sizedDesired: Point = sized->Measure(Point { x: 100.0f, y: 100.0f }, layout);
     print(sizedDesired.x);
     print(sizedDesired.y);
@@ -1619,10 +1619,10 @@ ShowViewportUnitsAndMemo :: () -> void {
     host->style.positionMode = Position:::Relative;
     pinned: Box*! = MakeBox("pinned", LayoutMode:::None);
     pinned->style.positionMode = Position:::Absolute;
-    pinned->style.left = Lengths:::ViewportWidth(10.0f);
-    pinned->style.top = Lengths:::ViewportHeight(50.0f);
-    pinned->style.width = Lengths:::Logical(20.0f);
-    pinned->style.height = Lengths:::Logical(20.0f);
+    pinned->style.left = Length:::ViewportWidth(10.0f);
+    pinned->style.top = Length:::ViewportHeight(50.0f);
+    pinned->style.width = Length:::Logical(20.0f);
+    pinned->style.height = Length:::Logical(20.0f);
     host->AddChild(pinned!);
     host->Measure(Point { x: 200.0f, y: 200.0f }, layout);
     host->Arrange(Rect { x: 0.0f, y: 0.0f, width: 200.0f, height: 200.0f }, layout);
@@ -1684,14 +1684,14 @@ ShowLayeredWheel :: () -> void {
     outer->className = "outer";
     outer->crossAlignment = CrossAlign:::Stretch;
     outer->wheelStepLogical = 10.0f;
-    outer->style.height = Lengths:::Logical(60.0f);
+    outer->style.height = Length:::Logical(60.0f);
     outerView: ScrollablePanel~* = outer;
 
     inner: ScrollablePanel*! = new ScrollablePanel();
     inner->className = "inner";
     inner->crossAlignment = CrossAlign:::Stretch;
     inner->wheelStepLogical = 10.0f;
-    inner->style.height = Lengths:::Logical(30.0f);
+    inner->style.height = Length:::Logical(30.0f);
     inner->style.positionMode = Position:::Relative;
     inner->style.zIndex = 1;
     innerView: ScrollablePanel~* = inner;
@@ -1755,8 +1755,8 @@ ShowTransformGroups :: () -> void {
     frame->style.padding = Insets:::All(5.0f);
     pinned: Box*! = MakeSizedBox("pinned", 10.0f, 10.0f);
     pinned->style.positionMode = Position:::Fixed;
-    pinned->style.right = Lengths:::Logical(0.0f);
-    pinned->style.top = Lengths:::Logical(0.0f);
+    pinned->style.right = Length:::Logical(0.0f);
+    pinned->style.top = Length:::Logical(0.0f);
     frame->AddChild(pinned!);
     layout->viewportLogical = Point { x: 640.0f, y: 360.0f };
     frame->Measure(Point { x: 100.0f, y: 100.0f }, layout);
