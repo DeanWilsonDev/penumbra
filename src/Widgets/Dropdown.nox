@@ -363,6 +363,9 @@ private:
         this->state->openWidth = Numbers:::Larger(visualStyle.minimumOpenWidthLogical,
             menuFrame + rowFrame + visualStyle.leadingVisualSizeLogical + visualStyle.leadingVisualGapLogical + this->WidestLabel());
 
+        if this->hasLayer {
+            this->RemoveChildAt(0);
+        }
         menu: DropdownMenu*! = new DropdownMenu(this->state);
         menu->className = "dropdown menu";
         menu->style = visualStyle.menu;
@@ -378,9 +381,6 @@ private:
             index = index + 1;
         }
 
-        if this->hasLayer {
-            this->RemoveChildAt(0);
-        }
         backdrop: DropdownBackdrop*! = new DropdownBackdrop(this->state);
         backdrop->className = "dropdown backdrop";
         backdrop->style.positionMode = Position:::Fixed;

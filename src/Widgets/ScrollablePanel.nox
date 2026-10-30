@@ -1,3 +1,4 @@
+TextSelection :: import TextSelection;
 Point :: import Point;
 Transform :: import Transform;
 Rect :: import Rect;
@@ -183,13 +184,16 @@ public:
 
         content: Rect = this->ContentRectFrom(this->arrangedRect);
         scrollbarTook: bool = this->UpdateScrollbar(handed, content);
-        if active ~= this->selection {
+        taken~ TextSelection*!? = this->selection!;
+        this->selection = null;
+        if active ~= taken {
             selectionRegion~ Rect = content;
             if scrollbarTook {
                 selectionRegion = Rect { };
             }
             active->Update(this, selectionRegion, handed);
         }
+        this->selection = taken!;
         occluded: InputState = handed.Occluded();
         outermostKeys: bool = stacking->keys->Begin(this, handed);
         defer stacking->keys->End(outermostKeys);

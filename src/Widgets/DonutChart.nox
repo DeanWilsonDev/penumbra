@@ -67,7 +67,7 @@ protected:
         for slice in this->slices {
             target.push(Numbers:::Larger(0.0f, slice->value));
         }
-        this->SyncValues(this->values, target, snap, deltaSeconds);
+        SyncValues(this->values, target, snap, deltaSeconds, this->chartVisualStyle.transitionSeconds);
 
         this->centre = Point { x: contentRect.x + contentRect.width * 0.5f, y: contentRect.y + contentRect.height * 0.5f };
         this->outerRadius = Numbers:::Smaller(contentRect.width, contentRect.height) * 0.5f;
