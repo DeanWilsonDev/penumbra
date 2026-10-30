@@ -1,15 +1,7 @@
 CMath :: foreign "m" {
     expf :: (value: f32) -> f32;
-    cosf :: (value: f32) -> f32;
-    sinf :: (value: f32) -> f32;
     lroundf :: (value: f32) -> i64;
-    floorf :: (value: f32) -> f32;
-    ceilf :: (value: f32) -> f32;
     log10f :: (value: f32) -> f32;
-    powf :: (base: f32, exponent: f32) -> f32;
-    fabsf :: (value: f32) -> f32;
-    sqrtf :: (value: f32) -> f32;
-    atan2f :: (y: f32, x: f32) -> f32;
 }
 
 Maths :: namespace {
@@ -19,33 +11,9 @@ Maths :: namespace {
         }
     }
 
-    Cos :: (radians: f32) -> f32 {
-        unsafe {
-            return CMath:::cosf(radians);
-        }
-    }
-
-    Sin :: (radians: f32) -> f32 {
-        unsafe {
-            return CMath:::sinf(radians);
-        }
-    }
-
     RoundToInteger :: (value: f32) -> i64 {
         unsafe {
             return CMath:::lroundf(value);
-        }
-    }
-
-    Floor :: (value: f32) -> f32 {
-        unsafe {
-            return CMath:::floorf(value);
-        }
-    }
-
-    Ceil :: (value: f32) -> f32 {
-        unsafe {
-            return CMath:::ceilf(value);
         }
     }
 
@@ -55,45 +23,7 @@ Maths :: namespace {
         }
     }
 
-    Power :: (base: f32, exponent: f32) -> f32 {
-        unsafe {
-            return CMath:::powf(base, exponent);
-        }
-    }
-
-    Absolute :: (value: f32) -> f32 {
-        unsafe {
-            return CMath:::fabsf(value);
-        }
-    }
-
-    SquareRoot :: (value: f32) -> f32 {
-        unsafe {
-            return CMath:::sqrtf(value);
-        }
-    }
-
-    AngleOf :: (y: f32, x: f32) -> f32 {
-        unsafe {
-            return CMath:::atan2f(y, x);
-        }
-    }
-
     IsFinite :: (value: f32) -> bool {
         return value - value == 0.0f;
-    }
-
-    Clamp :: (value: f32, lowest: f32, highest: f32) -> f32 {
-        if value < lowest {
-            return lowest;
-        }
-        if value > highest {
-            return highest;
-        }
-        return value;
-    }
-
-    RadiansPerDegree :: () -> f32 {
-        return 3.14159265358979323846f / 180.0f;
     }
 }

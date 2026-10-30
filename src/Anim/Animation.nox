@@ -18,7 +18,7 @@ Anim :: namespace {
     }
 
     ChannelFrom :: (value: f32) -> u8 {
-        return u8(Maths:::RoundToInteger(Maths:::Clamp(value, 0.0f, 255.0f)));
+        return u8(Maths:::RoundToInteger(Math:::clamp(value, 0.0f, 255.0f)));
     }
 
     MixChannel :: (from: u8, to: u8, amount: f32) -> u8 {
@@ -27,7 +27,7 @@ Anim :: namespace {
     }
 
     LerpColor :: (from: Color, to: Color, amount: f32) -> Color {
-        clamped: f32 = Maths:::Clamp(amount, 0.0f, 1.0f);
+        clamped: f32 = Math:::clamp(amount, 0.0f, 1.0f);
         return Color {
             red: MixChannel(from.red, to.red, clamped),
             green: MixChannel(from.green, to.green, clamped),
@@ -130,7 +130,7 @@ Tween :: struct {
 
     Progress :: () -> f32 {
         if duration > 0.0f {
-            return Maths:::Clamp(elapsed / duration, 0.0f, 1.0f);
+            return Math:::clamp(elapsed / duration, 0.0f, 1.0f);
         }
         return 1.0f;
     }

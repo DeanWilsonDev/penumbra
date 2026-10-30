@@ -3,7 +3,6 @@ Point :: import Point;
 Transform :: import Transform;
 Rect :: import Rect;
 Numbers :: import Numbers;
-Maths :: import Maths;
 Color :: import Color;
 IRenderer :: import IRenderer;
 RoundedRects :: import RoundedRects;
@@ -103,10 +102,10 @@ public:
         isHorizontal: bool = this->direction == ScrollDirection:::Horizontal;
         if isHorizontal {
             this->scrollOffsetY = 0.0f;
-            this->scrollOffsetX = Maths:::Clamp(this->scrollOffsetX, 0.0f, Numbers:::NonNegative(this->contentWidth - content.width));
+            this->scrollOffsetX = Math:::clamp(this->scrollOffsetX, 0.0f, Numbers:::NonNegative(this->contentWidth - content.width));
         }
         else {
-            this->scrollOffsetY = Maths:::Clamp(this->scrollOffsetY, 0.0f, Numbers:::NonNegative(this->contentHeight - content.height));
+            this->scrollOffsetY = Math:::clamp(this->scrollOffsetY, 0.0f, Numbers:::NonNegative(this->contentHeight - content.height));
         }
 
         layout->EnterScrollport(content);
@@ -239,7 +238,7 @@ public:
             if !childConsumedWheel && this->horizontalWheelStepLogical != 0.0f && pointerInput.mouseWheelDeltaX != 0.0f {
                 maxScrollX: f32 = Numbers:::NonNegative(this->contentWidth - content.width);
                 if maxScrollX > 0.0f {
-                    this->scrollOffsetX = Maths:::Clamp(this->scrollOffsetX - pointerInput.mouseWheelDeltaX * this->horizontalWheelStepLogical, 0.0f, maxScrollX);
+                    this->scrollOffsetX = Math:::clamp(this->scrollOffsetX - pointerInput.mouseWheelDeltaX * this->horizontalWheelStepLogical, 0.0f, maxScrollX);
                     consumed = true;
                     this->wheelHandledThisFrame = true;
                 }
@@ -248,7 +247,7 @@ public:
         else if !childConsumedWheel && this->wheelStepLogical != 0.0f && pointerInput.mouseWheelDelta != 0.0f {
             maxScroll: f32 = Numbers:::NonNegative(this->contentHeight - content.height);
             if maxScroll > 0.0f {
-                this->scrollOffsetY = Maths:::Clamp(this->scrollOffsetY - pointerInput.mouseWheelDelta * this->wheelStepLogical, 0.0f, maxScroll);
+                this->scrollOffsetY = Math:::clamp(this->scrollOffsetY - pointerInput.mouseWheelDelta * this->wheelStepLogical, 0.0f, maxScroll);
                 consumed = true;
                 this->wheelHandledThisFrame = true;
             }
@@ -393,7 +392,7 @@ private:
             this->draggingThumb = false;
         }
         if this->draggingThumb && layout.travel > 0.0f {
-            along: f32 = Maths:::Clamp(pointer - trackStart - this->thumbGrabOffset, 0.0f, layout.travel);
+            along: f32 = Math:::clamp(pointer - trackStart - this->thumbGrabOffset, 0.0f, layout.travel);
             offset: f32 = along / layout.travel * layout.maxScroll;
             if isHorizontal {
                 this->scrollOffsetX = offset;

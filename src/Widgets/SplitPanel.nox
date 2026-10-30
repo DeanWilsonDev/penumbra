@@ -1,7 +1,6 @@
 Point :: import Point;
 Rect :: import Rect;
 Numbers :: import Numbers;
-Maths :: import Maths;
 Color :: import Color;
 IRenderer :: import IRenderer;
 EdgeInsets :: import EdgeInsets;
@@ -108,14 +107,14 @@ public:
         minRatio~ f32 = 0.0f;
         maxRatio~ f32 = 1.0f;
         if available > 0.0f {
-            minRatio = Maths:::Clamp(this->minPaneSizeLogical / available, 0.0f, 1.0f);
-            maxRatio = Maths:::Clamp(1.0f - this->minPaneSizeLogical / available, 0.0f, 1.0f);
+            minRatio = Math:::clamp(this->minPaneSizeLogical / available, 0.0f, 1.0f);
+            maxRatio = Math:::clamp(1.0f - this->minPaneSizeLogical / available, 0.0f, 1.0f);
         }
         if minRatio > maxRatio {
             minRatio = 0.5f;
             maxRatio = 0.5f;
         }
-        this->splitRatio = Maths:::Clamp(this->splitRatio, minRatio, maxRatio);
+        this->splitRatio = Math:::clamp(this->splitRatio, minRatio, maxRatio);
         firstMain: f32 = available * this->splitRatio;
         secondMain: f32 = available - firstMain;
 
@@ -182,7 +181,7 @@ public:
         if this->dragging && down {
             delta: f32 = pointerMain - this->lastPointerMain;
             if delta != 0.0f && mainExtent > 0.0f {
-                this->splitRatio = Maths:::Clamp(this->splitRatio + delta / mainExtent, 0.0f, 1.0f);
+                this->splitRatio = Math:::clamp(this->splitRatio + delta / mainExtent, 0.0f, 1.0f);
                 this->lastPointerMain = pointerMain;
             }
         }

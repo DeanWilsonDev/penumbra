@@ -1,7 +1,6 @@
 Point :: import Point;
 Rect :: import Rect;
 Numbers :: import Numbers;
-Maths :: import Maths;
 Color :: import Color;
 IRenderer :: import IRenderer;
 TweenedValues :: import TweenedValues;
@@ -150,11 +149,11 @@ protected:
     HitTest :: (mouseLogical: Point) -> i32 override {
         offsetX: f32 = mouseLogical.x - this->centre.x;
         offsetY: f32 = mouseLogical.y - this->centre.y;
-        distance: f32 = Maths:::SquareRoot(offsetX * offsetX + offsetY * offsetY);
+        distance: f32 = Math:::sqrt(offsetX * offsetX + offsetY * offsetY);
         if distance > this->outerRadius || distance < this->innerRadius {
             return -1;
         }
-        angle~ f32 = Maths:::AngleOf(offsetY, offsetX) * 180.0f / 3.14159265358979323846f + 90.0f;
+        angle~ f32 = Math:::atan2(offsetY, offsetX) * 180.0f / 3.14159265358979323846f + 90.0f;
         if angle < 0.0f {
             angle = angle + 360.0f;
         }

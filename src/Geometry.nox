@@ -1,4 +1,3 @@
-Maths :: import Maths;
 
 Point :: struct {
     x~ f32 = 0.0f;
@@ -69,9 +68,9 @@ Transforms :: namespace {
     InversePoint :: (screenPoint: Point, pivot: Point, transform: Transform) -> Point {
         offsetX: f32 = screenPoint.x - pivot.x - transform.translateXLogical;
         offsetY: f32 = screenPoint.y - pivot.y - transform.translateYLogical;
-        radians: f32 = -transform.rotationDegrees * Maths:::RadiansPerDegree();
-        cosine: f32 = Maths:::Cos(radians);
-        sine: f32 = Maths:::Sin(radians);
+        radians: f32 = -transform.rotationDegrees * Math:::DEG_TO_RAD;
+        cosine: f32 = Math:::cos(radians);
+        sine: f32 = Math:::sin(radians);
         rotatedX: f32 = offsetX * cosine - offsetY * sine;
         rotatedY: f32 = offsetX * sine + offsetY * cosine;
         scaleX~ f32 = transform.scaleX;

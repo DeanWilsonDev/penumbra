@@ -175,21 +175,8 @@ InputState :: struct {
     }
 
     Occluded :: () -> InputState {
-        occluded~ InputState = InputState {
-            mousePosition: mousePosition,
-            mouseButtonDown: mouseButtonDown,
-            mouseButtonPressedThisFrame: mouseButtonPressedThisFrame,
-            mouseButtonReleasedThisFrame: mouseButtonReleasedThisFrame,
-            mouseWheelDelta: mouseWheelDelta,
-            mouseWheelDeltaX: mouseWheelDeltaX,
-            modifierState: modifierState,
-            deltaTimeSeconds: deltaTimeSeconds,
-            pointerOccluded: true,
-            pointerPassThrough: pointerPassThrough,
-            textInputThisFrame: textInputThisFrame,
-            keysPressedThisFrame: keysPressedThisFrame,
-            keyEvents: keyEvents
-        };
+        occluded~ InputState = this;
+        occluded.pointerOccluded = true;
         return occluded;
     }
 }

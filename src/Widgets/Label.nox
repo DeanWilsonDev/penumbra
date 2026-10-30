@@ -2,7 +2,6 @@ LayoutContext :: import LayoutContext;
 Point :: import Point;
 Rect :: import Rect;
 Numbers :: import Numbers;
-Maths :: import Maths;
 Color :: import Color;
 IRenderer :: import IRenderer;
 IFontBackend :: import IFontBackend;
@@ -57,14 +56,14 @@ public:
         line: TextLine = lines[lineIndex];
         localX: f32 = pointLogical.x - content.x;
         best~ usize = line.contentStart;
-        bestDistance~ f32 = Maths:::Absolute(localX);
+        bestDistance~ f32 = Math:::abs(localX);
         index~ usize = line.contentStart;
         while index < line.contentEnd {
             index = Utf8:::NextCodePoint(this->text, index);
             if index > line.contentEnd {
                 index = line.contentEnd;
             }
-            distance: f32 = Maths:::Absolute(localX - this->WidthOf(line.contentStart, index));
+            distance: f32 = Math:::abs(localX - this->WidthOf(line.contentStart, index));
             if distance < bestDistance {
                 bestDistance = distance;
                 best = index;

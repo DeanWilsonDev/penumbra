@@ -176,12 +176,13 @@ The Nox board's Penumbra card tracks this list:
   runs. `main` can take `arguments: Array<string>` now, and the gallery takes a font path first.
 - **Lists of borrowed widgets.** Stacking contexts keep the widgets they paint, so the prototype
   gained arrays of borrows (`Array<WidgetBase~*>!`) and arrays of structs that hold borrows. An
-  entry's ancestors live in one pool array on the context, indexed by start and count, because a
-  struct element can't own an array.
-- **No dereference copy.** `UpdateInteractionState` takes `InputState` by value, and
-  `InputState.Occluded()` rebuilds the copy field by field.
-- **No maths library.** Penumbra declares its own libm foreign block; every call sits in an
-  `unsafe` block inside a small safe function.
+  entry's ancestors live in one pool array on the context, indexed by start and count, because an
+  array element can't hold borrows and own an array at once.
+- **No dereference copy** at first, so `InputState.Occluded()` rebuilt its copy field by field. It
+  copies the receiver now.
+- **No maths library** at first, so Penumbra declared its own libm foreign block, with every call
+  in an `unsafe` block inside a small safe function. It uses Nox's `Math` namespace now, and
+  `Maths` keeps only what `Math` lacks: `Exp`, `Log10`, `RoundToInteger` and `IsFinite`.
 - **Prototype features added for this port:** foreign C calls inside `unsafe` blocks, interfaces, arrays of owners
   (`Array<WidgetBase*!>!` with `freeAll()`), struct constructions and fixed array literals as
   field defaults, optional owned callables, arrays of borrows and arrays of structs holding borrows,

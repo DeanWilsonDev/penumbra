@@ -67,7 +67,7 @@ ChartTicks :: namespace {
         if !(rawStep > 0.0f) || !Maths:::IsFinite(rawStep) {
             return 1.0f;
         }
-        magnitude: f32 = Maths:::Power(10.0f, Maths:::Floor(Maths:::Log10(rawStep)));
+        magnitude: f32 = Math:::pow(10.0f, Math:::floor(Maths:::Log10(rawStep)));
         fraction: f32 = rawStep / magnitude;
         nice~ f32 = 10.0f;
         if fraction <= 1.0f + Tolerance() {
@@ -83,7 +83,7 @@ ChartTicks :: namespace {
     }
 
     FirstTick :: (low: f32, step: f32) -> f32 {
-        return Maths:::Ceil(low / step - Tolerance());
+        return Math:::ceil(low / step - Tolerance());
     }
 
     TickCount :: (low: f32, high: f32, step: f32) -> i32 {
@@ -330,7 +330,7 @@ protected:
     }
 
     BaselineValue :: () -> f32 {
-        return Maths:::Clamp(0.0f, this->rangeLow, this->rangeHigh);
+        return Math:::clamp(0.0f, this->rangeLow, this->rangeHigh);
     }
 
     ValuePosition :: (value: f32) -> f32 {
@@ -528,7 +528,7 @@ protected:
         }
         every~ usize = 1;
         if spacing > 0.0f {
-            every = usize(Numbers:::Larger(1.0f, Maths:::Ceil(footprint / spacing - ChartTicks:::Tolerance())));
+            every = usize(Numbers:::Larger(1.0f, Math:::ceil(footprint / spacing - ChartTicks:::Tolerance())));
         }
         index~ usize = 0;
         while index < this->labels.length() {
@@ -550,7 +550,7 @@ private:
 
     FormatTick :: (value: f32) -> string! {
         shown~ f32 = value;
-        if Maths:::Absolute(shown) < this->tickStep * ChartTicks:::Tolerance() {
+        if Math:::abs(shown) < this->tickStep * ChartTicks:::Tolerance() {
             shown = 0.0f;
         }
         if format := this->formatValue {
@@ -558,7 +558,7 @@ private:
         }
         decimals~ i32 = 0;
         if this->tickStep < 1.0f && this->tickStep > 0.0f {
-            decimals = i32(Maths:::Ceil(-Maths:::Log10(this->tickStep) - ChartTicks:::Tolerance()));
+            decimals = i32(Math:::ceil(-Maths:::Log10(this->tickStep) - ChartTicks:::Tolerance()));
         }
         return ChartTicks:::Fixed(shown, decimals);
     }
@@ -580,7 +580,7 @@ private:
         minimumSpacing: f32 = this->chartVisualStyle.tickSpacingLogical;
         gap: f32 = this->chartVisualStyle.labelGapLogical;
         labelled: bool = this->valueAxisHorizontal && this->LineHeight() > 0.0f;
-        maximumIntervals: f32 = Numbers:::Larger(1.0f, Maths:::Floor(plotLength / minimumSpacing));
+        maximumIntervals: f32 = Numbers:::Larger(1.0f, Math:::floor(plotLength / minimumSpacing));
         step~ f32 = ChartTicks:::NiceStepAtLeast((extent.high - extent.low) / maximumIntervals);
         attempt~ i32 = 0;
         planned~ ValueExtent = extent;
@@ -588,11 +588,11 @@ private:
             this->tickStep = step;
             niceLow~ f32 = extent.low;
             if this->minValue == null {
-                niceLow = Maths:::Floor(extent.low / step + ChartTicks:::Tolerance()) * step;
+                niceLow = Math:::floor(extent.low / step + ChartTicks:::Tolerance()) * step;
             }
             niceHigh~ f32 = extent.high;
             if this->maxValue == null {
-                niceHigh = Maths:::Ceil(extent.high / step - ChartTicks:::Tolerance()) * step;
+                niceHigh = Math:::ceil(extent.high / step - ChartTicks:::Tolerance()) * step;
             }
             planned = ValueExtent { low: niceLow, high: niceHigh };
             intervals: f32 = (niceHigh - niceLow) / step;
